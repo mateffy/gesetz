@@ -1,0 +1,25 @@
+{
+  "name": "@regeln/eslint",
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@regeln/core": "workspace:*",
+    "effect": "^3.15.0"
+  },
+  "peerDependencies": {
+    "eslint": ">=8.0.0"
+  },
+  "peerDependenciesMeta": {
+    "eslint": { "optional": true }
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.8.0"
+  }
+}

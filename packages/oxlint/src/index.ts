@@ -1,0 +1,1 @@
+export { oxlint } from './adapter';

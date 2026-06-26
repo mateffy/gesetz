@@ -1,0 +1,21 @@
+{
+  "name": "@regeln/immoui",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@regeln/core": "workspace:*",
+    "@regeln/typescript": "workspace:*",
+    "effect": "^3.15.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.8.0",
+    "vitest": "^4.0.0"
+  }
+}

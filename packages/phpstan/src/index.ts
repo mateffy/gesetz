@@ -1,0 +1,1 @@
+export { phpstan } from './adapter';

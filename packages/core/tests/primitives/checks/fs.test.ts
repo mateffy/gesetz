@@ -1,0 +1,112 @@
+import { describe, it, expect } from 'vitest';
+import * as nodePath from 'node:path';
+import { Effect, Layer } from 'effect';
+import { requireSibling, forbidFile, relativeImports } from '../../../src/primitives/checks/fs';
+import { MemoryFileSystem } from '../../../src/services/fs';
+import { TsAdapterStub } from '../../../src/services/ts-adapter';
+import type { File } from '../../../src/engine/rule';
+
+const CWD = process.cwd();
+
+function makeFile(path: string, content = ''): File {
+  const absolutePath = nodePath.resolve(CWD, path);
+  const name = nodePath.basename(path);
+  const ext = nodePath.extname(name);
+  return {
+    path,
+    absolutePath,
+    name,
+    stem: name.slice(0, name.length - ext.length),
+    ext,
+    dir: nodePath.dirname(path),
+    content,
+    size: content.length,
+    mtimeMs: 0,
+  };
+}
+
+// Helper: runs a Check against the given in-memory files
+const runCheck = (files: Record<string, string>) =>
+  (effect: Effect.Effect<unknown, unknown, any>): Promise<any> => {
+    const layer = Layer.mergeAll(MemoryFileSystem(files), TsAdapterStub);
+    return Effect.provide(effect, layer).pipe(Effect.runPromise as any);
+  };
+
+describe('requireSibling', () => {
+  it('passes when sibling exists', async () => {
+    const file = makeFile('src/Button.tsx');
+    const siblingAbsPath = nodePath.resolve(CWD, 'src/Button.stories.tsx');
+    const run = runCheck({ [siblingAbsPath]: '' });
+    const violations = await run(requireSibling('.stories.tsx')(file));
+    expect(violations).toHaveLength(0);
+  });
+
+  it('fails when sibling is missing', async () => {
+    const file = makeFile('src/Button.tsx');
+    const run = runCheck({});
+    const violations = await run(requireSibling('.stories.tsx')(file));
+    expect(violations).toHaveLength(1);
+    expect(violations[0]?.message).toContain('Button.stories.tsx');
+  });
+
+  it('uses custom message when provided', async () => {
+    const file = makeFile('src/Button.tsx');
+    const run = runCheck({});
+    const violations = await run(requireSibling('.test.tsx', { message: 'Custom error message' })(file));
+    expect(violations[0]?.message).toBe('Custom error message');
+  });
+});
+
+describe('forbidFile', () => {
+  it('always returns a violation for the matched file', async () => {
+    const file = makeFile('src/legacy/old.ts');
+    const run = runCheck({});
+    const violations = await run(forbidFile()(file));
+    expect(violations).toHaveLength(1);
+    expect(violations[0]?.path).toBe('src/legacy/old.ts');
+  });
+
+  it('uses custom message', async () => {
+    const file = makeFile('src/foo.ts');
+    const run = runCheck({});
+    const violations = await run(forbidFile({ message: 'Do not use this file' })(file));
+    expect(violations[0]?.message).toBe('Do not use this file');
+  });
+});
+
+describe('relativeImports', () => {
+  it('passes when all relative imports resolve', async () => {
+    const file = makeFile(
+      'src/foo.ts',
+      `import { x } from './bar';\nimport { y } from './baz/index';`,
+    );
+    const barAbs = nodePath.resolve(CWD, 'src/bar.ts');
+    const bazAbs = nodePath.resolve(CWD, 'src/baz/index.ts');
+    const run = runCheck({ [barAbs]: '', [bazAbs]: '' });
+    const violations = await run(relativeImports()(file));
+    expect(violations).toHaveLength(0);
+  });
+
+  it('fails when a relative import does not resolve', async () => {
+    const file = makeFile('src/foo.ts', `import { x } from './missing';`);
+    const run = runCheck({});
+    const violations = await run(relativeImports()(file));
+    expect(violations).toHaveLength(1);
+    expect(violations[0]?.message).toContain('./missing');
+  });
+
+  it('ignores non-relative imports', async () => {
+    const file = makeFile('src/foo.ts', `import React from 'react';\nimport { z } from 'zod';`);
+    const run = runCheck({});
+    const violations = await run(relativeImports()(file));
+    expect(violations).toHaveLength(0);
+  });
+
+  it('resolves .tsx extensions', async () => {
+    const file = makeFile('src/foo.ts', `import { Comp } from './Comp';`);
+    const compAbs = nodePath.resolve(CWD, 'src/Comp.tsx');
+    const run = runCheck({ [compAbs]: '' });
+    const violations = await run(relativeImports()(file));
+    expect(violations).toHaveLength(0);
+  });
+});

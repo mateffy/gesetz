@@ -1,0 +1,29 @@
+{
+  "name": "@regeln/cli",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": {
+    "regel": "./dist/main.js"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "bun build src/main.ts --outdir dist --target node --format esm --sourcemap --external dependency-cruiser --external eslint --external ts-morph --external tree-sitter --external tree-sitter-php --external @regeln/core --external @regeln/typescript --external @regeln/php --external @regeln/oxlint --external @regeln/oxfmt --external @regeln/vitest --external @regeln/bun-test --external @regeln/pest --external @regeln/prettier --external @regeln/junit --external @regeln/effect-ts --external @regeln/eslint --external @regeln/phpstan --external @regeln/storybook --external @regeln/phpunit --external effect",
+    "dev": "bun run src/main.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@effect/cli": "^0.55.0",
+    "@effect/platform": "^0.80.0",
+    "@effect/platform-node": "^0.73.0",
+    "@regeln/core": "workspace:*",
+    "@regeln/typescript": "workspace:*",
+    "@regeln/php": "workspace:*",
+    "effect": "^3.15.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.8.0"
+  }
+}
