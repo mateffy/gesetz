@@ -1,8 +1,15 @@
-# Gesetz
 
-> **Gesetz** (German for "laws") — a unified code-quality gate that lets you write your own project rules as easily as writing a config file.
+<div>
+  <img src="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚖️</text></svg>" align="left" width="150">
+</div>
 
-## Why Gesetz exists
+# `gesetz`
+
+**Gesetz** [*ɡəˈzɛts, German for "law"*] is a unified quality assurance gate that lets you write your own code-quality and architecture rules as easily as writing a config file in a language-agnostic way.
+
+<br>
+
+## Why Gesetz?
 
 Every codebase has conventions that no generic linter knows about:
 
