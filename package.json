@@ -21,6 +21,10 @@
   "scripts": {
     "test": "bun run --filter='*' test",
     "typecheck": "bun run --filter='*' typecheck",
-    "build": "bun run --filter='@gesetz/cli' build"
+    "build": "bun run --filter='@gesetz/cli' build",
+    "version:patch": "bun run scripts/bump-version.ts patch",
+    "version:minor": "bun run scripts/bump-version.ts minor",
+    "version:major": "bun run scripts/bump-version.ts major",
+    "publish": "bun run scripts/publish-all.ts"
   }
 }
