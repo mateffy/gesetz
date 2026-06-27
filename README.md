@@ -426,102 +426,243 @@ export default defineConfig({
 
 ## Core primitives
 
-These checks live in `@gesetz/core` and work on **any file type** using text analysis or the file system. They are the tech-stack independent backbone of Gesetz.
+These checks live in `@gesetz/core` and work on **any file type** using text analysis or the file system. No AST, no type-checker, no language-specific parser. This is what makes them fast and universal.
 
 ### File-system checks
 
+#### `requireSibling(suffix, opts?)`
+
+Checks that a sibling file with the given suffix exists next to every matched file. Uses the file system to verify presence.
+
+- **`suffix`** — appended to the matched file's stem. `Foo.tsx` + `.test.ts` → looks for `Foo.test.ts`.
+- **`opts.message`** — custom violation message. Default: `"Missing sibling file: Foo.test.ts"`.
+- **`opts.severity`** — `"error"` | `"warn"` | `"info"`. Default: `"error"`.
+
 ```ts
-import { requireSibling, requireChildren, forbidFile, relativeImports } from 'gesetz';
-
-// Every .tsx needs a .stories.tsx next to it
-requireSibling('.stories.tsx')
-
-// Every directory with an index.ts must also have types.ts
-requireChildren(['types.ts', 'interface.ts'])
-
-// Ban a file pattern entirely
-forbidFile()
-
-// Ensure relative imports resolve to real files
-relativeImports()
+requireSibling('.test.ts')
+requireSibling('.stories.tsx', { message: 'Components need a story file' })
 ```
+
+#### `requireChildren(requiredPaths, opts?)`
+
+Checks that the directory containing each matched file also contains every file in the list. Good for enforcing directory conventions.
+
+- **`requiredPaths`** — array of filenames that must exist in the same directory.
+- **`opts.message(missing)` — callback receiving the missing filename. Default: `"Missing required file: types.ts"`.
+
+```ts
+requireChildren(['types.ts', 'interface.ts'])
+requireChildren(['README.md'], { message: (m) => `Package missing ${m}` })
+```
+
+#### `forbidFile(opts?)`
+
+Marks every matched file as a violation. Use with `select(...)` targeting files that should not exist.
+
+- **`opts.message`** — custom message. Default: `"File should not exist: src/legacy/old.ts"`.
+- **`opts.severity`** — default: `"error"`.
+
+```ts
+select('src/legacy/**/*').check(forbidFile({
+  message: 'Legacy files are being phased out',
+}))
+```
+
+#### `relativeImports(opts?)`
+
+Checks that every relative `import … from './foo'` in the file resolves to an existing file. Recognizes `.ts`, `.tsx`, `/index.ts`, and `/index.tsx` resolution.
+
+- **`opts.message(imp)`** — callback receiving the unresolved import path. Default: `"Relative import './foo' does not resolve to an existing file"`.
+
+```ts
+relativeImports()
+relativeImports({ message: (imp) => `Broken import: ${imp}` })
+```
+
+---
 
 ### Import checks
 
+#### `noImportFrom(module, opts?)`
+
+Checks that the file does not import from a given module. Matches static imports, dynamic imports, and `require()`.
+
+- **`module`** — string (exact match or prefix match with `/`) or `RegExp`.
+- **`opts.message`** — custom message. Default: `"Forbidden import from 'foo'"`.
+- **`opts.severity`** — default: `"error"`.
+
 ```ts
-import { noImportFrom, requireImportFrom } from 'gesetz';
-
-// Components must not use @tanstack/react-query directly
-noImportFrom('@tanstack/react-query', {
-  message: 'Use SDK hooks instead',
-})
-
-// All test files must import vitest
-requireImportFrom('vitest')
+noImportFrom('lodash')
+noImportFrom('@tanstack/react-query', { message: 'Use SDK hooks instead' })
+noImportFrom(/^~\/legacy\//, { severity: 'warn' })
 ```
+
+#### `requireImportFrom(module, opts?)`
+
+Opposite of `noImportFrom` — checks that the file imports from the given module at least once.
+
+- **`module`** — string or `RegExp`. Same matching rules as `noImportFrom`.
+- **`opts.message`** — custom message. Default: `"Missing required import from 'foo'"`.
+- **`opts.severity`** — default: `"error"`.
+
+```ts
+requireImportFrom('vitest')
+requireImportFrom(/^~\/lib\/utils/, { message: 'Utils must be imported from lib/utils' })
+```
+
+---
 
 ### Pattern checks
 
+#### `noPattern(regex, opts?)`
+
+Checks that the file does not contain a regex match.
+
+- **`regex`** — the forbidden pattern.
+- **`opts.fullFile`** — when `true`, matches against the entire file as one string. When `false` (default), matches line-by-line and reports the line number.
+- **`opts.message`** — custom message. Default: `"Forbidden pattern: <regex source>"`.
+- **`opts.severity`** — default: `"error"`.
+
 ```ts
-import { noPattern, requirePattern } from 'gesetz';
-
-// No legacy helper calls
-noPattern(/legacy_helper\(/, {
-  message: 'Use the new helper() instead',
-})
-
-// All PHP files must declare strict types
-requirePattern(/declare\(strict_types=1\)/, {
-  message: 'Missing declare(strict_types=1)',
-})
+noPattern(/debugger;/)
+noPattern(/legacy_helper\(/, { message: 'Use the new helper() instead' })
+noPattern(/TODO\(urgent\)/, { fullFile: true, severity: 'warn' })
 ```
+
+#### `requirePattern(regex, opts?)`
+
+Opposite of `noPattern` — checks that the file contains the pattern at least once.
+
+- **`regex`** — the required pattern.
+- **`opts.message`** — custom message. Default: `"File must match pattern: <regex source>"`.
+- **`opts.severity`** — default: `"error"`.
+
+```ts
+requirePattern(/declare\(strict_types=1\)/)
+requirePattern(/use strict;/, { message: 'Missing use strict directive' })
+```
+
+---
 
 ### Structure checks
 
+All structure checks use simple text analysis (regex + line splitting). They work on any language.
+
+#### `noGodFile(opts?)`
+
+Flags files that exceed a line-count threshold.
+
+- **`opts.maxLines`** — default: `400`.
+- **`opts.message`** — custom message. Default: `"File has 523 lines (max: 400). Split into smaller modules."`.
+- Severity is always `"warn"`.
+
 ```ts
-import {
-  noGodFile,
-  noDeepNesting,
-  noConsoleLog,
-  noEmptyCatch,
-  noMagicNumbers,
-  noTrivialComment,
-  noDebuggingResidueFiles,
-  noHardcodedSecret,
-} from 'gesetz';
-
-// Flag files over 300 lines
+noGodFile()
 noGodFile({ maxLines: 300 })
+```
 
-// Flag indentation beyond 4 levels
-noDeepNesting({ maxLevels: 4 })
+#### `noDeepNesting(opts?)`
 
-// Ban console.log (allow warn/error)
+Flags lines whose indentation exceeds a threshold, using a heuristic for brace/control-flow nesting. Counts leading spaces (2-space indent) or tabs.
+
+- **`opts.maxLevels`** — default: `4`.
+- **`opts.message`** — custom message. Default: `"Nesting level 6 exceeds maximum (4)"`.
+- Severity is always `"warn"`. Capped at 10 violations per file to avoid noise.
+
+```ts
+noDeepNesting()
+noDeepNesting({ maxLevels: 3 })
+```
+
+#### `noConsoleLog(opts?)`
+
+Bans `console.log` and friends in production files. Line-by-line regex scan.
+
+- **`opts.allowWarnError`** — when `true`, only bans `console.log`, `console.debug`, and `console.info`. `console.warn` and `console.error` are allowed. Default: `false` (ban everything).
+- **`opts.message`** — custom message. Default: `"Remove console logging from production code"`.
+- Severity is always `"warn"`.
+
+```ts
+noConsoleLog()
 noConsoleLog({ allowWarnError: true })
+```
 
-// Flag empty catch blocks
+#### `noEmptyCatch(opts?)`
+
+Flags empty or comment-only catch blocks that swallow errors. Checks the 3 lines after `catch {` for real content.
+
+- **`opts.message`** — custom message. Default: `"Empty catch block swallows errors"`.
+- Severity is always `"error"`.
+
+```ts
 noEmptyCatch()
+```
 
-// Flag unexplained numeric literals
-noMagicNumbers({ ignore: [0, 1, -1, 2] })
+#### `noMagicNumbers(opts?)`
 
-// Flag AI narration comments
+Flags unexplained numeric literals in non-constant positions. Skips lines that declare `const UPPER_SNAKE = N` and skips comment lines.
+
+- **`opts.ignore`** — array of numbers that are always allowed. Default: `[0, 1, -1, 2, 100]`.
+- **`opts.message`** — custom message. Default: `"Magic number 42. Extract to a named constant"`.
+- Severity is always `"warn"`. Capped at 20 violations per file.
+
+```ts
+noMagicNumbers()
+noMagicNumbers({ ignore: [0, 1, 2, 10, 100, 1000] })
+```
+
+#### `noTrivialComment(opts?)`
+
+Flags AI-generated narration comments (`// Import React`, `// Define the component`) and decorative dividers (`// ======`).
+
+- **`opts.message`** — custom message. Default: `"Trivial or narrative comment"`.
+- Severity is always `"info"`.
+
+```ts
 noTrivialComment()
+```
 
-// Flag debug artefact filenames
+#### `noDebuggingResidueFiles(opts?)`
+
+Flags files whose names look like debugging artefacts: `*_v2.ts`, `*_backup.ts`, `*_fixed.ts`, `*_copy.ts`, `*_old.ts`, `*_new.ts`, `*_temp.ts`, `*_wip.ts`, `*_draft.ts`, `*delete_me*`.
+
+- **`opts.extraPatterns`** — additional `RegExp[]` to apply after built-in patterns.
+- **`opts.message`** — custom message. Default: `"File name looks like a debugging artefact"`.
+- Severity is always `"error"`.
+
+```ts
 noDebuggingResidueFiles()
+noDebuggingResidueFiles({ extraPatterns: [/\_draft\./i] })
+```
 
-// Detect hardcoded API keys / tokens
+#### `noHardcodedSecret(opts?)`
+
+Detects common hardcoded secret patterns: `api_key = "…"`, `token: "…"`, `password = "…"`, `bearer "…"`, etc. Uses a regex heuristic — not a replacement for proper secret scanning (GitLeaks, TruffleHog).
+
+- **`opts.message`** — custom message. Default: `"Possible hardcoded secret detected"`.
+- Severity is always `"error"`.
+
+```ts
 noHardcodedSecret()
 ```
 
+---
+
 ### Dependency graph
 
-```ts
-import { noCycles } from 'gesetz';
+#### `noCycles(pattern, opts?)`
 
-// Detect circular imports using dependency-cruiser
-noCycles('src/**/*.{ts,tsx}', { label: 'No circular dependencies' })
+Detects circular dependencies using `dependency-cruiser` (optional peer dependency). If `dependency-cruiser` is not installed, the rule logs a warning and produces no violations — it does not break the build.
+
+- **`pattern`** — glob or array of globs to analyse. Passed to dependency-cruiser.
+- **`opts.label`** — human description. Default: `"No circular dependencies"`.
+- **`opts.id`** — rule ID override. Default: `"no-cycles"`.
+- **`opts.cwd`** — working directory. Default: `process.cwd()`.
+- **`opts.tsConfigPath`** — path to `tsconfig.json` for TypeScript resolution.
+
+```ts
+noCycles('src/**/*.{ts,tsx}')
+noCycles(['src/**/*.ts', 'apps/**/*.ts'], { tsConfigPath: 'tsconfig.json' })
 ```
 
 ---
@@ -530,124 +671,295 @@ noCycles('src/**/*.{ts,tsx}', { label: 'No circular dependencies' })
 
 Install: `bun add -d @gesetz/typescript`
 
-These use ts-morph for precise AST analysis. Only install this if you need AST-level TypeScript rules — for general linting, use the ESLint or oxlint adapters.
+These use ts-morph for precise AST analysis. They parse each file into a real TypeScript AST, so they can reason about exports, function calls, JSX elements, and object shapes. Only install this if you need AST-level TypeScript rules — for general linting, use the ESLint or oxlint adapters.
 
 ### Export discipline
 
-```ts
-import { requireExportPairs, requireExportFactories } from '@gesetz/typescript';
+#### `requireExportPairs(getCounterpart, opts?)`
 
+Scans every exported identifier in the file. For each export whose name passes your `getCounterpart` callback, checks that the returned counterpart name is also exported from the same file. Return `null` to skip an export.
+
+- **`getCounterpart(name)`** — callback receiving each export name. Return the expected counterpart name, or `null` to skip.
+- **`opts.tsConfigPath`** — path to `tsconfig.json` for ts-morph project context.
+- **`opts.message(name, counterpart)`** — custom message callback.
+
+```ts
 // Every useX hook must have a useSuspenseX counterpart
 requireExportPairs(name =>
-  name.startsWith('use') ? `useSuspense${name.slice(3)}` : null
+  name.startsWith('use') && !name.startsWith('useSuspense')
+    ? `useSuspense${name.slice(3)}`
+    : null
 )
 
+// Every action type must have a matching reducer
+requireExportPairs(
+  name => name.endsWith('Action') ? `${name.slice(0, -6)}Reducer` : null,
+  { message: (a, b) => `Action ${a} needs matching reducer ${b}` }
+)
+```
+
+#### `requireExportFactories(opts)`
+
+Checks that the file exports at least `minCount` identifiers whose names match the given pattern.
+
+- **`opts.pattern`** — `RegExp` that export names must match.
+- **`opts.minCount`** — minimum number of matching exports. Default: `1`.
+- **`opts.tsConfigPath`** — path to `tsconfig.json`.
+- **`opts.message`** — custom message. Default: `"Expected at least 1 export(s) matching /Keys$/, found 0"`.
+
+```ts
 // At least one export named *Keys must exist
 requireExportFactories({ pattern: /Keys$/, minCount: 1 })
 ```
 
+---
+
 ### Call-shape validation
 
-```ts
-import { requireCallShape } from '@gesetz/typescript';
+#### `requireCallShape(fnName, requiredKeys, opts?)`
 
+Finds every call to `fnName()` in the file and checks that the first object-literal argument contains all `requiredKeys`.
+
+- **`fnName`** — the function name to look for.
+- **`requiredKeys`** — array of property names that must be present in the object argument.
+- **`opts.tsConfigPath`** — path to `tsconfig.json`.
+- **`opts.message(missing)`** — callback receiving the array of missing keys.
+
+```ts
 // Every createUser() call must pass { name, email }
 requireCallShape('createUser', ['name', 'email'])
+
+// Every mutation must implement the full lifecycle
+requireCallShape('useMutation', ['onMutate', 'onError', 'onSettled'])
 ```
+
+---
 
 ### Function-call bans
 
-```ts
-import { noFunctionCalls } from '@gesetz/typescript';
+#### `noFunctionCalls(callNames, opts?)`
 
+Checks that none of the listed function names are called in the file. Uses the ts-morph AST, so it catches direct calls (`useQuery(...)`) but not property-access calls (`obj.useQuery(...)`).
+
+- **`callNames`** — array of function names to ban.
+- **`opts.tsConfigPath`** — path to `tsconfig.json`.
+- **`opts.message(name)`** — callback receiving the matched function name.
+
+```ts
 // Ban direct fetch() calls — use the SDK
-noFunctionCalls('fetch', {
-  message: 'Use apiClient.request() instead of raw fetch',
+noFunctionCalls(['fetch'])
+
+// Ban useSuspenseQuery in mutation hooks
+noFunctionCalls(['useSuspenseQuery'], {
+  message: (name) => `Mutations must not call ${name}()`,
 })
 ```
+
+---
 
 ### Import boundaries
 
-```ts
-import { requireImportBoundary } from '@gesetz/typescript';
+#### `requireImportBoundary(opts)`
 
-// UI components must only import from ../lib or ../hooks
-requireImportBoundary(
-  source => source.startsWith('../lib') || source.startsWith('../hooks'),
-  {
-    message: 'UI components must only import from lib/ or hooks/',
-    allowedPatterns: ['src/components/**'],
-  }
-)
+Checks that imports matching `source` are only allowed in files matching `allowedIn`. Violations are reported in the *importing* file.
+
+- **`opts.source`** — string or `RegExp` matching the module specifier (the `from '…'` part).
+- **`opts.allowedIn`** — glob or array of globs describing which files are allowed to import the source.
+- **`opts.tsConfigPath`** — path to `tsconfig.json`.
+- **`opts.message`** — custom message. Default: `"Import from 'foo' is not allowed outside of 'src/sdk/**'"`.
+
+```ts
+// Generated types can only be imported inside src/sdk/
+requireImportBoundary({
+  source: /types\.gen/,
+  allowedIn: 'src/sdk/**',
+})
+
+// Internal utilities must not leak outside components/
+requireImportBoundary({
+  source: '~components/internal',
+  allowedIn: 'src/components/**',
+  message: 'Internal utilities must not leak outside the component layer',
+})
 ```
+
+---
 
 ### JSX / React checks
 
+#### `noLiteralJsxText(opts?)`
+
+Flags JSX text nodes that contain letters (e.g. `<div>Hello world</div>`). Use this to enforce i18n.
+
+- **`opts.hasLetterRegex`** — regex to detect user-facing text. Default: `/[A-Za-zÄÖÜäöüß]/`.
+- **`opts.tsConfigPath`** — path to `tsconfig.json`.
+- **`opts.message`** — custom message. Default: `"Raw text in JSX is not allowed — use a translation API"`.
+
 ```ts
-import {
-  noLiteralJsxText,
-  noLiteralJsxProp,
-  noJsxElements,
-  noLocalFunctionComponents,
-} from '@gesetz/typescript';
-
-// No raw text in JSX (enforce i18n)
-noLiteralJsxText({ hasLetterRegex: /[A-Za-zÄÖÜäöüß]/ })
-
-// Specific props must not use string literals
-noLiteralJsxProp(['label', 'placeholder', 'title', 'aria-label'])
-
-// Ban raw HTML elements in route components
-noJsxElements(['div', 'span', 'h1', 'h2', 'p', 'ul', 'li', 'table'])
-
-// No local helper function-components (only the main export)
-noLocalFunctionComponents()
+noLiteralJsxText()
+noLiteralJsxText({ hasLetterRegex: /[A-Za-z]/ })
 ```
+
+#### `noLiteralJsxProp(translatableProps, opts?)`
+
+Flags JSX attributes whose names are in `translatableProps` and whose values are string literals.
+
+- **`translatableProps`** — array of attribute names to check (e.g. `['label', 'placeholder']`).
+- **`opts.tsConfigPath`** — path to `tsconfig.json`.
+- **`opts.message(propName)`** — callback receiving the prop name.
+
+```ts
+noLiteralJsxProp(['label', 'placeholder', 'title', 'aria-label'])
+```
+
+#### `noJsxElements(elements, opts?)`
+
+Flags JSX elements with the given tag names.
+
+- **`elements`** — array of forbidden tag names (e.g. `['div', 'span']`).
+- **`opts.tsConfigPath`** — path to `tsconfig.json`.
+- **`opts.message(tagName)`** — callback receiving the matched tag.
+
+```ts
+// Route components must not render raw HTML elements
+noJsxElements(['div', 'span', 'h1', 'h2', 'p', 'ul', 'li', 'table'])
+```
+
+#### `noLocalFunctionComponents(opts?)`
+
+Flags non-exported function declarations that contain JSX — i.e. local helper components defined inside a file.
+
+- **`opts.tsConfigPath`** — path to `tsconfig.json`.
+- **`opts.message(name)`** — callback receiving the function name.
+- **`opts.excludeExportedNames`** — when `true`, only flag non-exported components. Default: `false`.
+
+```ts
+noLocalFunctionComponents()
+noLocalFunctionComponents({ excludeExportedNames: true })
+```
+
+---
 
 ### i18n / hardcoded strings
 
-```ts
-import { noHardcodedStrings, DEFAULT_TEXT_ATTRIBUTES } from '@gesetz/typescript';
+#### `noHardcodedStrings(opts?)`
 
-// Comprehensive: JSX text, string expressions, and known attributes
-noHardcodedStrings({
-  hasLetterRegex: /[A-Za-z]/,
-  textAttributes: [...DEFAULT_TEXT_ATTRIBUTES, 'tooltip', 'hint'],
-})
+The comprehensive i18n check. Flags three cases in one pass:
+
+1. **JSX text nodes** — `<div>Hello world</div>`
+2. **String literals in JSX expressions** — `<div>{"Hello world"}</div>`
+3. **Known text-bearing attributes** — `<input placeholder="Search" />`
+
+- **`opts.textAttributes`** — array of attribute names to check. Default: `DEFAULT_TEXT_ATTRIBUTES` (35 common attributes like `label`, `placeholder`, `title`, `alt`, `aria-label`, etc.).
+- **`opts.attributeSeverity`** — severity for attribute violations. Default: `"warn"` (attributes are edge-case-prone; warnings avoid false positives on `alt="logo"`).
+- **`opts.textSeverity`** — severity for text-node and expression violations. Default: `"error"`.
+- **`opts.hasLetterRegex`** — regex to detect user-facing text. Default: `/[A-Za-zÄÖÜäöüßÀ-ÿ]/`.
+- **`opts.tsConfigPath`** — path to `tsconfig.json`.
+
+```ts
+noHardcodedStrings()                               // defaults
+noHardcodedStrings({ attributeSeverity: 'error' }) // strict
+noHardcodedStrings({ textAttributes: ['label', 'placeholder'] })
 ```
+
+Export `DEFAULT_TEXT_ATTRIBUTES` to see the full built-in list.
+
+---
 
 ### Cross-module imports
 
-```ts
-import { noCrossModuleImports } from '@gesetz/typescript';
+#### `noCrossModuleImports(opts)`
 
-// Files in src/domains/X can't deep-import into src/domains/Y
+Text-based (not AST-based) check. Extracts import specifiers with a regex and checks that files within a module do not import from other modules' internals.
+
+- **`opts.modulePattern`** — `RegExp` with a capture group that extracts the module name from the file path. Must have exactly one capture group.
+- **`opts.allowedPattern(module)`** — callback receiving the current module name. Return an array of path prefixes that are allowed to import from.
+- **`opts.message(from, to)`** — callback receiving the source and target module names.
+
+```ts
+// Files in src/features/X can't deep-import into src/features/Y
 noCrossModuleImports({
-  modulePattern: /src\/domains\/([^/]+)/,
-  allowedPattern: (mod) => [`src/domains/${mod}/`],
+  modulePattern: /src\/features\/([^/]+)\//,
+  allowedPattern: (mod) => [`src/features/${mod}/`],
+  message: (from, to) =>
+    `Feature '${from}' must not import directly into feature '${to}'. Use the public API.`,
 })
 ```
 
-### Directory structure
+---
+
+### Object property checks
+
+#### `noObjectProperty(varName, propName, opts?)`
+
+Text-based check. Finds `const varName = { … }` and checks that the object does not define `propName`. Uses brace-counting to navigate nested objects.
+
+- **`varName`** — the variable name to look for.
+- **`propName`** — the property name that must not exist.
+- **`opts.message`** — custom message. Default: `"'meta' object must not define property 'title'"`.
 
 ```ts
-import { requireDirectoryStructure } from '@gesetz/typescript';
+// Storybook meta objects must not define an explicit title
+noObjectProperty('meta', 'title')
+```
 
-// Every SDK sub-domain must have these files
+---
+
+### Directory structure
+
+#### `requireDirectoryStructure(requiredFiles)`
+
+Exactly `requireChildren` from `@gesetz/core` — re-exported here for discoverability. Checks that the directory containing each matched file also contains every file in the list.
+
+```ts
 requireDirectoryStructure(['interface.ts', 'http.ts', 'memory.ts', 'types.ts'])
 ```
 
+---
+
 ### Test quality scoring
 
-```ts
-import { requireMinTestScore } from '@gesetz/typescript';
+#### `requireMinTestScore(scoring)`
 
-// Flag test files below a quality score
+Scores a test file based on quality signals and returns a violation if the score is below `minScore`. Uses text analysis (string counting), not AST.
+
+**Scoring formula:**
+- Base score: `40` (for having any tests)
+- +`assertionBonus` for each assertion threshold crossed
+- +`testCountBonus` for each test-count threshold crossed
+- +`asyncBonus` if async indicators are found
+- +`interactionBonus` if interaction methods are found
+- +`errorBonus` if error-path indicators are found
+- +`varietyBonus` if ≥3 different assertion types are used
+- +`trivialPenalty` if only trivial assertions are found
+
+Parameters (all optional except `minScore`):
+
+| Parameter | Default | Description |
+|---|---|---|
+| `minScore` | *required* | Minimum score to pass |
+| `assertionThresholds` | `[1, 3, 5, 8]` | Assertion-count milestones |
+| `assertionBonus` | `5` | Points per milestone crossed |
+| `testCountThresholds` | `[2, 4, 6]` | Test-count milestones |
+| `testCountBonus` | `5` | Points per milestone crossed |
+| `assertionNames` | `['expect(']` | Strings counted as assertions |
+| `trivialAssertions` | `['toBeTrue(', 'toBeTruthy(', 'toBeDefined(']` | Patterns that penalise trivial tests |
+| `trivialPenalty` | `-20` | Penalty for trivial-only tests |
+| `asyncIndicators` | `['waitFor(', 'act(']` | Strings that signal async tests |
+| `interactionMethods` | `['userEvent.', 'fireEvent.']` | Strings that signal interaction tests |
+| `errorIndicators` | `['.toThrow(', '.rejects.', 'toThrow(']` | Strings that signal error-path tests |
+| `asyncBonus` | `5` | Bonus for async tests |
+| `interactionBonus` | `5` | Bonus for interaction tests |
+| `errorBonus` | `5` | Bonus for error-path tests |
+| `varietyBonus` | `5` | Bonus for varied assertion types |
+
+```ts
+requireMinTestScore({ minScore: 50 })
 requireMinTestScore({
-  minScore: 50,
-  asyncBonus: 5,
-  interactionBonus: 5,
-  errorBonus: 5,
+  minScore: 60,
+  assertionThresholds: [1, 5, 10],
+  assertionBonus: 10,
+  trivialPenalty: -30,
 })
 ```
 
@@ -657,40 +969,52 @@ requireMinTestScore({
 
 Install: `bun add -d @gesetz/effect-ts`
 
-Catches the four most common anti-patterns AI agents introduce in Effect-TS code.
+Catches the four most common anti-patterns AI agents introduce in Effect-TS code. All four use ts-morph AST analysis.
+
+#### `noRunPromiseScattered(opts?)`
+
+Flags `Effect.runPromise`, `runSync`, `runFork`, `runCallback`, and `runPromiseExit` calls outside designated entry-point files. These methods should only be called at your program's boundary (`main.ts` / `index.ts`).
+
+- **`opts.entryPoints`** — array of file paths (or suffixes) that are allowed to call `Effect.run*`. Default: `[]` (no files allowed).
+- **`opts.tsConfigPath`** — default: `'tsconfig.json'`.
+- **`opts.message`** — custom message. Default: `"Effect.runPromise() should only be called at program entry points"`.
 
 ```ts
-import {
-  noRunPromiseScattered,
-  noThrowInEffectGen,
-  noYieldWithoutStar,
-  noUnboundedEffectAll,
-} from '@gesetz/effect-ts';
+noRunPromiseScattered()
+noRunPromiseScattered({ entryPoints: ['src/main.ts', 'src/index.ts'] })
+```
 
-export default defineConfig({
-  rules: [
-    select('src/**/*.ts')
-      .exclude('src/main.ts', 'src/index.ts')
-      .label('Effect.run* only at entry points')
-      .category('effect-ts')
-      .check(noRunPromiseScattered({ entryPoints: ['src/main.ts'] })),
+#### `noThrowInEffectGen(opts?)`
 
-    select('src/**/*.ts')
-      .label('No throw inside Effect.gen')
-      .category('effect-ts')
-      .check(noThrowInEffectGen()),
+Flags `throw` statements inside `Effect.gen()`, `Effect.fn()`, and `Effect.fnUntraced()` bodies. `throw` converts typed failures into untyped Defects.
 
-    select('src/**/*.ts')
-      .label('yield* (with star) inside Effect.gen')
-      .category('effect-ts')
-      .check(noYieldWithoutStar()),
+- **`opts.tsConfigPath`** — default: `'tsconfig.json'`.
+- **`opts.message`** — custom message. Default: `"`throw` inside Effect.gen() creates an untyped Defect"`.
 
-    select('src/**/*.ts')
-      .label('Effect.all must specify concurrency')
-      .category('effect-ts')
-      .check(noUnboundedEffectAll()),
-  ],
-});
+```ts
+noThrowInEffectGen()
+```
+
+#### `noYieldWithoutStar(opts?)`
+
+Flags plain `yield expr` (no asterisk) inside Effect generators. `yield` returns the raw channel output; `yield*` unwraps the Effect's value.
+
+- **`opts.tsConfigPath`** — default: `'tsconfig.json'`.
+- **`opts.message`** — custom message. Default: `"`yield` inside Effect.gen() does not unwrap the Effect. Write `yield*` instead"`.
+
+```ts
+noYieldWithoutStar()
+```
+
+#### `noUnboundedEffectAll(opts?)`
+
+Flags `Effect.all([...])` calls with fewer than 2 arguments — meaning no `concurrency` option was passed. Effect.all defaults to sequential execution when concurrency is unspecified.
+
+- **`opts.tsConfigPath`** — default: `'tsconfig.json'`.
+- **`opts.message`** — custom message. Default: `"Effect.all() is missing a concurrency option"`.
+
+```ts
+noUnboundedEffectAll()
 ```
 
 ---
@@ -699,17 +1023,50 @@ export default defineConfig({
 
 Install: `bun add -d @gesetz/php`
 
+These are text-based checks (regex over file content) that work on any PHP file. No tree-sitter required unless you need the AST-level `@gesetz/php` adapter for deeper analysis.
+
+#### `strictTypes(opts?)`
+
+Checks that the file contains `declare(strict_types=1)`.
+
+- **`opts.message`** — custom message. Default: `"Missing declare(strict_types=1)"`.
+
 ```ts
-import { strictTypes, psrNamespace, noInlineQueries } from '@gesetz/php';
-
-// Every PHP file must declare strict_types=1
 strictTypes()
+```
 
-// Namespace must match PSR-4 directory structure
+#### `psrNamespace(opts)`
+
+Extracts the `namespace …;` declaration from the file and compares it to the expected PSR-4 namespace derived from the file path.
+
+- **`opts.baseNamespace`** — the root namespace (e.g. `'App'`).
+- **`opts.basePath`** — the directory that maps to `baseNamespace` (e.g. `'app'`).
+- **`opts.message`** — custom message. Default: `"Namespace 'App\Foo' does not match expected 'App\Foo\Bar'"`.
+
+Files outside `basePath` are silently skipped.
+
+```ts
 psrNamespace({ baseNamespace: 'App', basePath: 'app' })
+psrNamespace({ baseNamespace: 'Acme', basePath: 'src' })
+```
 
-// Ban raw query patterns
-noInlineQueries(['DB::statement', 'DB::raw', 'PDO::query'])
+#### `noInlineQueries(patterns, opts?)`
+
+Line-by-line text scan. Flags any line that contains one of the provided call patterns.
+
+- **`patterns`** — array of strings to search for in each line (e.g. `['DB::raw', 'DB::statement']`).
+- **`opts.message`** — custom message. Default: `"Forbidden call pattern: DB::raw"`.
+- **`opts.severity`** — default: `"error"`.
+
+```ts
+// Laravel: ban raw DB queries
+noInlineQueries(['DB::raw', 'DB::statement', 'DB::unprepared'])
+
+// WordPress: ban raw wpdb queries
+noInlineQueries(['$wpdb->query', '$wpdb->get_results'])
+
+// Generic PHP: ban raw PDO/mysqli
+noInlineQueries(['PDO::query', 'mysqli_query'])
 ```
 
 ---
@@ -746,7 +1103,39 @@ import {
 
 ## Architecture rules
 
-Define your monorepo layers in pure TypeScript and enforce import constraints.
+#### `defineArchitecture(config)`
+
+Defines monorepo layers as file-glob patterns and enforces import constraints between them. Returns a `Rule[]` ready to pass to `defineConfig({ rules: [...] })`.
+
+**How it works:**
+1. Scans all files matching all layer patterns.
+2. Builds a map: `filePath → layerName` using micromatch.
+3. Extracts imports from each file using regex (static imports, `require()`, dynamic `import()`).
+4. For each import:
+   - If it's an **external npm package**, checks `bannedExternals` for the source layer.
+   - If it's a **relative import**, resolves it to a target file, looks up the target's layer, then checks:
+     - `canImportFrom` allowlist (if the source layer has one)
+     - `forbidden` explicit denials
+
+**`config.layers`** — array of layers. Each layer:
+
+| Property | Type | Description |
+|---|---|---|
+| `name` | `string` | Layer identifier used in messages and cross-references |
+| `pattern` | `string \| string[]` | Glob(s) matching files that belong to this layer |
+| `canImportFrom` | `string[] \| undefined` | Layers this layer is allowed to import from. Omit to allow all. |
+
+**`config.forbidden`** — array of explicit denials beyond `canImportFrom`:
+
+| Property | Type | Description |
+|---|---|---|
+| `from` | `string` | Source layer name |
+| `to` | `string` | Target layer name |
+| `message` | `string \| undefined` | Custom violation message |
+
+**`config.bannedExternals`** — `Record<layerName, packageName[]>`:
+
+Prevents specific layers from importing specific npm packages. Supports scoped packages (`@org/pkg`).
 
 ```ts
 import { defineConfig, defineArchitecture } from 'gesetz';
@@ -765,12 +1154,7 @@ const arch = defineArchitecture({
   },
 });
 
-export default defineConfig({
-  rules: [
-    ...arch,
-    // ...other rules
-  ],
-});
+export default defineConfig({ rules: [...arch] });
 ```
 
 ---
