@@ -1,6 +1,6 @@
 
 <div>
-  <img src="./resources/icon.svg" align="left" width="150">
+  <img src="./resources/icon.svg" align="left" width="175">
 </div>
 
 # `gesetz`
