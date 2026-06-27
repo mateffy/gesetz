@@ -9,8 +9,10 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "build": "bun build src/main.ts --outdir dist --target node --format esm --sourcemap --external dependency-cruiser --external eslint --external ts-morph --external tree-sitter --external tree-sitter-php --external @regeln/core --external @regeln/typescript --external @regeln/php --external @regeln/oxlint --external @regeln/oxfmt --external @regeln/vitest --external @regeln/bun-test --external @regeln/pest --external @regeln/prettier --external @regeln/junit --external @regeln/effect-ts --external @regeln/eslint --external @regeln/phpstan --external @regeln/storybook --external @regeln/phpunit --external effect",
+    "build": "bun build src/main.ts --outdir dist --target bun --format esm --sourcemap --external dependency-cruiser --external eslint --external ts-morph --external tree-sitter --external tree-sitter-php --external @regeln/core --external @regeln/typescript --external @regeln/php --external @regeln/oxlint --external @regeln/oxfmt --external @regeln/vitest --external @regeln/bun-test --external @regeln/pest --external @regeln/prettier --external @regeln/junit --external @regeln/effect-ts --external @regeln/eslint --external @regeln/phpstan --external @regeln/storybook --external @regeln/phpunit --external effect --external @effect/cli --external @effect/platform --external @effect/platform-node --external @effect/platform-node-shared --external @effect/printer --external @effect/printer-ansi",
     "dev": "bun run src/main.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -23,7 +25,8 @@
     "effect": "^3.15.0"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0",
-    "typescript": "^5.8.0"
+    "@types/node": "22.0.0",
+    "typescript": "^5.8.0",
+    "vitest": "^4.0.0"
   }
 }

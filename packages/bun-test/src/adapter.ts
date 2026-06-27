@@ -1,9 +1,8 @@
-import * as childProcess from 'node:child_process';
 import * as nodePath from 'node:path';
 import * as nodeFs from 'node:fs';
-import * as nodeOs from 'node:os';
 import { Effect } from 'effect';
 import type { Rule, Violation } from '@regeln/core';
+import { execTool, runWithTempFile } from '@regeln/core';
 import { parseJUnitXml, junitToViolations } from '@regeln/junit';
 
 export interface BunTestOptions {
@@ -43,58 +42,29 @@ export function bunTest(opts: BunTestOptions = {}): Rule {
   const bin = opts.bin ?? 'bun';
 
   const run: Rule['run'] = Effect.gen(function* () {
-    const tmpFile = nodePath.join(
-      nodeFs.mkdtempSync(nodePath.join(nodeOs.tmpdir(), 'regeln-bun-')),
-      'junit.xml',
-    );
-
-    const args = ['test', '--reporter=junit', `--reporter-outfile=${tmpFile}`];
+    const baseArgs = ['test', '--reporter=junit'];
     if (opts.pattern) {
       const patterns = Array.isArray(opts.pattern) ? opts.pattern : [opts.pattern];
-      args.push(...patterns);
+      baseArgs.push(...patterns);
     }
 
-    // Run bun test — it exits non-zero on test failures (expected).
-    yield* Effect.try({
-      try: () => {
-        try {
-          childProcess.execFileSync(bin, args, {
-            cwd,
-            encoding: 'utf-8',
-            stdio: ['ignore', 'ignore', 'ignore'],
-          });
-        } catch (_e) {
-          // Non-zero exit is expected when tests fail — the JUnit file is
-          // still written. Swallow the exit code error.
-          void _e;
-        }
-      },
-      catch: (cause) => cause,
-    }).pipe(
-      Effect.catchAll((cause) =>
-        Effect.gen(function* () {
-          yield* Effect.logWarning(
-            `[regeln] bun test failed to execute (${String(cause)}) — attempting to read JUnit output.`,
-          );
-        }),
-      ),
+    return yield* runWithTempFile('regeln-bun-', 'junit.xml', (tmpFile) =>
+      Effect.gen(function* () {
+        const args = [...baseArgs, `--reporter-outfile=${tmpFile}`];
+
+        yield* execTool(bin, args, cwd, 'bun-test').pipe(Effect.ignore);
+
+        const xml = yield* Effect.try({
+          try: () => nodeFs.readFileSync(tmpFile, 'utf-8'),
+          catch: (cause) => cause,
+        }).pipe(Effect.catchAll(() => Effect.succeed('')));
+
+        if (!xml) return [];
+
+        const cases = parseJUnitXml(xml, cwd);
+        return junitToViolations(cases, id);
+      }),
     );
-
-    // Read the JUnit XML output
-    const xml = yield* Effect.try({
-      try: () => nodeFs.readFileSync(tmpFile, 'utf-8'),
-      catch: (cause) => cause,
-    }).pipe(
-      Effect.catchAll(() => Effect.succeed('')),
-    );
-
-    // Clean up temp file. rmSync with force:true doesn't throw on missing files.
-    nodeFs.rmSync(tmpFile, { force: true });
-
-    if (!xml) return [];
-
-    const cases = parseJUnitXml(xml, cwd);
-    return junitToViolations(cases, id);
   });
 
   return { id, description, run, category: opts.category };

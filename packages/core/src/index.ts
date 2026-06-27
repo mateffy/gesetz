@@ -31,6 +31,9 @@ export type { UserConfig, ResolvedConfig, CategoryThreshold } from './engine/con
 export { runAll, applyExemptions } from './engine/runner';
 export type { RunResult, RuleResult, CategoryScore } from './engine/runner';
 
+// ─── Exec helpers ─────────────────────────────────────────────────────────────
+export { execTool, runWithTempFile, extractLocation } from './engine/exec';
+
 // ─── Services ─────────────────────────────────────────────────────────────────
 export { FileSystem, FileSystemLive, MemoryFileSystem, ProjectRoot, ProjectRootLive, FileFilter, FileFilterLive } from './services/fs';
 export type { GlobOptions, FileSystemService, FileFilterService } from './services/fs';

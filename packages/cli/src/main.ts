@@ -7,7 +7,8 @@
  *   regel list    — show rule catalog with guidance
  *   regel skill   — print agent skill markdown to stdout
  */
-import { Args, Command, Options } from '@effect/cli';
+import { pathToFileURL } from 'node:url';
+import { Command, Options } from '@effect/cli';
 import { NodeContext, NodeRuntime } from '@effect/platform-node';
 import { Console, Effect, Layer, Option } from 'effect';
 import * as nodePath from 'node:path';
@@ -15,8 +16,18 @@ import { runAll, FileSystemLive, PhpAdapterStub, ProjectRootLive, FileFilterLive
 import { TsAdapterLive } from '@regeln/typescript';
 import { PhpAdapterLive } from '@regeln/php';
 import { loadConfig } from './load-config';
-import { formatCategoryTable, formatViolations, formatJson, formatList } from './format';
+import {
+  formatCategoryTable,
+  formatViolations,
+  formatEnvelope,
+  formatCi,
+  formatStatusBanner,
+  formatList,
+  detectFormat,
+  type OutputFormat,
+} from './format';
 import { SKILL_MARKDOWN } from './skill';
+import { initCommand } from './init';
 
 // ─── Shared services layer ────────────────────────────────────────────────────
 
@@ -42,8 +53,12 @@ const checkCommand = Command.make(
       Options.withDescription('Only run rules in this category (comma-separated)'),
       Options.optional,
     ),
-    json: Options.boolean('json').pipe(
-      Options.withDescription('Output machine-readable JSON'),
+    format: Options.text('format').pipe(
+      Options.withDescription('Output format: pretty (default in a TTY), json (agents/CI), ci (GitHub Actions annotations)'),
+      Options.optional,
+    ),
+    all: Options.boolean('all').pipe(
+      Options.withDescription('Disable the 50-violation cap in JSON output'),
       Options.withDefault(false),
     ),
     threshold: Options.integer('threshold').pipe(
@@ -117,12 +132,21 @@ const checkCommand = Command.make(
         ),
       );
 
-      if (opts.json) {
-        yield* Console.log(formatJson(result));
+      const format = detectFormat(Option.getOrUndefined(opts.format) as OutputFormat | undefined);
+      const thresholdMap: Record<string, number> = {};
+      for (const t of thresholds) thresholdMap[t.category] = t.minScore;
+
+      // Status banner to stderr — stdout stays a clean data contract.
+      yield* Console.error(formatStatusBanner(result).trimEnd());
+
+      if (format === 'json') {
+        yield* Console.log(formatEnvelope(result, { all: opts.all, thresholds: thresholdMap }).trimEnd());
+      } else if (format === 'ci') {
+        yield* Console.log(formatCi(result).trimEnd());
       } else {
-        yield* Console.log(formatCategoryTable(result));
+        yield* Console.log(formatCategoryTable(result).trimEnd());
         if (result.totalViolations > 0) {
-          yield* Console.log(formatViolations(result.byRule));
+          yield* Console.log(formatViolations(result.byRule).trimEnd());
         }
       }
 
@@ -141,9 +165,9 @@ const listCommand = Command.make(
       Options.withDescription('Filter by category (comma-separated)'),
       Options.optional,
     ),
-    json: Options.boolean('json').pipe(
-      Options.withDescription('Output machine-readable JSON'),
-      Options.withDefault(false),
+    format: Options.text('format').pipe(
+      Options.withDescription('Output format: pretty (default in a TTY) or json'),
+      Options.optional,
     ),
     projectRoot: Options.text('project-root').pipe(
       Options.withDescription('Project root directory (default: cwd)'),
@@ -180,7 +204,8 @@ const listCommand = Command.make(
           guidance: r.guidance,
         }));
 
-      yield* Console.log(formatList(entries, opts.json));
+      const format = detectFormat(Option.getOrUndefined(opts.format) as OutputFormat | undefined);
+      yield* Console.log(formatList(entries, format).trimEnd());
     }),
 ).pipe(Command.withDescription('List all quality rules with guidance'));
 
@@ -197,8 +222,8 @@ const skillCommand = Command.make(
 const regelCommand = Command.make('regel', {}, () =>
   Console.log('Run `regel --help` to see available commands.'),
 ).pipe(
-  Command.withDescription('Unified code quality gate — Regel v0.1.0'),
-  Command.withSubcommands([checkCommand, listCommand, skillCommand]),
+  Command.withDescription('Unified code quality gate \u2014 Regel v0.1.0'),
+  Command.withSubcommands([checkCommand, listCommand, skillCommand, initCommand]),
 );
 
 // ─── Entry point ─────────────────────────────────────────────────────────────
@@ -208,7 +233,11 @@ const cli = Command.run(regelCommand, {
   version: 'v0.1.0',
 });
 
-cli(process.argv).pipe(
-  Effect.provide(NodeContext.layer),
-  NodeRuntime.runMain,
-);
+export function runRegel(): void {
+  NodeRuntime.runMain(cli(process.argv).pipe(Effect.provide(NodeContext.layer)));
+}
+
+const isEntryPoint = import.meta.url === pathToFileURL(process.argv[1] ?? '').href;
+if (isEntryPoint) {
+  runRegel();
+}

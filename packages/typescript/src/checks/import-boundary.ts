@@ -2,6 +2,8 @@ import { Effect } from 'effect';
 import micromatch from 'micromatch';
 import type { Check, Violation } from '@regeln/core';
 import type { ImportDeclaration } from 'ts-morph';
+import { SyntaxKind } from 'ts-morph';
+import type { SourceFile } from 'ts-morph';
 import { loadSourceFile } from './shared';
 
 /**
@@ -31,15 +33,14 @@ export function requireImportBoundary(opts: {
 
       if (sourceFile === null) return [];
 
-      const sf = sourceFile._tsMorph;
+      const sf = sourceFile._tsMorph as SourceFile;
       const violations: Violation[] = [];
 
       // Check if this file is allowed to import the source
       const isAllowed = micromatch.isMatch(file.path, allowedPatterns);
       if (isAllowed) return [];
 
-      // SyntaxKind.ImportDeclaration = 269
-      const imports: readonly ImportDeclaration[] = sf.getDescendantsOfKind?.(269) ?? [];
+      const imports: readonly ImportDeclaration[] = sf.getDescendantsOfKind?.(SyntaxKind.ImportDeclaration) ?? [];
 
       for (const imp of imports) {
         const specifier = imp.getModuleSpecifier?.()?.getLiteralText?.();

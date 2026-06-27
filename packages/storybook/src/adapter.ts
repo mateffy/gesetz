@@ -1,9 +1,8 @@
-import * as childProcess from 'node:child_process';
 import * as nodeFs from 'node:fs';
-import * as nodeOs from 'node:os';
 import * as nodePath from 'node:path';
 import { Effect } from 'effect';
 import type { Rule, Violation } from '@regeln/core';
+import { execTool, runWithTempFile, extractLocation } from '@regeln/core';
 
 export interface StorybookOptions {
   /**
@@ -45,14 +44,6 @@ interface JestJsonResult {
       readonly failureMessages: readonly string[];
     }>;
   }>;
-}
-
-function extractLocation(failureMessage: string): { path: string; line: number | undefined } {
-  const match = /at\s+(?:file:\/\/)?([^\s]+):(\d+):\d+/.exec(failureMessage);
-  if (match) {
-    return { path: match[1] ?? '', line: Number(match[2] ?? 0) };
-  }
-  return { path: '', line: undefined };
 }
 
 function parseJestJson(stdout: string, cwd: string, ruleId: string): Violation[] {
@@ -112,59 +103,31 @@ export function storybook(opts: StorybookOptions = {}): Rule {
   const url = opts.url ?? 'http://localhost:6006';
 
   const run: Rule['run'] = Effect.gen(function* () {
-    // Write JSON to a temp file to avoid polluting stdout with Jest's
-    // progress output which can corrupt the JSON payload.
-    const tmpFile = nodePath.join(
-      nodeFs.mkdtempSync(nodePath.join(nodeOs.tmpdir(), 'regeln-storybook-')),
-      'results.json',
-    );
-
-    const args = ['--url', url, '--json', '--outputFile', tmpFile, '--ci'];
-
-    if (opts.configFile) args.push('--config', opts.configFile);
+    const baseArgs = ['--url', url, '--json', '--outputFile', '__TMP__', '--ci'];
+    if (opts.configFile) baseArgs.push('--config', opts.configFile);
     if (opts.pattern) {
       const patterns = Array.isArray(opts.pattern) ? opts.pattern : [opts.pattern];
-      args.push('--stories', patterns.join(','));
+      baseArgs.push('--stories', patterns.join(','));
     }
-    if (opts.extraArgs) args.push(...opts.extraArgs);
+    if (opts.extraArgs) baseArgs.push(...opts.extraArgs);
 
-    yield* Effect.try({
-      try: () => {
+    return yield* runWithTempFile('regeln-storybook-', 'results.json', (tmpFile) =>
+      Effect.gen(function* () {
+        const args = baseArgs.map((a) => (a === '__TMP__' ? tmpFile : a));
+
+        yield* execTool(bin, args, cwd, 'test-storybook').pipe(Effect.ignore);
+
+        let stdout = '';
         try {
-          childProcess.execFileSync(bin, args, {
-            cwd,
-            encoding: 'utf-8',
-            stdio: ['ignore', 'ignore', 'pipe'],
-          });
-        } catch (_e) {
-          // test-storybook exits non-zero when stories fail — that's expected.
-          // The JSON is written to the output file regardless.
-          void _e;
+          stdout = nodeFs.readFileSync(tmpFile, 'utf-8');
+        } catch {
+          return [];
         }
-      },
-      catch: (cause) => cause,
-    }).pipe(
-      Effect.catchAll((cause) =>
-        Effect.gen(function* () {
-          yield* Effect.logWarning(
-            `[regeln] test-storybook failed to launch (${String(cause)}) — storybook() produced no violations.`,
-          );
-        }),
-      ),
+
+        if (!stdout.trim()) return [];
+        return parseJestJson(stdout, cwd, id);
+      }),
     );
-
-    let stdout = '';
-    try {
-      stdout = nodeFs.readFileSync(tmpFile, 'utf-8');
-    } catch {
-      return [];
-    } finally {
-      // Cleanup temp file + directory. rmSync with force:true doesn't throw on missing files.
-      nodeFs.rmSync(nodePath.dirname(tmpFile), { recursive: true, force: true });
-    }
-
-    if (!stdout.trim()) return [];
-    return parseJestJson(stdout, cwd, id);
   });
 
   return { id, description, run, category: opts.category };

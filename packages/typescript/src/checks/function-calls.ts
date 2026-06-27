@@ -1,6 +1,8 @@
 import { Effect } from 'effect';
 import type { Check, Violation } from '@regeln/core';
 import type { CallExpression } from 'ts-morph';
+import { SyntaxKind } from 'ts-morph';
+import type { SourceFile } from 'ts-morph';
 import { loadSourceFile } from './shared';
 
 /**
@@ -23,11 +25,11 @@ export function noFunctionCalls(
 
       if (sourceFile === null) return [];
 
-      const sf = sourceFile._tsMorph;
+      const sf = sourceFile._tsMorph as SourceFile;
       const violations: Violation[] = [];
       const nameSet = new Set(callNames);
 
-      const calls: readonly CallExpression[] = sf.getDescendantsOfKind?.(200 /* CallExpression */) ?? [];
+      const calls: readonly CallExpression[] = sf.getDescendantsOfKind?.(SyntaxKind.CallExpression) ?? [];
 
       for (const call of calls) {
         const expr = call.getExpression?.();

@@ -1,6 +1,7 @@
 import { Effect } from 'effect';
 import type { Check, Violation } from '@regeln/core';
-import type { FunctionDeclaration } from 'ts-morph';
+import { SyntaxKind } from 'ts-morph';
+import type { FunctionDeclaration, SourceFile } from 'ts-morph';
 import { loadSourceFile } from './shared';
 
 /**
@@ -25,7 +26,7 @@ export function noLocalFunctionComponents(
 
       if (sourceFile === null) return [];
 
-      const sf = sourceFile._tsMorph;
+      const sf = sourceFile._tsMorph as SourceFile;
       const violations: Violation[] = [];
 
       // Get all exported declaration names to identify the "main" component
@@ -33,8 +34,7 @@ export function noLocalFunctionComponents(
         [...sf.getExportedDeclarations()].map(([name]) => name),
       );
 
-      // SyntaxKind.FunctionDeclaration = 259
-      const functions: readonly FunctionDeclaration[] = sf.getDescendantsOfKind?.(259) ?? [];
+      const functions: readonly FunctionDeclaration[] = sf.getDescendantsOfKind?.(SyntaxKind.FunctionDeclaration) ?? [];
 
       for (const fn of functions) {
         const name = fn.getName?.();
@@ -43,9 +43,9 @@ export function noLocalFunctionComponents(
         if (exportedNames.has(name)) continue; // main export — skip
 
         // Check if it contains JSX
-        const hasJsx = fn.getDescendantsOfKind?.(281)?.length > 0 ||
-          fn.getDescendantsOfKind?.(283)?.length > 0 ||
-          fn.getDescendantsOfKind?.(284)?.length > 0; // JsxFragment
+        const hasJsx = fn.getDescendantsOfKind?.(SyntaxKind.JsxElement)?.length > 0 ||
+          fn.getDescendantsOfKind?.(SyntaxKind.JsxSelfClosingElement)?.length > 0 ||
+          fn.getDescendantsOfKind?.(SyntaxKind.JsxFragment)?.length > 0;
 
         if (hasJsx) {
           violations.push({

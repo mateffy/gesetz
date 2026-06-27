@@ -62,6 +62,9 @@ export function eslint(opts: EslintOptions = {}): Rule {
         // @ts-ignore — eslint is an optional peer dep; present in some
         // workspaces, absent in others. Cast to EslintModule for a typed surface.
         const eslintModule = (await import('eslint')) as unknown as EslintModule;
+        if (typeof eslintModule.ESLint !== 'function') {
+          throw new Error('eslint module does not export ESLint class');
+        }
         const ESLint = eslintModule.ESLint;
         const linter = new ESLint({
           cwd,

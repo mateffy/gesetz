@@ -1,7 +1,7 @@
-import * as childProcess from 'node:child_process';
 import * as nodePath from 'node:path';
 import { Effect } from 'effect';
 import type { Rule, Violation } from '@regeln/core';
+import { execTool } from '@regeln/core';
 
 export interface PrettierOptions {
   /**
@@ -52,31 +52,7 @@ export function prettier(opts: PrettierOptions = {}): Rule {
     const args = ['--list-different', ...patterns];
     if (opts.configFile) args.push('--config', opts.configFile);
 
-    const stdout = yield* Effect.try({
-      try: (): string => {
-        try {
-          return childProcess
-            .execFileSync(bin, args, { cwd, encoding: 'utf-8', stdio: ['ignore', 'pipe', 'pipe'] })
-            .toString();
-        } catch (e: unknown) {
-          // prettier exits 1 when files need formatting — stdout has the file list
-          const execError = e as { stdout?: Buffer | string };
-          const out = execError.stdout;
-          if (out) return typeof out === 'string' ? out : out.toString();
-          throw e;
-        }
-      },
-      catch: (cause) => cause,
-    }).pipe(
-      Effect.catchAll((cause) =>
-        Effect.gen(function* () {
-          yield* Effect.logWarning(
-            `[regeln] prettier failed (${String(cause)}) — prettier() produced no violations.`,
-          );
-          return '';
-        }),
-      ),
-    );
+    const stdout = yield* execTool(bin, args, cwd, 'prettier');
 
     if (!stdout) return [];
 

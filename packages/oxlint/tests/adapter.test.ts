@@ -13,6 +13,14 @@ const TestLayer = Layer.mergeAll(
   FileFilterLive(null),
 );
 
+vi.mock('node:child_process', async () => {
+  const actual = await vi.importActual('node:child_process');
+  return {
+    ...actual,
+    execFileSync: vi.fn(),
+  };
+});
+
 // Realistic oxlint JSON output (v1.63+ format)
 const OXLINT_JSON = JSON.stringify({
   diagnostics: [
@@ -38,10 +46,11 @@ const OXLINT_JSON = JSON.stringify({
 describe('oxlint', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    vi.clearAllMocks();
   });
 
   it('parses diagnostics from the { diagnostics: [...] } JSON format', async () => {
-    vi.spyOn(childProcess, 'execFileSync').mockImplementation(() => OXLINT_JSON);
+    (childProcess.execFileSync as ReturnType<typeof vi.fn>).mockImplementation(() => OXLINT_JSON);
 
     const rule = oxlint({ cwd: '/project', label: 'oxlint' });
     const violations = await Effect.runPromise(Effect.provide(rule.run, TestLayer));
@@ -57,7 +66,7 @@ describe('oxlint', () => {
   });
 
   it('returns no violations when oxlint finds nothing', async () => {
-    vi.spyOn(childProcess, 'execFileSync').mockImplementation(() =>
+    (childProcess.execFileSync as ReturnType<typeof vi.fn>).mockImplementation(() =>
       JSON.stringify({ diagnostics: [], number_of_files: 0 }),
     );
 
@@ -72,7 +81,7 @@ describe('oxlint', () => {
       stdout: OXLINT_JSON,
       status: 1,
     });
-    vi.spyOn(childProcess, 'execFileSync').mockImplementation(() => {
+    (childProcess.execFileSync as ReturnType<typeof vi.fn>).mockImplementation(() => {
       throw execError;
     });
 
@@ -82,9 +91,8 @@ describe('oxlint', () => {
   });
 
   it('passes the config file when provided', async () => {
-    const spy = vi
-      .spyOn(childProcess, 'execFileSync')
-      .mockImplementation(() => JSON.stringify({ diagnostics: [] }));
+    const spy = childProcess.execFileSync as ReturnType<typeof vi.fn>;
+    spy.mockImplementation(() => JSON.stringify({ diagnostics: [] }));
 
     const rule = oxlint({ cwd: '/project', configFile: '.oxlintrc.json' });
     await Effect.runPromise(Effect.provide(rule.run, TestLayer));
@@ -97,7 +105,7 @@ describe('oxlint', () => {
   });
 
   it('returns empty array when stdout is not valid JSON', async () => {
-    vi.spyOn(childProcess, 'execFileSync').mockImplementation(() => 'not json at all');
+    (childProcess.execFileSync as ReturnType<typeof vi.fn>).mockImplementation(() => 'not json at all');
 
     const rule = oxlint({ cwd: '/project' });
     const violations = await Effect.runPromise(Effect.provide(rule.run, TestLayer));

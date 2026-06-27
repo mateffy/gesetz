@@ -54,7 +54,15 @@ export function loadConfig(
         ),
     });
 
-    const config: ResolvedConfig = mod.default ?? mod;
+    const raw = mod.default ?? mod;
+    if (typeof raw !== 'object' || raw === null || !Array.isArray((raw as Record<string, unknown>).rules)) {
+      return yield* Effect.fail(
+        new ConfigNotFoundError(
+          `${projectRoot} (invalid config export in ${resolvedConfigPath} — expected { rules: [...] })`,
+        ),
+      );
+    }
+    const config = raw as ResolvedConfig;
 
     // Apply CLI overrides
     if (overrides?.changedSince !== undefined) {

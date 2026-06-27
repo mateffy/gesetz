@@ -1,8 +1,7 @@
-import * as childProcess from 'node:child_process';
 import * as nodePath from 'node:path';
 import { Effect } from 'effect';
 import type { Rule, Violation } from '@regeln/core';
-import { ExecError } from '@regeln/core';
+import { execTool } from '@regeln/core';
 
 export interface PhpstanOptions {
   /** Glob pattern(s) to analyse. If omitted, phpstan analyses the configured paths. */
@@ -83,7 +82,7 @@ export function phpstan(opts: PhpstanOptions = {}): Rule {
   const id = opts.id ?? 'phpstan';
   const description = opts.label ?? 'PHPStan static analysis';
 
-  const run: Rule['run'] = (Effect.gen(function* () {
+  const run: Rule['run'] = Effect.gen(function* () {
     const args = [
       'analyse',
       '--error-format=json',
@@ -98,39 +97,11 @@ export function phpstan(opts: PhpstanOptions = {}): Rule {
       args.push(...patterns);
     }
 
-    const stdout = yield* Effect.try({
-      try: () => {
-        try {
-          return childProcess
-            .execFileSync(bin, args, { cwd, encoding: 'utf-8', stdio: ['ignore', 'pipe', 'pipe'] })
-            .toString();
-        } catch (e: unknown) {
-          // phpstan exits 1 when there are errors — that's expected.
-          // The JSON output is in stdout regardless of exit code.
-          const execError = e as { stdout?: Buffer | string; status?: number };
-          const out = execError.stdout;
-          if (out) return typeof out === 'string' ? out : out.toString();
-          throw e;
-        }
-      },
-      catch: (cause) => new ExecError({ command: bin, cause }),
-    });
+    const stdout = yield* execTool(bin, args, cwd, 'phpstan');
 
     const violations = parsePhpstanOutput(stdout, cwd);
     return violations.map((v) => ({ ...v, rule: id }));
-  }) as Effect.Effect<Violation[], ExecError, never>).pipe(
-    Effect.catchAll((cause: unknown) =>
-      Effect.succeed<Violation[]>([
-        {
-          rule: id,
-          message: `phpstan failed to run: ${cause instanceof Error ? cause.message : String(cause)}`,
-          path: cwd,
-          severity: 'error' as const,
-          source: 'phpstan' as const,
-        },
-      ]),
-    ),
-  );
+  });
 
   return { id, description, run, category: opts.category };
 }

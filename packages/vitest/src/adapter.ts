@@ -1,7 +1,7 @@
-import * as childProcess from 'node:child_process';
 import * as nodePath from 'node:path';
 import { Effect } from 'effect';
 import type { Rule, Violation } from '@regeln/core';
+import { execTool, extractLocation } from '@regeln/core';
 
 export interface VitestOptions {
   /**
@@ -40,21 +40,6 @@ interface VitestJsonResult {
       readonly failureMessages: readonly string[];
     }>;
   }>;
-}
-
-/**
- * Extracts the first `path:line:col` from a stack-trace string.
- * Vitest failure messages embed the assertion location in the stack.
- */
-function extractLocation(failureMessage: string): { path: string; line: number | undefined } {
-  // Matches patterns like:
-  //   at /abs/path/file.test.ts:42:13
-  //   at file:///abs/path/file.test.ts:42:13
-  const match = /at\s+(?:file:\/\/)?([^\s]+):(\d+):\d+/.exec(failureMessage);
-  if (match) {
-    return { path: match[1] ?? '', line: Number(match[2] ?? 0) };
-  }
-  return { path: '', line: undefined };
 }
 
 function parseVitestJson(stdout: string, cwd: string, ruleId: string): Violation[] {
@@ -121,31 +106,7 @@ export function vitest(opts: VitestOptions = {}): Rule {
       args.push(...patterns);
     }
 
-    const stdout = yield* Effect.try({
-      try: (): string => {
-        try {
-          return childProcess
-            .execFileSync(bin, args, { cwd, encoding: 'utf-8', stdio: ['ignore', 'pipe', 'pipe'] })
-            .toString();
-        } catch (e: unknown) {
-          // vitest exits 1 when tests fail — the JSON is on stdout.
-          const execError = e as { stdout?: Buffer | string };
-          const out = execError.stdout;
-          if (out) return typeof out === 'string' ? out : out.toString();
-          throw e;
-        }
-      },
-      catch: (cause) => cause,
-    }).pipe(
-      Effect.catchAll((cause) =>
-        Effect.gen(function* () {
-          yield* Effect.logWarning(
-            `[regeln] vitest failed (${String(cause)}) — vitest() produced no violations.`,
-          );
-          return '';
-        }),
-      ),
-    );
+    const stdout = yield* execTool(bin, args, cwd, 'vitest');
 
     if (!stdout) return [];
     return parseVitestJson(stdout, cwd, id);

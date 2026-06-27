@@ -75,8 +75,10 @@ export function parseJUnitXml(xml: string, cwd: string): ParsedTestCase[] {
   while ((caseMatch = caseRe.exec(xml)) !== null) {
     const casePos = caseMatch.index;
     // Advance suiteFile to the latest suite opening before this testcase
-    while (suiteIdx < suiteFiles.length && suiteFiles[suiteIdx]!.pos <= casePos) {
-      suiteFile = suiteFiles[suiteIdx]!.file;
+    while (suiteIdx < suiteFiles.length) {
+      const current = suiteFiles[suiteIdx];
+      if (!current || current.pos > casePos) break;
+      suiteFile = current.file;
       suiteIdx++;
     }
 

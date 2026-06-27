@@ -1,6 +1,7 @@
 import { Effect } from 'effect';
 import type { Check, Violation } from '@regeln/core';
-import type { CallExpression, ObjectLiteralExpression, PropertyAssignment } from 'ts-morph';
+import { SyntaxKind } from 'ts-morph';
+import type { CallExpression, ObjectLiteralExpression, PropertyAssignment, SourceFile } from 'ts-morph';
 import { loadSourceFile } from './shared';
 
 /**
@@ -25,11 +26,11 @@ export function requireCallShape(
 
       if (sourceFile === null) return [];
 
-      const sf = sourceFile._tsMorph;
+      const sf = sourceFile._tsMorph as SourceFile;
       const violations: Violation[] = [];
 
       const calls: readonly CallExpression[] = sf.getDescendantsOfKind
-        ? sf.getDescendantsOfKind(200 /* SyntaxKind.CallExpression */)
+        ? sf.getDescendantsOfKind(SyntaxKind.CallExpression)
         : [];
 
       for (const call of calls) {

@@ -52,7 +52,7 @@ export function noCycles(pattern: string | string[], opts: NoCyclesOptions = {})
 
   const run: Rule['run'] = Effect.gen(function* () {
     // dependency-cruiser is an optional peer dep — degrade gracefully.
-    const cruiser = yield* Effect.tryPromise({
+    const raw = yield* Effect.tryPromise({
       try: async () =>
         // @ts-ignore — dependency-cruiser is an optional peer dep; present in
         // some workspaces, absent in others. Cast to DependencyCruiserModule.
@@ -60,12 +60,13 @@ export function noCycles(pattern: string | string[], opts: NoCyclesOptions = {})
       catch: () => null,
     }).pipe(Effect.catchAll(() => Effect.succeed(null)));
 
-    if (cruiser === null) {
+    if (raw === null || typeof raw.cruise !== 'function') {
       yield* Effect.logWarning(
-        '[regeln] dependency-cruiser is not installed — noCycles() produced no violations.',
+        '[regeln] dependency-cruiser is not installed or export shape changed — noCycles() produced no violations.',
       );
       return [];
     }
+    const cruiser = raw;
 
     const result = yield* Effect.try({
       try: () =>

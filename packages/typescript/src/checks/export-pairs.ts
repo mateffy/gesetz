@@ -1,5 +1,6 @@
 import { Effect } from 'effect';
 import type { Check, Violation } from '@regeln/core';
+import type { SourceFile } from 'ts-morph';
 import { loadSourceFile } from './shared';
 
 /**
@@ -21,7 +22,7 @@ export function requireExportPairs(
 
       if (sourceFile === null) return [];
 
-      const sf = sourceFile._tsMorph;
+      const sf = sourceFile._tsMorph as SourceFile;
       const exports = new Set<string>();
 
       // Collect all exported identifiers
@@ -76,7 +77,7 @@ export function requireExportFactories(
 
       if (sourceFile === null) return [];
 
-      const sf = sourceFile._tsMorph;
+      const sf = sourceFile._tsMorph as SourceFile;
       let count = 0;
 
       for (const [name] of sf.getExportedDeclarations()) {

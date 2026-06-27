@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import * as childProcess from 'node:child_process';
 import * as nodeFs from 'node:fs';
-import * as nodeOs from 'node:os';
 import * as nodePath from 'node:path';
 import { Effect, Layer } from 'effect';
 import { storybook } from '../src/adapter';
@@ -14,6 +13,24 @@ const TestLayer = Layer.mergeAll(
   ProjectRootLive('/project'),
   FileFilterLive(null),
 );
+
+vi.mock('node:fs', async () => {
+  const actual = await vi.importActual('node:fs');
+  return {
+    ...actual,
+    mkdtempSync: vi.fn(),
+    readFileSync: vi.fn(),
+    rmSync: vi.fn(),
+  };
+});
+
+vi.mock('node:child_process', async () => {
+  const actual = await vi.importActual('node:child_process');
+  return {
+    ...actual,
+    execFileSync: vi.fn(),
+  };
+});
 
 // Jest-compatible JSON emitted by `test-storybook --json --outputFile <file>`
 const STORYBOOK_JSON = JSON.stringify({
@@ -44,15 +61,15 @@ const STORYBOOK_JSON = JSON.stringify({
 describe('storybook', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    vi.clearAllMocks();
   });
 
   it('maps failed story assertions to violations', async () => {
     const tmpDir = '/tmp/regeln-storybook-test-1';
     const tmpFile = nodePath.join(tmpDir, 'results.json');
-    vi.spyOn(nodeFs, 'mkdtempSync').mockReturnValue(tmpDir);
-    vi.spyOn(nodeFs, 'readFileSync').mockReturnValue(STORYBOOK_JSON);
-    vi.spyOn(nodeFs, 'rmSync').mockImplementation(() => undefined);
-    vi.spyOn(childProcess, 'execFileSync').mockImplementation(() => {
+    (nodeFs.mkdtempSync as ReturnType<typeof vi.fn>).mockReturnValue(tmpDir);
+    (nodeFs.readFileSync as ReturnType<typeof vi.fn>).mockReturnValue(STORYBOOK_JSON);
+    (childProcess.execFileSync as ReturnType<typeof vi.fn>).mockImplementation(() => {
       throw new Error('exit 1');
     });
 
@@ -69,12 +86,10 @@ describe('storybook', () => {
 
   it('passes the URL and --ci flag', async () => {
     const tmpDir = '/tmp/regeln-storybook-test-2';
-    vi.spyOn(nodeFs, 'mkdtempSync').mockReturnValue(tmpDir);
-    vi.spyOn(nodeFs, 'readFileSync').mockReturnValue('{}');
-    vi.spyOn(nodeFs, 'rmSync').mockImplementation(() => undefined);
-    const spy = vi
-      .spyOn(childProcess, 'execFileSync')
-      .mockImplementation(() => '');
+    (nodeFs.mkdtempSync as ReturnType<typeof vi.fn>).mockReturnValue(tmpDir);
+    (nodeFs.readFileSync as ReturnType<typeof vi.fn>).mockReturnValue('{}');
+    const spy = childProcess.execFileSync as ReturnType<typeof vi.fn>;
+    spy.mockImplementation(() => '');
 
     const rule = storybook({ cwd: '/project', url: 'http://localhost:9009' });
     await Effect.runPromise(Effect.provide(rule.run, TestLayer));
@@ -88,12 +103,11 @@ describe('storybook', () => {
 
   it('returns empty array when no failures', async () => {
     const tmpDir = '/tmp/regeln-storybook-test-3';
-    vi.spyOn(nodeFs, 'mkdtempSync').mockReturnValue(tmpDir);
-    vi.spyOn(nodeFs, 'readFileSync').mockReturnValue(
+    (nodeFs.mkdtempSync as ReturnType<typeof vi.fn>).mockReturnValue(tmpDir);
+    (nodeFs.readFileSync as ReturnType<typeof vi.fn>).mockReturnValue(
       JSON.stringify({ numFailedTests: 0, testResults: [] }),
     );
-    vi.spyOn(nodeFs, 'rmSync').mockImplementation(() => undefined);
-    vi.spyOn(childProcess, 'execFileSync').mockImplementation(() => '');
+    (childProcess.execFileSync as ReturnType<typeof vi.fn>).mockImplementation(() => '');
 
     const rule = storybook({ cwd: '/project' });
     const violations = await Effect.runPromise(Effect.provide(rule.run, TestLayer));

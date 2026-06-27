@@ -1,9 +1,11 @@
 import { Effect } from 'effect';
 import type { Check, Severity, Violation } from '@regeln/core';
+import { SyntaxKind } from 'ts-morph';
 import type {
   JsxAttribute,
   JsxExpression,
   JsxText,
+  SourceFile,
   StringLiteral,
 } from 'ts-morph';
 import { loadSourceFile } from './shared';
@@ -106,11 +108,11 @@ export function noHardcodedStrings(opts: NoHardcodedStringsOptions = {}): Check 
 
       if (sourceFile === null) return [];
 
-      const sf = sourceFile._tsMorph;
+      const sf = sourceFile._tsMorph as SourceFile;
       const violations: Violation[] = [];
 
       // ── Case 1: JSX text nodes (SyntaxKind.JsxText = 12) ──
-      const jsxTexts: readonly JsxText[] = sf.getDescendantsOfKind?.(12) ?? [];
+      const jsxTexts: readonly JsxText[] = sf.getDescendantsOfKind?.(SyntaxKind.JsxText) ?? [];
       for (const node of jsxTexts) {
         const text = node.getText?.() ?? '';
         if (hasLetter.test(text)) {
@@ -127,15 +129,13 @@ export function noHardcodedStrings(opts: NoHardcodedStringsOptions = {}): Check 
       }
 
       // ── Case 2: String literals inside JSX expression containers ──
-      // SyntaxKind.JsxExpression = 285
-      const jsxExpressions: readonly JsxExpression[] = sf.getDescendantsOfKind?.(285) ?? [];
+      const jsxExpressions: readonly JsxExpression[] = sf.getDescendantsOfKind?.(SyntaxKind.JsxExpression) ?? [];
       for (const expr of jsxExpressions) {
         // Only flag string literals directly inside the expression — not
         // nested calls like {m.foo()} or variables {title}.
         const inner = expr.getExpression?.();
         if (!inner) continue;
-        // SyntaxKind.StringLiteral = 10
-        if (inner.getKind?.() !== 10) continue;
+        if (inner.getKind?.() !== SyntaxKind.StringLiteral) continue;
 
         const strNode = inner as StringLiteral;
         const value = strNode.getLiteralValue?.() ?? '';
@@ -153,8 +153,7 @@ export function noHardcodedStrings(opts: NoHardcodedStringsOptions = {}): Check 
       }
 
       // ── Case 3: Known text-bearing attributes with string-literal values ──
-      // SyntaxKind.JsxAttribute = 287
-      const jsxAttrs: readonly JsxAttribute[] = sf.getDescendantsOfKind?.(287) ?? [];
+      const jsxAttrs: readonly JsxAttribute[] = sf.getDescendantsOfKind?.(SyntaxKind.JsxAttribute) ?? [];
       for (const attr of jsxAttrs) {
         const name = attr.getNameNode?.()?.getText?.() ?? '';
         if (!textAttributes.has(name)) continue;

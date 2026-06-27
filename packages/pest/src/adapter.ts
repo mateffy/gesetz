@@ -1,9 +1,8 @@
-import * as childProcess from 'node:child_process';
 import * as nodePath from 'node:path';
 import * as nodeFs from 'node:fs';
-import * as nodeOs from 'node:os';
 import { Effect } from 'effect';
 import type { Rule, Violation } from '@regeln/core';
+import { execTool, runWithTempFile } from '@regeln/core';
 import { parseJUnitXml, junitToViolations } from '@regeln/junit';
 
 export interface PestOptions {
@@ -47,56 +46,30 @@ export function pest(opts: PestOptions = {}): Rule {
   const bin = opts.bin ?? 'vendor/bin/pest';
 
   const run: Rule['run'] = Effect.gen(function* () {
-    const tmpFile = nodePath.join(
-      nodeFs.mkdtempSync(nodePath.join(nodeOs.tmpdir(), 'regeln-pest-')),
-      'junit.xml',
-    );
-
-    const args = ['--log-junit', tmpFile, '--no-progress'];
-    if (opts.extraArgs) args.push(...opts.extraArgs);
+    const baseArgs = ['--log-junit', '__TMP__', '--no-progress'];
+    if (opts.extraArgs) baseArgs.push(...opts.extraArgs);
     if (opts.pattern) {
       const patterns = Array.isArray(opts.pattern) ? opts.pattern : [opts.pattern];
-      args.push(...patterns);
+      baseArgs.push(...patterns);
     }
 
-    // Run pest — exits non-zero on test failures (expected).
-    yield* Effect.try({
-      try: () => {
-        try {
-          childProcess.execFileSync(bin, args, {
-            cwd,
-            encoding: 'utf-8',
-            stdio: ['ignore', 'ignore', 'ignore'],
-          });
-        } catch {
-          // Non-zero exit expected when tests fail — JUnit file still written.
-        }
-      },
-      catch: (cause) => cause,
-    }).pipe(
-      Effect.catchAll((cause) =>
-        Effect.gen(function* () {
-          yield* Effect.logWarning(
-            `[regeln] pest failed to execute (${String(cause)}) — attempting to read JUnit output.`,
-          );
-        }),
-      ),
+    return yield* runWithTempFile('regeln-pest-', 'junit.xml', (tmpFile) =>
+      Effect.gen(function* () {
+        const args = baseArgs.map((a) => (a === '__TMP__' ? `--log-junit=${tmpFile}` : a));
+
+        yield* execTool(bin, args, cwd, 'pest').pipe(Effect.ignore);
+
+        const xml = yield* Effect.try({
+          try: () => nodeFs.readFileSync(tmpFile, 'utf-8'),
+          catch: (cause) => cause,
+        }).pipe(Effect.catchAll(() => Effect.succeed('')));
+
+        if (!xml) return [];
+
+        const cases = parseJUnitXml(xml, cwd);
+        return junitToViolations(cases, id);
+      }),
     );
-
-    const xml = yield* Effect.try({
-      try: () => nodeFs.readFileSync(tmpFile, 'utf-8'),
-      catch: (cause) => cause,
-    }).pipe(
-      Effect.catchAll(() => Effect.succeed('')),
-    );
-
-    // Cleanup temp file. rmSync with force:true doesn't throw on missing files.
-    nodeFs.rmSync(tmpFile, { force: true });
-
-    if (!xml) return [];
-
-    const cases = parseJUnitXml(xml, cwd);
-    return junitToViolations(cases, id);
   });
 
   return { id, description, run, category: opts.category };

@@ -1,6 +1,7 @@
 import { Effect } from 'effect';
 import type { Check, Violation } from '@regeln/core';
-import type { JsxAttribute, JsxOpeningElement, JsxSelfClosingElement, JsxText } from 'ts-morph';
+import { SyntaxKind } from 'ts-morph';
+import type { JsxAttribute, JsxOpeningElement, JsxSelfClosingElement, JsxText, SourceFile } from 'ts-morph';
 import { loadSourceFile } from './shared';
 
 /**
@@ -27,11 +28,11 @@ export function noLiteralJsxText(
 
       if (sourceFile === null) return [];
 
-      const sf = sourceFile._tsMorph;
+      const sf = sourceFile._tsMorph as SourceFile;
       const violations: Violation[] = [];
 
       // SyntaxKind.JsxText = 12
-      const jsxTexts: readonly JsxText[] = sf.getDescendantsOfKind?.(12) ?? [];
+      const jsxTexts: readonly JsxText[] = sf.getDescendantsOfKind?.(SyntaxKind.JsxText) ?? [];
 
       for (const node of jsxTexts) {
         const text = node.getText?.() ?? '';
@@ -75,11 +76,11 @@ export function noLiteralJsxProp(
 
       if (sourceFile === null) return [];
 
-      const sf = sourceFile._tsMorph;
+      const sf = sourceFile._tsMorph as SourceFile;
       const violations: Violation[] = [];
 
-      // SyntaxKind.JsxAttribute = 287
-      const jsxAttrs: readonly JsxAttribute[] = sf.getDescendantsOfKind?.(287) ?? [];
+      // SyntaxKind.JsxAttribute = 292
+      const jsxAttrs: readonly JsxAttribute[] = sf.getDescendantsOfKind?.(SyntaxKind.JsxAttribute) ?? [];
 
       for (const attr of jsxAttrs) {
         const name = attr.getNameNode?.()?.getText?.() ?? '';
@@ -129,12 +130,12 @@ export function noJsxElements(
 
       if (sourceFile === null) return [];
 
-      const sf = sourceFile._tsMorph;
+      const sf = sourceFile._tsMorph as SourceFile;
       const violations: Violation[] = [];
 
-      // SyntaxKind.JsxOpeningElement = 281, SyntaxKind.JsxSelfClosingElement = 283
-      const openingElements: readonly JsxOpeningElement[] = sf.getDescendantsOfKind?.(281) ?? [];
-      const selfClosingElements: readonly JsxSelfClosingElement[] = sf.getDescendantsOfKind?.(283) ?? [];
+      // SyntaxKind.JsxOpeningElement = 287, SyntaxKind.JsxSelfClosingElement = 286
+      const openingElements: readonly JsxOpeningElement[] = sf.getDescendantsOfKind?.(SyntaxKind.JsxOpeningElement) ?? [];
+      const selfClosingElements: readonly JsxSelfClosingElement[] = sf.getDescendantsOfKind?.(SyntaxKind.JsxSelfClosingElement) ?? [];
 
       for (const el of [...openingElements, ...selfClosingElements]) {
         const tagName = el.getTagNameNode?.()?.getText?.() ?? '';

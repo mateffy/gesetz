@@ -11,9 +11,8 @@ import { TsAdapterError } from '../engine/errors';
 export interface TsSourceFile {
   getFilePath(): string;
   getText(): string;
-  /** ts-morph SourceFile. Typed as `any` to avoid importing ts-morph in core. */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  readonly _tsMorph: any;
+  /** ts-morph SourceFile. Typed as `unknown` to avoid importing ts-morph in core. */
+  readonly _tsMorph: unknown;
 }
 
 export interface TsAdapterService {

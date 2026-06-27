@@ -15,6 +15,24 @@ const TestLayer = Layer.mergeAll(
   FileFilterLive(null),
 );
 
+vi.mock('node:child_process', async () => {
+  const actual = await vi.importActual('node:child_process');
+  return {
+    ...actual,
+    execFileSync: vi.fn(),
+  };
+});
+
+vi.mock('node:fs', async () => {
+  const actual = await vi.importActual('node:fs');
+  return {
+    ...actual,
+    mkdtempSync: vi.fn(),
+    readFileSync: vi.fn(),
+    rmSync: vi.fn(),
+  };
+});
+
 const PHPUNIT_JUNIT = `<?xml version="1.0" encoding="UTF-8"?>
 <testsuites>
   <testsuite name="Tests\\Unit\\ExampleTest" tests="2" assertions="2" failures="1" errors="0" time="0.05">
@@ -29,14 +47,14 @@ at /project/tests/Unit/ExampleTest.php:20</failure>
 describe('phpunit', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    vi.clearAllMocks();
   });
 
   it('maps failed tests to violations from JUnit XML', async () => {
     const tmpFile = nodePath.join(nodeOs.tmpdir(), 'regeln-phpunit-test-junit.xml');
-    vi.spyOn(nodeFs, 'mkdtempSync').mockReturnValue(nodePath.dirname(tmpFile));
-    vi.spyOn(nodeFs, 'readFileSync').mockReturnValue(PHPUNIT_JUNIT);
-    vi.spyOn(nodeFs, 'rmSync').mockImplementation(() => undefined);
-    vi.spyOn(childProcess, 'execFileSync').mockImplementation(() => {
+    (nodeFs.mkdtempSync as ReturnType<typeof vi.fn>).mockReturnValue(nodePath.dirname(tmpFile));
+    (nodeFs.readFileSync as ReturnType<typeof vi.fn>).mockReturnValue(PHPUNIT_JUNIT);
+    (childProcess.execFileSync as ReturnType<typeof vi.fn>).mockImplementation(() => {
       throw new Error('phpunit exited 1');
     });
 
@@ -54,12 +72,10 @@ describe('phpunit', () => {
 
   it('passes the config file when provided', async () => {
     const tmpFile = nodePath.join(nodeOs.tmpdir(), 'regeln-phpunit-test-junit2.xml');
-    vi.spyOn(nodeFs, 'mkdtempSync').mockReturnValue(nodePath.dirname(tmpFile));
-    vi.spyOn(nodeFs, 'readFileSync').mockReturnValue('');
-    vi.spyOn(nodeFs, 'rmSync').mockImplementation(() => undefined);
-    const spy = vi
-      .spyOn(childProcess, 'execFileSync')
-      .mockImplementation(() => '');
+    (nodeFs.mkdtempSync as ReturnType<typeof vi.fn>).mockReturnValue(nodePath.dirname(tmpFile));
+    (nodeFs.readFileSync as ReturnType<typeof vi.fn>).mockReturnValue('');
+    const spy = childProcess.execFileSync as ReturnType<typeof vi.fn>;
+    spy.mockImplementation(() => '');
 
     const rule = phpunit({ cwd: '/project', configFile: 'phpunit.xml' });
     await Effect.runPromise(Effect.provide(rule.run, TestLayer));
@@ -73,10 +89,9 @@ describe('phpunit', () => {
 
   it('returns empty array when JUnit file is empty', async () => {
     const tmpFile = nodePath.join(nodeOs.tmpdir(), 'regeln-phpunit-test-junit3.xml');
-    vi.spyOn(nodeFs, 'mkdtempSync').mockReturnValue(nodePath.dirname(tmpFile));
-    vi.spyOn(nodeFs, 'readFileSync').mockReturnValue('');
-    vi.spyOn(nodeFs, 'rmSync').mockImplementation(() => undefined);
-    vi.spyOn(childProcess, 'execFileSync').mockImplementation(() => {
+    (nodeFs.mkdtempSync as ReturnType<typeof vi.fn>).mockReturnValue(nodePath.dirname(tmpFile));
+    (nodeFs.readFileSync as ReturnType<typeof vi.fn>).mockReturnValue('');
+    (childProcess.execFileSync as ReturnType<typeof vi.fn>).mockImplementation(() => {
       throw new Error('exit 1');
     });
 
@@ -87,12 +102,10 @@ describe('phpunit', () => {
 
   it('passes the filter option as --filter', async () => {
     const tmpFile = nodePath.join(nodeOs.tmpdir(), 'regeln-phpunit-test-junit4.xml');
-    vi.spyOn(nodeFs, 'mkdtempSync').mockReturnValue(nodePath.dirname(tmpFile));
-    vi.spyOn(nodeFs, 'readFileSync').mockReturnValue('');
-    vi.spyOn(nodeFs, 'rmSync').mockImplementation(() => undefined);
-    const spy = vi
-      .spyOn(childProcess, 'execFileSync')
-      .mockImplementation(() => '');
+    (nodeFs.mkdtempSync as ReturnType<typeof vi.fn>).mockReturnValue(nodePath.dirname(tmpFile));
+    (nodeFs.readFileSync as ReturnType<typeof vi.fn>).mockReturnValue('');
+    const spy = childProcess.execFileSync as ReturnType<typeof vi.fn>;
+    spy.mockImplementation(() => '');
 
     const rule = phpunit({ cwd: '/project', filter: 'testOnlyFeature' });
     await Effect.runPromise(Effect.provide(rule.run, TestLayer));

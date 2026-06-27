@@ -1,7 +1,7 @@
-import * as childProcess from 'node:child_process';
 import * as nodePath from 'node:path';
 import { Effect } from 'effect';
 import type { Rule, Violation } from '@regeln/core';
+import { execTool } from '@regeln/core';
 
 export interface OxlintOptions {
   pattern?: string | string[];
@@ -57,35 +57,7 @@ export function oxlint(opts: OxlintOptions = {}): Rule {
     const args = ['--format=json', ...patterns];
     if (opts.configFile) args.push('--config', opts.configFile);
 
-    const stdout = yield* Effect.try({
-      try: (): string => {
-        try {
-          return childProcess
-            .execFileSync(bin, args, {
-              cwd,
-              encoding: 'utf-8',
-              stdio: ['ignore', 'pipe', 'pipe'],
-            })
-            .toString();
-        } catch (e: unknown) {
-          // oxlint exits non-zero on violations but still writes JSON to stdout
-          const execError = e as { stdout?: Buffer | string };
-          const out = execError.stdout;
-          if (out) return typeof out === 'string' ? out : out.toString();
-          throw e;
-        }
-      },
-      catch: (cause) => cause,
-    }).pipe(
-      Effect.catchAll((cause) =>
-        Effect.gen(function* () {
-          yield* Effect.logWarning(
-            `[regeln] oxlint failed (${String(cause)}) — oxlint() produced no violations.`,
-          );
-          return '';
-        }),
-      ),
-    );
+    const stdout = yield* execTool(bin, args, cwd, 'oxlint');
 
     if (!stdout.trim()) return [];
 

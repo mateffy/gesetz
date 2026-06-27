@@ -45,9 +45,15 @@ export const PhpAdapterLive: Layer.Layer<PhpAdapter> = Layer.effect(
         return Effect.tryPromise({
           try: async () => {
             const ParserModule = (await import('tree-sitter')) as unknown as TreeSitterModule;
+            if (typeof ParserModule.default !== 'function') {
+              throw new Error('tree-sitter module does not export Parser class');
+            }
             // @ts-ignore — tree-sitter-php is an optional peer dep; present in
             // some workspaces, absent in others. Cast to our minimal interface.
             const PHP = (await import('tree-sitter-php')) as unknown as TreeSitterPhpModule;
+            if (!PHP.default.php) {
+              throw new Error('tree-sitter-php module does not export php grammar');
+            }
             const parser = new ParserModule.default();
             parser.setLanguage(PHP.default.php);
             const tree = parser.parse(content);

@@ -1,0 +1,50 @@
+{
+  "name": "regel",
+  "version": "0.1.0",
+  "description": "Unified code-quality gate — one package for rules, checks, adapters, and CLI",
+  "type": "module",
+  "bin": {
+    "regel": "./src/cli.ts"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@regeln/cli": "workspace:*",
+    "@regeln/core": "workspace:*",
+    "@regeln/typescript": "workspace:*",
+    "@regeln/effect-ts": "workspace:*",
+    "@regeln/eslint": "workspace:*",
+    "@regeln/oxlint": "workspace:*",
+    "@regeln/prettier": "workspace:*",
+    "@regeln/oxfmt": "workspace:*",
+    "@regeln/vitest": "workspace:*",
+    "@regeln/bun-test": "workspace:*",
+    "@regeln/storybook": "workspace:*",
+    "@regeln/junit": "workspace:*",
+    "@regeln/phpstan": "workspace:*",
+    "@regeln/phpunit": "workspace:*",
+    "@regeln/pest": "workspace:*",
+    "@regeln/php": "workspace:*",
+    "@regeln/laravel": "workspace:*",
+    "effect": "^3.15.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.8.0"
+  },
+  "keywords": [
+    "lint",
+    "quality",
+    "gate",
+    "ci",
+    "typescript",
+    "effect-ts",
+    "ast",
+    "rules"
+  ],
+  "license": "MIT"
+}

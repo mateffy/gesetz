@@ -1,9 +1,8 @@
-import * as childProcess from 'node:child_process';
 import * as nodePath from 'node:path';
 import * as nodeFs from 'node:fs';
-import * as nodeOs from 'node:os';
 import { Effect } from 'effect';
 import type { Rule, Violation } from '@regeln/core';
+import { execTool, runWithTempFile } from '@regeln/core';
 import { parseJUnitXml, junitToViolations } from '@regeln/junit';
 
 export interface PhpunitOptions {
@@ -51,59 +50,34 @@ export function phpunit(opts: PhpunitOptions = {}): Rule {
   const bin = opts.bin ?? 'vendor/bin/phpunit';
 
   const run: Rule['run'] = Effect.gen(function* () {
-    const tmpDir = nodeFs.mkdtempSync(nodePath.join(nodeOs.tmpdir(), 'regeln-phpunit-'));
-    const tmpFile = nodePath.join(tmpDir, 'junit.xml');
-
-    try {
-      const args = ['--log-junit', tmpFile, '--no-progress'];
-
-      if (opts.configFile) args.push('--configuration', opts.configFile);
-      if (opts.filter) args.push('--filter', opts.filter);
-      if (opts.extraArgs) args.push(...opts.extraArgs);
-      if (opts.pattern) {
-        const patterns = Array.isArray(opts.pattern) ? opts.pattern : [opts.pattern];
-        args.push(...patterns);
-      }
-
-      // Run phpunit — exits non-zero on test failures (expected).
-      yield* Effect.try({
-        try: () => {
-          try {
-            childProcess.execFileSync(bin, args, {
-              cwd,
-              encoding: 'utf-8',
-              stdio: ['ignore', 'ignore', 'pipe'],
-            });
-          } catch {
-            // Non-zero exit expected when tests fail — JUnit file still written.
-          }
-        },
-        catch: (cause) => cause,
-      }).pipe(
-        Effect.catchAll((cause) =>
-          Effect.gen(function* () {
-            yield* Effect.logWarning(
-              `[regeln] phpunit failed to execute (${String(cause)}) — attempting to read JUnit output.`,
-            );
-          }),
-        ),
-      );
-
-      let xml = '';
-      try {
-        xml = nodeFs.readFileSync(tmpFile, 'utf-8');
-      } catch {
-        return [] as Violation[];
-      }
-
-      if (!xml) return [] as Violation[];
-
-      const cases = parseJUnitXml(xml, cwd);
-      return junitToViolations(cases, id);
-    } finally {
-      // Cleanup temp directory. rmSync with force:true doesn't throw on missing files.
-      nodeFs.rmSync(tmpDir, { recursive: true, force: true });
+    const baseArgs = ['--log-junit', '__TMP__', '--no-progress'];
+    if (opts.configFile) baseArgs.push('--configuration', opts.configFile);
+    if (opts.filter) baseArgs.push('--filter', opts.filter);
+    if (opts.extraArgs) baseArgs.push(...opts.extraArgs);
+    if (opts.pattern) {
+      const patterns = Array.isArray(opts.pattern) ? opts.pattern : [opts.pattern];
+      baseArgs.push(...patterns);
     }
+
+    return yield* runWithTempFile('regeln-phpunit-', 'junit.xml', (tmpFile) =>
+      Effect.gen(function* () {
+        const args = baseArgs.map((a) => (a === '__TMP__' ? `--log-junit=${tmpFile}` : a));
+
+        yield* execTool(bin, args, cwd, 'phpunit').pipe(Effect.ignore);
+
+        let xml = '';
+        try {
+          xml = nodeFs.readFileSync(tmpFile, 'utf-8');
+        } catch {
+          return [] as Violation[];
+        }
+
+        if (!xml) return [] as Violation[];
+
+        const cases = parseJUnitXml(xml, cwd);
+        return junitToViolations(cases, id);
+      }),
+    );
   });
 
   return { id, description, run, category: opts.category };
