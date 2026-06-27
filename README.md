@@ -177,7 +177,7 @@ bun add -d @gesetz/eslint @gesetz/vitest @gesetz/typescript
 ### 2. Initialize a config
 
 ```bash
-bun gesetz init
+gesetz init
 ```
 
 This creates a `gesetz.config.ts` at your project root. In a TTY it runs an interactive wizard; in CI or agent mode it auto-detects your framework and installed tools.
@@ -185,7 +185,7 @@ This creates a `gesetz.config.ts` at your project root. In a TTY it runs an inte
 ### 3. Run checks
 
 ```bash
-bun gesetz check
+gesetz check
 ```
 
 Output (TTY):
@@ -205,13 +205,13 @@ Output (TTY):
 
 ```bash
 # JSON output for agents
-bun gesetz check --format=json
+gesetz check --format=json
 
 # GitHub Actions annotations
-bun gesetz check --format=ci
+gesetz check --format=ci
 
 # Only changed files since main
-bun gesetz check --since main
+gesetz check --since main
 ```
 
 ---
