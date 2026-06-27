@@ -1,5 +1,5 @@
 /**
- * `regel init` command.
+ * `gesetz init` command.
  *
  * Interactive when stdout is a TTY and no agent env var is set; otherwise
  * non-interactive (flags + auto-detection). Emits a JSON receipt on
@@ -48,7 +48,7 @@ function emitPretty(
   if (res.qaScript) {
     lines.push(`  Added "qa" script to ${res.pm === 'composer' ? 'composer.json' : 'package.json'}`);
   }
-  lines.push('', 'Next: run `regel check`');
+  lines.push('', 'Next: run `gesetz check`');
   return Console.log(lines.join('\n'));
 }
 
@@ -76,11 +76,11 @@ export const initCommand = Command.make(
       Options.optional,
     ),
     force: Options.boolean('force').pipe(
-      Options.withDescription('Overwrite an existing regel.config.ts'),
+      Options.withDescription('Overwrite an existing gesetz.config.ts'),
       Options.withDefault(false),
     ),
     noInstall: Options.boolean('no-install').pipe(
-      Options.withDescription('Skip installing @regeln/* packages'),
+      Options.withDescription('Skip installing @gesetz/* packages'),
       Options.withDefault(false),
     ),
     noQaScript: Options.boolean('no-qa-script').pipe(
@@ -135,13 +135,13 @@ export const initCommand = Command.make(
           Effect.catchAll((e: unknown) => {
             if (e instanceof Error && '_tag' in e && e._tag === 'QuitException') {
               return Effect.gen(function* () {
-                yield* Console.error('regel init cancelled');
+                yield* Console.error('gesetz init cancelled');
                 return undefined;
               });
             }
             const message = e instanceof Error ? e.message : String(e);
             return Effect.gen(function* () {
-              yield* Console.error(`regel init failed: ${message}`);
+              yield* Console.error(`gesetz init failed: ${message}`);
               return yield* Effect.fail(new Error(message));
             });
           }),
@@ -162,7 +162,7 @@ export const initCommand = Command.make(
             if (fmt === 'json') {
               yield* emitReceipt({ v: 1, command: 'init', status: 'error', error: message });
             } else {
-              yield* Console.error(`regel init failed: ${message}`);
+              yield* Console.error(`gesetz init failed: ${message}`);
             }
             return yield* Effect.fail(new Error(message));
           }),
@@ -187,4 +187,4 @@ export const initCommand = Command.make(
         yield* emitPretty(result, plan);
       }
     }),
-).pipe(Command.withDescription('Initialize a new regel.config.ts in the current project'));
+).pipe(Command.withDescription('Initialize a new gesetz.config.ts in the current project'));

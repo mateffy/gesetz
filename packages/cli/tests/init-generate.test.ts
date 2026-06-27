@@ -40,14 +40,14 @@ describe('generateConfig — structure', () => {
     expect(src).toContain('projectRoot: import.meta.dirname');
   });
 
-  it('imports defineConfig from @regeln/core', () => {
+  it('imports defineConfig from @gesetz/core', () => {
     const src = generateConfig(makePlan());
-    expect(src).toMatch(/import \{ .*defineConfig.* \} from '@regeln\/core';/);
+    expect(src).toMatch(/import \{ .*defineConfig.* \} from '@gesetz\/core';/);
   });
 
-  it('imports select from @regeln/core for non-laravel presets', () => {
+  it('imports select from @gesetz/core for non-laravel presets', () => {
     const src = generateConfig(makePlan());
-    expect(src).toMatch(/import \{ .*select.* \} from '@regeln\/core';/);
+    expect(src).toMatch(/import \{ .*select.* \} from '@gesetz\/core';/);
   });
 
   it('blank preset emits empty rules array', () => {
@@ -139,7 +139,7 @@ describe('generateConfig — laravel preset', () => {
     expect(src).toContain('requirePsrNamespaces');
   });
 
-  it('imports from @regeln/laravel', () => {
+  it('imports from @gesetz/laravel', () => {
     const profile = makeProfile({ isLaravel: true, suggestedPreset: 'laravel' });
     const src = generateConfig(
       makePlan({
@@ -148,7 +148,7 @@ describe('generateConfig — laravel preset', () => {
         profile,
       }),
     );
-    expect(src).toMatch(/import \{ .*requireStrictTypes.* \} from '@regeln\/laravel';/);
+    expect(src).toMatch(/import \{ .*requireStrictTypes.* \} from '@gesetz\/laravel';/);
   });
 
   it('does not import select for laravel preset', () => {
@@ -170,7 +170,7 @@ describe('generateConfig — tool adapter rules', () => {
       makePlan({ tools: new Set(['oxlint'] as const) }),
     );
     expect(src).toContain("oxlint({ pattern: 'src/'");
-    expect(src).toMatch(/import \{ oxlint \} from '@regeln\/oxlint';/);
+    expect(src).toMatch(/import \{ oxlint \} from '@gesetz\/oxlint';/);
   });
 
   it('emits vitest adapter rule', () => {
@@ -178,7 +178,7 @@ describe('generateConfig — tool adapter rules', () => {
       makePlan({ tools: new Set(['vitest'] as const) }),
     );
     expect(src).toContain('vitest({');
-    expect(src).toMatch(/import \{ vitest \} from '@regeln\/vitest';/);
+    expect(src).toMatch(/import \{ vitest \} from '@gesetz\/vitest';/);
   });
 
   it('dedupes imports when multiple blueprints use the same import', () => {
@@ -196,7 +196,7 @@ describe('generateConfig — tool adapter rules', () => {
       }),
     );
     // requireSibling should appear exactly once in the import statement
-    const importMatch = src.match(/import \{ ([^}]*) \} from '@regeln\/core';/);
+    const importMatch = src.match(/import \{ ([^}]*) \} from '@gesetz\/core';/);
     expect(importMatch).toBeTruthy();
     const importedNames = importMatch![1].split(',').map((s) => s.trim());
     const requireSiblingCount = importedNames.filter((n) => n === 'requireSibling').length;

@@ -1,14 +1,14 @@
 /**
- * regel config for immoui — mirrors the existing @regeln/immoui QA rules.
+ * gesetz config for immoui — mirrors the existing @gesetz/immoui QA rules.
  *
  * This config uses the same primitives as the TS rule files under
- * quality-assurance/immoui/, but is consumed by the `regel` CLI so it can
+ * quality-assurance/immoui/, but is consumed by the `gesetz` CLI so it can
  * be run independently of vitest.
  *
  * Run with:
- *   regel check --project-root .
+ *   gesetz check --project-root .
  */
-import { defineConfig, select, requireSibling, requireChildren, forbidFile, noImportFrom, relativeImports } from '@regeln/core';
+import { defineConfig, select, requireSibling, requireChildren, forbidFile, noImportFrom, relativeImports } from '@gesetz/core';
 import {
   requireExportPairs,
   requireExportFactories,
@@ -21,11 +21,11 @@ import {
   noCrossModuleImports,
   requireDirectoryStructure,
   requireMinTestScore,
-} from '@regeln/typescript';
-import { oxlint } from '@regeln/oxlint';
-import { oxfmt } from '@regeln/oxfmt';
-import { vitest } from '@regeln/vitest';
-import { storybook } from '@regeln/storybook';
+} from '@gesetz/typescript';
+import { oxlint } from '@gesetz/oxlint';
+import { oxfmt } from '@gesetz/oxfmt';
+import { vitest } from '@gesetz/vitest';
+import { storybook } from '@gesetz/storybook';
 
 // ─── SDK conventions ──────────────────────────────────────────────────────────
 

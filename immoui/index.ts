@@ -7,8 +7,8 @@
  *
  * Usage in a Vitest test file:
  * ```ts
- * import { defineQualityTestsVitest } from '@regeln/core/reporters';
- * import { defineConfig } from '@regeln/core';
+ * import { defineQualityTestsVitest } from '@gesetz/core/reporters';
+ * import { defineConfig } from '@gesetz/core';
  * import { allRules } from './index';
  *
  * const config = defineConfig({ projectRoot: '../../immoui', rules: allRules });

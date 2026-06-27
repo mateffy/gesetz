@@ -1,4 +1,4 @@
-# Decisions: `regel init` Command
+# Decisions: `gesetz init` Command
 
 1. **3-question wizard, not 7.** Minimal: preset → tools → rules → (confirm install).
    Everything else derives from detection. Avoids the eslint-init "too many
@@ -13,7 +13,7 @@
 4. **Generator is pure `Plan → string`.** Trivially unit-testable, no Effect,
    no adapter imports at generate-time (emit strings only — bundler-safe).
 5. **Detection is pure `cwd → ProjectProfile`.** Same.
-6. **Generated config is TS, not JSON.** Regel's loader expects a TS/JS module
+6. **Generated config is TS, not JSON.** Gesetz's loader expects a TS/JS module
    calling `defineConfig`; the `select(...)` DSL and adapter fns are TS-native.
 7. **Install is optional + prompted.** `--no-install` skips; agent mode
    defaults to install (`--install` semantics). Idempotent `<pkgmanager> add`.
@@ -29,9 +29,9 @@
     warning) rather than silently dropping them.
 11. **Laravel preset included** (`requireStrictTypes`, `requirePsrNamespaces`,
     `noRawDbQueries`, `noEnvOutsideConfig`, `noDebugHelpers` from
-    `@regeln/laravel` + detected PHP tools). Framework detection: `composer.json`
+    `@gesetz/laravel` + detected PHP tools). Framework detection: `composer.json`
     or `artisan`. Install uses `composer require`.
-12. **`qa` script added to `package.json`** (`scripts.qa = "regel check"`) as
+12. **`qa` script added to `package.json`** (`scripts.qa = "gesetz check"`) as
     part of init unless `--no-qa-script`; `composer.json` `scripts.qa` for Laravel.
     Idempotent (only adds if missing).
 13. **`--pm` flag** overrides package-manager auto-detection (lockfile-based);

@@ -1,5 +1,5 @@
 {
-  "name": "@regeln/phpunit",
+  "name": "@gesetz/phpunit",
   "version": "0.1.0",
   "type": "module",
   "main": "src/index.ts",
@@ -11,8 +11,8 @@
     "test": "vitest run --reporter=verbose"
   },
   "dependencies": {
-    "@regeln/core": "workspace:*",
-    "@regeln/junit": "workspace:*",
+    "@gesetz/core": "workspace:*",
+    "@gesetz/junit": "workspace:*",
     "effect": "^3.0.0"
   },
   "devDependencies": {

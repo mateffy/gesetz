@@ -5,7 +5,7 @@
  *
  * @example
  * ```ts
- * import { TsAdapterLive } from '@regeln/typescript';
+ * import { TsAdapterLive } from '@gesetz/typescript';
  * const result = await runAll(config).pipe(
  *   Effect.provide(Layer.mergeAll(FileSystemLive, TsAdapterLive, PhpAdapterStub)),
  *   Effect.runPromise,
@@ -13,8 +13,8 @@
  * ```
  */
 import { Effect, Layer, Ref } from 'effect';
-import { TsAdapter, TsAdapterError } from '@regeln/core';
-import type { TsSourceFile } from '@regeln/core';
+import { TsAdapter, TsAdapterError } from '@gesetz/core';
+import type { TsSourceFile } from '@gesetz/core';
 
 /** Lazily-referenced ts-morph Project type, so this file type-checks whether or
  * not ts-morph is resolvable at compile time. */

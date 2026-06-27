@@ -1,5 +1,5 @@
 /**
- * Interactive wizard for `regel init`.
+ * Interactive wizard for `gesetz init`.
  *
  * Uses `@effect/cli`'s `Prompt.*` API (already a dependency). Five prompts:
  *   Q1 select preset, Q2 multiSelect tools, Q3 multiSelect rules,
@@ -35,7 +35,7 @@ type PromptErr = QuitException | Error;
 
 function runOverwriteGate(): Effect.Effect<boolean, PromptErr, Terminal> {
   return Prompt.confirm({
-    message: 'regel.config.ts exists \u2014 overwrite it?',
+    message: 'gesetz.config.ts exists \u2014 overwrite it?',
     initial: false,
   });
 }
@@ -106,14 +106,14 @@ function runRulesPrompt(
 
 function runInstallPrompt(pm: string): Effect.Effect<boolean, PromptErr, Terminal> {
   return Prompt.confirm({
-    message: `Install @regeln/* packages now via ${pm}? (recommended)`,
+    message: `Install @gesetz/* packages now via ${pm}? (recommended)`,
     initial: true,
   });
 }
 
 function runQaScriptPrompt(): Effect.Effect<boolean, PromptErr, Terminal> {
   return Prompt.confirm({
-    message: 'Add a "qa": "regel check" script to package.json? (recommended)',
+    message: 'Add a "qa": "gesetz check" script to package.json? (recommended)',
     initial: true,
   });
 }

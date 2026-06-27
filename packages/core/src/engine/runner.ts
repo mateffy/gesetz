@@ -18,7 +18,7 @@ export interface RuleResult {
 /**
  * Score for a single category, computed from all rules in that category.
  *
- * Score formula (same as Regel):
+ * Score formula (same as Gesetz):
  *   weighted = errors * 1.0 + warnings * 0.5 + infos * 0.1
  *   score    = max(0, 10 - weighted)
  */

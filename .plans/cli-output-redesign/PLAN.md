@@ -2,7 +2,7 @@
 
 ## Context & goal
 
-`regel check`'s terminal output is currently broken (box-drawing chars `─ █ ░ ✓ ✗`
+`gesetz check`'s terminal output is currently broken (box-drawing chars `─ █ ░ ✓ ✗`
 show as `âââ` mojibake) and is built for humans only. We want a **dual-mode
 output** — gorgeous for humans (`--pretty`), compact and parseable for LLM/AI
 agents (the default when an agent is detected) — modeled on Laravel PAO,
@@ -66,7 +66,7 @@ mode entirely by:
 
 ### Mode selection
 
-`regel check` selects an output mode in this priority order:
+`gesetz check` selects an output mode in this priority order:
 
 1. `--format=<pretty|json|github>` flag (explicit, wins always)
 2. `--json` flag (legacy alias for `--format=json`, kept for back-compat)
@@ -82,10 +82,10 @@ Agent env vars to detect (PAO-style, expandable):
 | Stream | Contents |
 |---|---|
 | **stdout** | The result payload only. Pretty = the human table + violations. JSON = one JSON document (envelope). Never progress, never the PASS/FAIL banner. |
-| **stderr** | Status line (`Quality Assurance: 21 violation(s) found.` / `PASS`), the exit summary, and the `regel check failed:` error on crash. Currently `ProcessReporter` already does this — extend the pattern. |
+| **stderr** | Status line (`Quality Assurance: 21 violation(s) found.` / `PASS`), the exit summary, and the `gesetz check failed:` error on crash. Currently `ProcessReporter` already does this — extend the pattern. |
 | **exit code** | `0` if `result.passing`, `1` otherwise. (Unchanged.) |
 
-Rationale: stdout is the API contract; an agent can `regel check | jq` safely.
+Rationale: stdout is the API contract; an agent can `gesetz check | jq` safely.
 
 ### A. Pretty mode (humans, `--format=pretty` or TTY default)
 
@@ -139,7 +139,7 @@ Design rules (all PAO/clispec-aligned):
    (the PAO target).
 4. **Capping**: if `total` > `MAX_VIOLATIONS` (default 50), include only the
    first 50 violations, set `"truncated": <remaining>`, and
-   `"hint": "regel check --format=json --all"`. Mirrors PAO/PHPStan capping.
+   `"hint": "gesetz check --format=json --all"`. Mirrors PAO/PHPStan capping.
    `--all` disables the cap.
 5. **Zero-violation rules omitted entirely** (today `--json` dumps them all).
 6. `col` is `null` when absent (consistent types — never omit keys).
@@ -161,13 +161,13 @@ packages/typescript/src/checks/call-shape.ts
 
 JSON mode stays a flat array (no grouping) — agents sort themselves.
 
-### `regel list`
+### `gesetz list`
 
 - `--format=json` / auto → array of `{id, description, category, guidance}`
   (today's shape, but only emitted on stdout; no leading prose).
 - `--format=pretty` → keep current look, gate ANSI/box on `isTTY`.
 
-### `regel skill`
+### `gesetz skill`
 
 Unchanged (markdown to stdout, no mode detection needed).
 
@@ -226,7 +226,7 @@ File: `packages/cli/src/main.ts`
     that writes `::error` lines to stdout). (Already exists as a reporter;
     surface it as a format for parity.)
 - Move the `PASS`/`FAIL` + totals banner to **stderr** (both modes). For JSON
-  mode this is a single stderr line: `regel: fail (21 violations)`.
+  mode this is a single stderr line: `gesetz: fail (21 violations)`.
 - Keep `if (!result.passing) Effect.fail(...)` for exit code 1.
 
 ### Step 5 — Stdout/stderr discipline in `ProcessReporter`
@@ -234,9 +234,9 @@ File: `packages/cli/src/main.ts`
 File: `packages/core/src/reporters/process.ts`
 
 - Already writes the violation count to stderr. Keep, but make the message
-  match the new banner (`regel: <pass|fail> (N violations)`).
+  match the new banner (`gesetz: <pass|fail> (N violations)`).
 
-### Step 6 — `regel list` mode support
+### Step 6 — `gesetz list` mode support
 
 File: `packages/cli/src/main.ts` (`listCommand`)
 
@@ -268,7 +268,7 @@ File: `packages/core/tests/reporters/reporters.test.ts` (extend) and a new
 - `API-DESIGN.md`: document the output contract (envelope schema, stream
   rules, mode precedence, env vars, capping).
 - `packages/cli/src/skill.ts` (`SKILL_MARKDOWN`): tell agents to run
-  `regel check` (auto-detects JSON) and how to read the envelope.
+  `gesetz check` (auto-detects JSON) and how to read the envelope.
 
 ---
 
@@ -294,7 +294,7 @@ File: `packages/core/tests/reporters/reporters.test.ts` (extend) and a new
 3. **`--json` legacy flag**: keep as alias indefinitely, or deprecate-with-
    warning now and remove in v0.2? Lean: keep silent alias for now.
 4. **Banner to stderr**: confirm you're OK with the `PASS/FAIL` line living on
-   stderr (so `regel check | jq .summary` works cleanly). This is the
+   stderr (so `gesetz check | jq .summary` works cleanly). This is the
    clispec recommendation but is a behavior change for anyone scraping stdout
    today.
 

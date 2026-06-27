@@ -1,5 +1,5 @@
 /**
- * Project detection for `regel init`.
+ * Project detection for `gesetz init`.
  *
  * Pure function `detectProject(cwd)` → `ProjectProfile`. Uses only `node:fs`,
  * `node:path` — no Effect, no adapter imports, no side effects beyond reads.
@@ -209,7 +209,7 @@ function detectPackageManager(cwd: string, isLaravel: boolean): PackageManager {
   return 'npm';
 }
 
-const CONFIG_FILENAMES = ['regel.config.ts', 'regel.config.js', 'regel.config.mts', 'regel.config.mjs'];
+const CONFIG_FILENAMES = ['gesetz.config.ts', 'gesetz.config.js', 'gesetz.config.mts', 'gesetz.config.mjs'];
 
 // ─── Public entry point ───────────────────────────────────────────────────────
 

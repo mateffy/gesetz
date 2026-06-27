@@ -4,9 +4,9 @@
  * Builds on /php primitives with Laravel-opinionated defaults.
  * All checks here assume a standard Laravel project structure.
  */
-import { select } from '@regeln/core';
-import { strictTypes, psrNamespace, noInlineQueries } from '@regeln/php';
-import type { Rule } from '@regeln/core';
+import { select } from '@gesetz/core';
+import { strictTypes, psrNamespace, noInlineQueries } from '@gesetz/php';
+import type { Rule } from '@gesetz/core';
 
 // ─── declare strict_types=1 ───────────────────────────────────────────────────
 

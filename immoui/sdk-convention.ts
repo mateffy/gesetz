@@ -4,9 +4,9 @@
  * Each sub-domain must have: index.ts, interface.ts, http.ts, memory.ts, types.ts, fakes.ts
  * Each sub-domain's hooks/ must have: index.ts, queries.ts
  */
-import { select } from '@regeln/core';
-import { requireDirectoryStructure } from '@regeln/typescript';
-import { forbidFile } from '@regeln/core';
+import { select } from '@gesetz/core';
+import { requireDirectoryStructure } from '@gesetz/typescript';
+import { forbidFile } from '@gesetz/core';
 
 const REQUIRED_SUBDOMAIN_FILES = ['index.ts', 'interface.ts', 'http.ts', 'memory.ts', 'types.ts', 'fakes.ts'];
 const REQUIRED_HOOKS_FILES = ['index.ts', 'queries.ts'];

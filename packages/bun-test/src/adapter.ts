@@ -1,9 +1,9 @@
 import * as nodePath from 'node:path';
 import * as nodeFs from 'node:fs';
 import { Effect } from 'effect';
-import type { Rule, Violation } from '@regeln/core';
-import { execTool, runWithTempFile } from '@regeln/core';
-import { parseJUnitXml, junitToViolations } from '@regeln/junit';
+import type { Rule, Violation } from '@gesetz/core';
+import { execTool, runWithTempFile } from '@gesetz/core';
+import { parseJUnitXml, junitToViolations } from '@gesetz/junit';
 
 export interface BunTestOptions {
   /**
@@ -48,7 +48,7 @@ export function bunTest(opts: BunTestOptions = {}): Rule {
       baseArgs.push(...patterns);
     }
 
-    return yield* runWithTempFile('regeln-bun-', 'junit.xml', (tmpFile) =>
+    return yield* runWithTempFile('gesetz-bun-', 'junit.xml', (tmpFile) =>
       Effect.gen(function* () {
         const args = [...baseArgs, `--reporter-outfile=${tmpFile}`];
 

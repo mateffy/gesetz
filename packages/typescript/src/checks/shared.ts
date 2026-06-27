@@ -1,7 +1,7 @@
 import * as nodePath from 'node:path';
 import { Effect } from 'effect';
-import { TsAdapter, ProjectRoot } from '@regeln/core';
-import type { TsSourceFile } from '@regeln/core';
+import { TsAdapter, ProjectRoot } from '@gesetz/core';
+import type { TsSourceFile } from '@gesetz/core';
 
 /**
  * Resolves a tsconfig path (which may be relative) against the ProjectRoot,

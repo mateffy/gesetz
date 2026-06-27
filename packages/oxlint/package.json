@@ -1,5 +1,5 @@
 {
-  "name": "@regeln/oxlint",
+  "name": "@gesetz/oxlint",
   "version": "0.1.0",
   "type": "module",
   "exports": {
@@ -10,7 +10,7 @@
     "test": "vitest run --reporter=verbose"
   },
   "dependencies": {
-    "@regeln/core": "workspace:*",
+    "@gesetz/core": "workspace:*",
     "effect": "^3.15.0"
   },
   "devDependencies": {

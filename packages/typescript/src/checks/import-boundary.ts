@@ -1,6 +1,6 @@
 import { Effect } from 'effect';
 import micromatch from 'micromatch';
-import type { Check, Violation } from '@regeln/core';
+import type { Check, Violation } from '@gesetz/core';
 import type { ImportDeclaration } from 'ts-morph';
 import { SyntaxKind } from 'ts-morph';
 import type { SourceFile } from 'ts-morph';

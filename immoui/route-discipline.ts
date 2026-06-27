@@ -7,9 +7,9 @@
  * - Not use useState for tab switching
  * - Not use useState at all
  */
-import { select } from '@regeln/core';
-import { noImportFrom } from '@regeln/core';
-import { noFunctionCalls, noLocalFunctionComponents } from '@regeln/typescript';
+import { select } from '@gesetz/core';
+import { noImportFrom } from '@gesetz/core';
+import { noFunctionCalls, noLocalFunctionComponents } from '@gesetz/typescript';
 
 const HTML_ELEMENTS = [
   'div', 'span', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',

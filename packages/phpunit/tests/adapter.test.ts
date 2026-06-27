@@ -5,7 +5,7 @@ import * as nodeOs from 'node:os';
 import * as nodePath from 'node:path';
 import { Effect, Layer } from 'effect';
 import { phpunit } from '../src/adapter';
-import { MemoryFileSystem, ProjectRootLive, FileFilterLive, TsAdapterStub, PhpAdapterStub } from '@regeln/core';
+import { MemoryFileSystem, ProjectRootLive, FileFilterLive, TsAdapterStub, PhpAdapterStub } from '@gesetz/core';
 
 const TestLayer = Layer.mergeAll(
   MemoryFileSystem({}),
@@ -51,7 +51,7 @@ describe('phpunit', () => {
   });
 
   it('maps failed tests to violations from JUnit XML', async () => {
-    const tmpFile = nodePath.join(nodeOs.tmpdir(), 'regeln-phpunit-test-junit.xml');
+    const tmpFile = nodePath.join(nodeOs.tmpdir(), 'gesetz-phpunit-test-junit.xml');
     (nodeFs.mkdtempSync as ReturnType<typeof vi.fn>).mockReturnValue(nodePath.dirname(tmpFile));
     (nodeFs.readFileSync as ReturnType<typeof vi.fn>).mockReturnValue(PHPUNIT_JUNIT);
     (childProcess.execFileSync as ReturnType<typeof vi.fn>).mockImplementation(() => {
@@ -71,7 +71,7 @@ describe('phpunit', () => {
   });
 
   it('passes the config file when provided', async () => {
-    const tmpFile = nodePath.join(nodeOs.tmpdir(), 'regeln-phpunit-test-junit2.xml');
+    const tmpFile = nodePath.join(nodeOs.tmpdir(), 'gesetz-phpunit-test-junit2.xml');
     (nodeFs.mkdtempSync as ReturnType<typeof vi.fn>).mockReturnValue(nodePath.dirname(tmpFile));
     (nodeFs.readFileSync as ReturnType<typeof vi.fn>).mockReturnValue('');
     const spy = childProcess.execFileSync as ReturnType<typeof vi.fn>;
@@ -88,7 +88,7 @@ describe('phpunit', () => {
   });
 
   it('returns empty array when JUnit file is empty', async () => {
-    const tmpFile = nodePath.join(nodeOs.tmpdir(), 'regeln-phpunit-test-junit3.xml');
+    const tmpFile = nodePath.join(nodeOs.tmpdir(), 'gesetz-phpunit-test-junit3.xml');
     (nodeFs.mkdtempSync as ReturnType<typeof vi.fn>).mockReturnValue(nodePath.dirname(tmpFile));
     (nodeFs.readFileSync as ReturnType<typeof vi.fn>).mockReturnValue('');
     (childProcess.execFileSync as ReturnType<typeof vi.fn>).mockImplementation(() => {
@@ -101,7 +101,7 @@ describe('phpunit', () => {
   });
 
   it('passes the filter option as --filter', async () => {
-    const tmpFile = nodePath.join(nodeOs.tmpdir(), 'regeln-phpunit-test-junit4.xml');
+    const tmpFile = nodePath.join(nodeOs.tmpdir(), 'gesetz-phpunit-test-junit4.xml');
     (nodeFs.mkdtempSync as ReturnType<typeof vi.fn>).mockReturnValue(nodePath.dirname(tmpFile));
     (nodeFs.readFileSync as ReturnType<typeof vi.fn>).mockReturnValue('');
     const spy = childProcess.execFileSync as ReturnType<typeof vi.fn>;

@@ -1,5 +1,5 @@
 /**
- * Terminal formatting helpers for the regel CLI output.
+ * Terminal formatting helpers for the gesetz CLI output.
  *
  * Two output modes:
  *   - `pretty` — lush human table + file-grouped violations (TTY only)
@@ -11,14 +11,14 @@
  * decoration behind `isTTY` (ASCII fallback when piped) so the output is
  * never mojibake-prone.
  */
-import type { CategoryScore, RunResult, RuleResult, Violation } from '@regeln/core';
+import type { CategoryScore, RunResult, RuleResult, Violation } from '@gesetz/core';
 
 // ─── Output format ──────────────────────────────────────────────────────────
 
 export type OutputFormat = 'pretty' | 'json' | 'ci';
 
 /**
- * Environment variables that signal regel is running inside an AI agent.
+ * Environment variables that signal gesetz is running inside an AI agent.
  * When any is set (truthy), or stdout is not a TTY, JSON mode is the default.
  * Mirrors Laravel PAO's detection approach.
  */
@@ -302,7 +302,7 @@ export function buildEnvelope(
     categories,
     violations,
     truncated,
-    hint: truncated > 0 ? `regel check --format=json --all` : null,
+    hint: truncated > 0 ? `gesetz check --format=json --all` : null,
   };
 }
 
@@ -342,7 +342,7 @@ export function formatCi(result: RunResult): string {
  */
 export function formatStatusBanner(result: RunResult): string {
   const verdict = result.passing ? 'pass' : 'fail';
-  return `regel: ${verdict} (${result.totalViolations} violation${result.totalViolations === 1 ? '' : 's'})\n`;
+  return `gesetz: ${verdict} (${result.totalViolations} violation${result.totalViolations === 1 ? '' : 's'})\n`;
 }
 
 // ─── List output (rule catalog) ───────────────────────────────────────────────

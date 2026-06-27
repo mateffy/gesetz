@@ -1,5 +1,5 @@
 /**
- * Loads a `regel.config.ts` (or `.js`) from the project root, or an explicit path.
+ * Loads a `gesetz.config.ts` (or `.js`) from the project root, or an explicit path.
  *
  * The config file must default-export the result of `defineConfig()`.
  * When no config file is found, throws a descriptive error.
@@ -7,23 +7,23 @@
 import * as nodePath from 'node:path';
 import * as nodeFs from 'node:fs';
 import { Effect } from 'effect';
-import type { ResolvedConfig } from '@regeln/core';
+import type { ResolvedConfig } from '@gesetz/core';
 
 const CONFIG_NAMES = [
-  'regel.config.ts',
-  'regel.config.js',
-  'regel.config.mts',
-  'regel.config.mjs',
+  'gesetz.config.ts',
+  'gesetz.config.js',
+  'gesetz.config.mts',
+  'gesetz.config.mjs',
 ];
 
 export class ConfigNotFoundError extends Error {
   readonly _tag = 'ConfigNotFoundError';
   constructor(readonly projectRoot: string) {
     super(
-      `No regel config found in ${projectRoot}.\n` +
+      `No gesetz config found in ${projectRoot}.\n` +
         `Create a ${CONFIG_NAMES[0]} that default-exports defineConfig({ rules: [...] }).\n\n` +
         `Example:\n` +
-        `  import { defineConfig, select } from '@regeln/core';\n` +
+        `  import { defineConfig, select } from '@gesetz/core';\n` +
         `  export default defineConfig({ rules: [] });`,
     );
   }

@@ -1,42 +1,191 @@
-# Regeln
+# Gesetz
 
-> **Regeln** (German for "rules") — a unified code-quality gate that orchestrates linting, testing, static analysis, and AST checks into a single, category-scored report.
+> **Gesetz** (German for "laws") — a unified code-quality gate that lets you write your own project rules as easily as writing a config file.
 
-## Why Regeln exists
+## Why Gesetz exists
 
-Most projects run **five or more separate tools** in CI: ESLint, Prettier, Vitest, TypeScript, phpstan, oxlint… Each emits its own format, its own exit codes, and its own noise. When a build fails you open five different outputs to figure out what went wrong.
+Every codebase has conventions that no generic linter knows about:
 
-Regeln wraps those tools — and adds its own native checks — into **one deterministic report** with a single score per category:
+- *"Every module in `src/` must have a `README.md`"*
+- *"No file should exceed 400 lines"*
+- *"No one should import from `src/legacy/` — we're migrating away"*
+- *"Every API endpoint file needs a sibling `.test.ts`"*
+- *"Console logs left in production code break our log pipeline"*
+- *"Feature A must not import internals from Feature B"*
+
+ESLint, PHPStan, and Vitest are excellent at what they do. But they don't know *your* architecture. Gesetz bridges that gap: **you write project-specific rules in plain TypeScript, and Gesetz runs them alongside your existing tools in a single, scored report.**
+
+**Gesetz does not replace your linters.** It wraps them. You still run ESLint, Vitest, PHPStan — but their output and your custom rules all feed into one unified `Violation` format, one category score, one CLI. Because the rule engine is language-agnostic, the same `gesetz check` covers your TypeScript frontend, your PHP backend, and whatever else lives in the repo.
 
 | Category | What it measures |
 |---|---|
-| **strictness** | Type safety, `any`, `as`, non-null assertions, Effect-TS patterns |
-| **structure** | File size, nesting depth, magic numbers, empty catch blocks |
-| **organization** | Monorepo health: circular deps, layer violations, import discipline |
-| **cleanup** | Dead code, AI residue, console logs, trivial comments |
-| **security** | Hardcoded secrets, raw SQL, unsafe innerHTML |
-| **effect-ts** | `runPromise` scattered in library code, `throw` in `Effect.gen`, missing `yield*` |
-| **react** | Hooks discipline, JSX keys, accessibility, data-fetching |
+| **strictness** | Type safety, `any`, `as`, non-null assertions, floating promises |
+| **structure** | Code shape: file/function size, nesting, magic numbers, empty catch blocks |
+| **organization** | Monorepo health: cycles, layer violations, import discipline, file pairing |
+| **cleanup** | Dead code, AI residue: console logs, trivial comments, debugging files |
+| **security** | Secrets, SQL injection, unsafe innerHTML, hardcoded tokens |
+
+Categories are extensible — `category` is just a string, so you can define your own (e.g. `category: 'api-conventions'` or `category: 'react'`).
 
 The goal is simple: **one command, one score, one decision.** Pass or fail.
 
 ---
 
-## Quick start
+## Write your own project rules in 5 lines
 
-### 1. Initialize a config
+A rule is just a glob + a check. Enforce any convention your team agrees on:
 
-```bash
-bun add -d regel
-bun regel init
+```ts
+// rules/coverage.ts — every module needs a test
+import { select, requireSibling } from 'gesetz';
+
+export const everyFileNeedsTest = select('src/**/*.ts')
+  .exclude('**/*.test.ts', '**/index.ts')
+  .label('Every source file needs a test')
+  .check(requireSibling('.test.ts'));
 ```
 
-This creates a `regel.config.ts` at your project root. In a TTY it runs an interactive wizard; in CI or agent mode it auto-detects your framework and installed tools.
+```ts
+// rules/quality.ts — no console.log in production code
+import { select, noConsoleLog, noGodFile } from 'gesetz';
 
-### 2. Run checks
+export const noConsoleInProduction = select('src/**/*.ts')
+  .exclude('**/*.test.ts')
+  .label('No console.log in production code')
+  .check(noConsoleLog());
+
+export const noGiantFiles = select('src/**/*.{ts,tsx}')
+  .label('Files should not exceed 400 lines')
+  .check(noGodFile({ maxLines: 400 }));
+```
+
+```ts
+// rules/migration.ts — ban imports from a deprecated module
+import { select, noImportFrom } from 'gesetz';
+
+export const noLegacyImports = select('src/**/*.{ts,tsx}')
+  .label('Do not import from the legacy module')
+  .check(
+    noImportFrom('src/legacy', {
+      message: 'This module is being phased out. Use src/lib/utils instead.',
+    }),
+  );
+```
+
+```ts
+// rules/docs.ts — every package needs a README
+import { select, requireChildren } from 'gesetz';
+
+export const packageNeedsReadme = select('packages/*/')
+  .label('Every package must have a README')
+  .check(requireChildren(['README.md']));
+```
+
+Those are the basics. For deeper architectural control — import boundaries, call-shape validation, export pairs — you can add `@gesetz/typescript` and compose AST-level checks:
+
+```ts
+// rules/architecture.ts — feature boundaries
+import { select, noImportFrom } from 'gesetz';
+import { noCrossModuleImports } from '@gesetz/typescript';
+
+// Feature A must not import internals from Feature B
+export const featureIsolation = select('src/features/**/*.{ts,tsx}')
+  .label('Features must not deep-import into other feature internals')
+  .check(
+    noCrossModuleImports({
+      modulePattern: /src\/features\/([^/]+)\//,
+      message: (from, to) =>
+        `Feature '${from}' must not import directly into feature '${to}'. Use the public API.`,
+    }),
+  );
+
+// UI components must only import from shared lib
+export const uiOnlyUsesShared = select('src/components/**/*.tsx')
+  .label('UI components must only import from shared utilities')
+  .check(
+    noImportFrom(/^~\/(?!components\/ui|lib\/)/, {
+      message: 'UI components may only depend on other UI primitives and shared lib code.',
+    }),
+  );
+```
+
+```ts
+// rules/api-conventions.ts — enforce internal API discipline
+import { select } from 'gesetz';
+import { requireCallShape, requireExportPairs } from '@gesetz/typescript';
+
+// Every service call must include error handling
+export const serviceErrorHandling = select('src/services/**/*.ts')
+  .label('Service calls must pass an onError handler')
+  .check(requireCallShape('apiCall', ['onError']));
+
+// Related exports must be paired
+export const exportPairs = select('src/hooks/**/*.ts')
+  .label('Hooks must export useX and useCachedX as a pair')
+  .check(
+    requireExportPairs(name =>
+      name.startsWith('use') ? `useCached${name.slice(3)}` : null,
+    ),
+  );
+```
+
+Wire everything into your config:
+
+```ts
+// gesetz.config.ts
+import { defineConfig } from 'gesetz';
+import { eslint } from '@gesetz/eslint';
+import { vitest } from '@gesetz/vitest';
+import * as coverage from './rules/coverage';
+import * as quality from './rules/quality';
+import * as migration from './rules/migration';
+import * as docs from './rules/docs';
+import * as architecture from './rules/architecture';
+
+export default defineConfig({
+  rules: [
+    // Your custom rules
+    coverage.everyFileNeedsTest,
+    quality.noConsoleInProduction,
+    quality.noGiantFiles,
+    migration.noLegacyImports,
+    docs.packageNeedsReadme,
+    architecture.featureIsolation,
+    architecture.uiOnlyUsesShared,
+
+    // Your existing tools — now unified in the same report
+    eslint({ pattern: 'src/**/*.{ts,tsx}' }),
+    vitest({ pattern: 'src' }),
+  ],
+});
+```
+
+---
+
+## Quick start
+
+### 1. Install Gesetz and the adapters you need
 
 ```bash
-bun regel check
+# Core + CLI (lightweight — no heavy deps)
+bun add -d gesetz
+
+# Adapters for your stack (install only what you use)
+bun add -d @gesetz/eslint @gesetz/vitest @gesetz/typescript
+```
+
+### 2. Initialize a config
+
+```bash
+bun gesetz init
+```
+
+This creates a `gesetz.config.ts` at your project root. In a TTY it runs an interactive wizard; in CI or agent mode it auto-detects your framework and installed tools.
+
+### 3. Run checks
+
+```bash
+bun gesetz check
 ```
 
 Output (TTY):
@@ -52,17 +201,17 @@ Output (TTY):
 ✅ All categories above threshold
 ```
 
-### 3. Agent / CI mode
+### 4. Agent / CI mode
 
 ```bash
 # JSON output for agents
-bun regel check --format=json
+bun gesetz check --format=json
 
 # GitHub Actions annotations
-bun regel check --format=ci
+bun gesetz check --format=ci
 
 # Only changed files since main
-bun regel check --since main
+bun gesetz check --since main
 ```
 
 ---
@@ -82,7 +231,7 @@ A `Check` is a per-file analysis function. It receives a `File` object (path, co
 ### `select` — the rule builder
 
 ```ts
-import { select, requireSibling, noConsoleLog } from 'regel';
+import { select, requireSibling, noConsoleLog } from 'gesetz';
 
 const rule = select('src/**/*.tsx')
   .exclude('**/*.test.tsx', '**/*.stories.tsx')
@@ -105,20 +254,23 @@ const rule = select('src/**/*.tsx')
 | `.filter(fn)` | Custom predicate on `File` |
 | `.label(string)` | Human description (auto-slugified to `rule.id`) |
 | `.category(string)` | Scoring bucket |
-| `.guidance({what,do,dont})` | Agent-facing docs for `regel list` / `regel skill` |
+| `.guidance({what,do,dont})` | Agent-facing docs for `gesetz list` / `gesetz skill` |
 | `.check(...checks)` | Apply checks to every matched file |
 | `.forEach(check)` | Sugar for a single check |
 
 ### `defineConfig`
 
 ```ts
-import { defineConfig, select, requireSibling, noImportFrom, vitest, eslint, noHardcodedStrings } from 'regel';
+import { defineConfig, select, requireSibling, noConsoleLog } from 'gesetz';
+import { eslint } from '@gesetz/eslint';
+import { vitest } from '@gesetz/vitest';
+import { noHardcodedStrings } from '@gesetz/typescript';
 
 export default defineConfig({
   projectRoot: '.',
   tsConfigPath: 'tsconfig.json',
   rules: [
-    // --- Native checks ---
+    // --- Native checks (cross-cutting, language-agnostic) ---
     select('src/**/*.tsx')
       .label('Components need stories')
       .category('organization')
@@ -134,7 +286,7 @@ export default defineConfig({
       .category('strictness')
       .check(noHardcodedStrings()),
 
-    // --- External tool adapters ---
+    // --- External tool adapters (language-specific) ---
     vitest({ pattern: 'src', label: 'Unit tests' }),
     eslint({ pattern: 'src/**/*.{ts,tsx}', label: 'ESLint' }),
   ],
@@ -153,83 +305,110 @@ export default defineConfig({
 
 ## CLI commands
 
-### `regel check`
+### `gesetz check`
 
 ```bash
-regel check                          # full scan
-regel check --since HEAD~5           # only changed files
-regel check --since main             # diff against a branch
-regel check --category strictness    # run one category
-regel check --format json            # JSON envelope (agents/CI)
-regel check --format ci              # GitHub Actions annotations
-regel check --threshold 8            # override all thresholds
-regel check --files "src/components/**" # subset of files
-regel check --project-root ./apps/web # monorepo workspace
+gesetz check                          # full scan
+gesetz check --since HEAD~5           # only changed files
+gesetz check --since main             # diff against a branch
+gesetz check --category strictness    # run one category
+gesetz check --format json            # JSON envelope (agents/CI)
+gesetz check --format ci              # GitHub Actions annotations
+gesetz check --threshold 8            # override all thresholds
+gesetz check --files "src/components/**" # subset of files
+gesetz check --project-root ./apps/web # monorepo workspace
 ```
 
-### `regel list`
+### `gesetz list`
 
 ```bash
-regel list                           # all rules with guidance
-regel list --category strictness     # filter by category
-regel list --format json             # JSON for agents
+gesetz list                           # all rules with guidance
+gesetz list --category strictness     # filter by category
+gesetz list --format json             # JSON for agents
 ```
 
-### `regel init`
+### `gesetz init`
 
 ```bash
-regel init                           # interactive wizard
-regel init --preset react            # explicit preset
-regel init --preset laravel
-regel init --no-interactive          # auto-detect + non-interactive
-regel init --no-install              # scaffold only, no packages
-regel init --no-qa-script            # skip adding a package.json script
-regel init --force                   # overwrite existing config
+gesetz init                           # interactive wizard
+gesetz init --preset react            # explicit preset
+gesetz init --preset laravel
+gesetz init --no-interactive          # auto-detect + non-interactive
+gesetz init --no-install              # scaffold only, no packages
+gesetz init --no-qa-script            # skip adding a package.json script
+gesetz init --force                   # overwrite existing config
 ```
 
-### `regel skill`
+### `gesetz skill`
 
 ```bash
-regel skill > .agents/skills/regel/SKILL.md
+gesetz skill > .agents/skills/gesetz/SKILL.md
 ```
 
 Prints a markdown agent skill file you can pipe directly into your AI agent's skill directory.
 
 ---
 
+## What belongs in Gesetz vs. your language tools
+
+**Use Gesetz's built-in checks for:**
+
+- File pairing and directory structure (every `Foo.tsx` needs a `Foo.stories.tsx`)
+- Import discipline (no cross-domain imports, required imports)
+- Cross-cutting patterns (no console logs, no empty catches, no magic numbers)
+- Monorepo architecture (layer constraints, circular dependency detection)
+- Security hygiene (hardcoded secrets, forbidden file patterns)
+
+**Use adapters to wrap your existing tools for:**
+
+- Deep type-level analysis (ESLint, PHPStan, oxlint)
+- Test result mapping (Vitest, PHPUnit, Pest, bun:test)
+- Format checking (Prettier, oxfmt)
+- AST-level language rules (ts-morph JSX checks, tree-sitter PHP checks)
+
+Gesetz's rule runner executes all of these concurrently and merges their violations into one report. You don't give up your tools — you just stop reading five different output formats.
+
+---
+
 ## Built-in adapters
 
-Regeln ships with adapters for the most common QA tools. Each adapter is a standalone package so you only install what you use.
+Each adapter is a standalone package. Install only the ones you use.
 
 ### TypeScript / JavaScript
 
-| Package | Tool | What it does |
-|---|---|---|
-| `@regeln/typescript` | ts-morph | AST-level checks (export pairs, call shapes, JSX, i18n) |
-| `@regeln/eslint` | ESLint | Runs ESLint programmatically, maps messages to violations |
-| `@regeln/oxlint` | oxlint | Fast Rust linter — maps JSON diagnostics to violations |
-| `@regeln/oxfmt` | oxfmt | Format check — `--list-different` |
-| `@regeln/prettier` | Prettier | Format check — `--list-different` |
-| `@regeln/vitest` | Vitest | Runs tests with JSON reporter, maps failures to violations |
-| `@regeln/bun-test` | bun:test | JUnit XML bridge via temp file |
-| `@regeln/storybook` | test-storybook | Jest JSON bridge for Storybook interaction tests |
-| `@regeln/effect-ts` | ts-morph | Effect-TS anti-pattern detection |
-| `@regeln/junit` | — | Shared JUnit XML parser (used by bun-test, Pest, PHPUnit) |
+| Package | Tool | What it does | Install |
+|---|---|---|---|
+| `@gesetz/typescript` | ts-morph | AST-level checks (export pairs, call shapes, JSX, i18n) | `bun add -d @gesetz/typescript` |
+| `@gesetz/eslint` | ESLint | Runs ESLint programmatically, maps messages to violations | `bun add -d @gesetz/eslint` |
+| `@gesetz/oxlint` | oxlint | Fast Rust linter — maps JSON diagnostics to violations | `bun add -d @gesetz/oxlint` |
+| `@gesetz/oxfmt` | oxfmt | Format check — `--list-different` | `bun add -d @gesetz/oxfmt` |
+| `@gesetz/prettier` | Prettier | Format check — `--list-different` | `bun add -d @gesetz/prettier` |
+| `@gesetz/vitest` | Vitest | Runs tests with JSON reporter, maps failures to violations | `bun add -d @gesetz/vitest` |
+| `@gesetz/bun-test` | bun:test | JUnit XML bridge via temp file | `bun add -d @gesetz/bun-test` |
+| `@gesetz/storybook` | test-storybook | Jest JSON bridge for Storybook interaction tests | `bun add -d @gesetz/storybook` |
+| `@gesetz/effect-ts` | ts-morph | Effect-TS anti-pattern detection | `bun add -d @gesetz/effect-ts` |
+| `@gesetz/junit` | — | Shared JUnit XML parser (used by bun-test, Pest, PHPUnit) | `bun add -d @gesetz/junit` |
 
 ### PHP
 
-| Package | Tool | What it does |
-|---|---|---|
-| `@regeln/phpstan` | PHPStan | Runs `analyse --error-format=json` |
-| `@regeln/phpunit` | PHPUnit | JUnit XML bridge |
-| `@regeln/pest` | Pest | JUnit XML bridge |
-| `@regeln/php` | tree-sitter-php | AST-level checks (strict types, PSR-4, raw queries) |
-| `@regeln/laravel` | — | Laravel opinionated presets (strict types, no env outside config, no dd/dump) |
+| Package | Tool | What it does | Install |
+|---|---|---|---|
+| `@gesetz/phpstan` | PHPStan | Runs `analyse --error-format=json` | `bun add -d @gesetz/phpstan` |
+| `@gesetz/phpunit` | PHPUnit | JUnit XML bridge | `bun add -d @gesetz/phpunit` |
+| `@gesetz/pest` | Pest | JUnit XML bridge | `bun add -d @gesetz/pest` |
+| `@gesetz/php` | tree-sitter-php | AST-level checks (strict types, PSR-4, raw queries) | `bun add -d @gesetz/php` |
+| `@gesetz/laravel` | — | Laravel opinionated presets | `bun add -d @gesetz/laravel` |
 
 ### Usage example
 
 ```ts
-import { defineConfig, eslint, vitest, oxlint, prettier, phpstan, phpunit } from 'regel';
+import { defineConfig } from 'gesetz';
+import { eslint } from '@gesetz/eslint';
+import { vitest } from '@gesetz/vitest';
+import { oxlint } from '@gesetz/oxlint';
+import { prettier } from '@gesetz/prettier';
+import { phpstan } from '@gesetz/phpstan';
+import { phpunit } from '@gesetz/phpunit';
 
 export default defineConfig({
   rules: [
@@ -247,12 +426,12 @@ export default defineConfig({
 
 ## Core primitives
 
-These checks live in `@regeln/core` and work on **any file type** using text analysis or the file system.
+These checks live in `@gesetz/core` and work on **any file type** using text analysis or the file system. They are the tech-stack independent backbone of Gesetz.
 
 ### File-system checks
 
 ```ts
-import { requireSibling, requireChildren, forbidFile, relativeImports } from 'regel';
+import { requireSibling, requireChildren, forbidFile, relativeImports } from 'gesetz';
 
 // Every .tsx needs a .stories.tsx next to it
 requireSibling('.stories.tsx')
@@ -270,7 +449,7 @@ relativeImports()
 ### Import checks
 
 ```ts
-import { noImportFrom, requireImportFrom } from 'regel';
+import { noImportFrom, requireImportFrom } from 'gesetz';
 
 // Components must not use @tanstack/react-query directly
 noImportFrom('@tanstack/react-query', {
@@ -284,7 +463,7 @@ requireImportFrom('vitest')
 ### Pattern checks
 
 ```ts
-import { noPattern, requirePattern } from 'regel';
+import { noPattern, requirePattern } from 'gesetz';
 
 // No legacy helper calls
 noPattern(/legacy_helper\(/, {
@@ -309,7 +488,7 @@ import {
   noTrivialComment,
   noDebuggingResidueFiles,
   noHardcodedSecret,
-} from 'regel';
+} from 'gesetz';
 
 // Flag files over 300 lines
 noGodFile({ maxLines: 300 })
@@ -339,7 +518,7 @@ noHardcodedSecret()
 ### Dependency graph
 
 ```ts
-import { noCycles } from 'regel';
+import { noCycles } from 'gesetz';
 
 // Detect circular imports using dependency-cruiser
 noCycles('src/**/*.{ts,tsx}', { label: 'No circular dependencies' })
@@ -347,14 +526,16 @@ noCycles('src/**/*.{ts,tsx}', { label: 'No circular dependencies' })
 
 ---
 
-## TypeScript AST checks (`@regeln/typescript`)
+## TypeScript AST checks (`@gesetz/typescript`)
 
-These use ts-morph for precise AST analysis.
+Install: `bun add -d @gesetz/typescript`
+
+These use ts-morph for precise AST analysis. Only install this if you need AST-level TypeScript rules — for general linting, use the ESLint or oxlint adapters.
 
 ### Export discipline
 
 ```ts
-import { requireExportPairs, requireExportFactories } from 'regel';
+import { requireExportPairs, requireExportFactories } from '@gesetz/typescript';
 
 // Every useX hook must have a useSuspenseX counterpart
 requireExportPairs(name =>
@@ -368,7 +549,7 @@ requireExportFactories({ pattern: /Keys$/, minCount: 1 })
 ### Call-shape validation
 
 ```ts
-import { requireCallShape } from 'regel';
+import { requireCallShape } from '@gesetz/typescript';
 
 // Every createUser() call must pass { name, email }
 requireCallShape('createUser', ['name', 'email'])
@@ -377,7 +558,7 @@ requireCallShape('createUser', ['name', 'email'])
 ### Function-call bans
 
 ```ts
-import { noFunctionCalls } from 'regel';
+import { noFunctionCalls } from '@gesetz/typescript';
 
 // Ban direct fetch() calls — use the SDK
 noFunctionCalls('fetch', {
@@ -388,7 +569,7 @@ noFunctionCalls('fetch', {
 ### Import boundaries
 
 ```ts
-import { requireImportBoundary } from 'regel';
+import { requireImportBoundary } from '@gesetz/typescript';
 
 // UI components must only import from ../lib or ../hooks
 requireImportBoundary(
@@ -408,7 +589,7 @@ import {
   noLiteralJsxProp,
   noJsxElements,
   noLocalFunctionComponents,
-} from 'regel';
+} from '@gesetz/typescript';
 
 // No raw text in JSX (enforce i18n)
 noLiteralJsxText({ hasLetterRegex: /[A-Za-zÄÖÜäöüß]/ })
@@ -426,7 +607,7 @@ noLocalFunctionComponents()
 ### i18n / hardcoded strings
 
 ```ts
-import { noHardcodedStrings, DEFAULT_TEXT_ATTRIBUTES } from 'regel';
+import { noHardcodedStrings, DEFAULT_TEXT_ATTRIBUTES } from '@gesetz/typescript';
 
 // Comprehensive: JSX text, string expressions, and known attributes
 noHardcodedStrings({
@@ -438,7 +619,7 @@ noHardcodedStrings({
 ### Cross-module imports
 
 ```ts
-import { noCrossModuleImports } from 'regel';
+import { noCrossModuleImports } from '@gesetz/typescript';
 
 // Files in src/domains/X can't deep-import into src/domains/Y
 noCrossModuleImports({
@@ -450,7 +631,7 @@ noCrossModuleImports({
 ### Directory structure
 
 ```ts
-import { requireDirectoryStructure } from 'regel';
+import { requireDirectoryStructure } from '@gesetz/typescript';
 
 // Every SDK sub-domain must have these files
 requireDirectoryStructure(['interface.ts', 'http.ts', 'memory.ts', 'types.ts'])
@@ -459,7 +640,7 @@ requireDirectoryStructure(['interface.ts', 'http.ts', 'memory.ts', 'types.ts'])
 ### Test quality scoring
 
 ```ts
-import { requireMinTestScore } from 'regel';
+import { requireMinTestScore } from '@gesetz/typescript';
 
 // Flag test files below a quality score
 requireMinTestScore({
@@ -472,7 +653,9 @@ requireMinTestScore({
 
 ---
 
-## Effect-TS checks (`@regeln/effect-ts`)
+## Effect-TS checks (`@gesetz/effect-ts`)
+
+Install: `bun add -d @gesetz/effect-ts`
 
 Catches the four most common anti-patterns AI agents introduce in Effect-TS code.
 
@@ -482,7 +665,7 @@ import {
   noThrowInEffectGen,
   noYieldWithoutStar,
   noUnboundedEffectAll,
-} from 'regel';
+} from '@gesetz/effect-ts';
 
 export default defineConfig({
   rules: [
@@ -512,10 +695,12 @@ export default defineConfig({
 
 ---
 
-## PHP checks (`@regeln/php`)
+## PHP checks (`@gesetz/php`)
+
+Install: `bun add -d @gesetz/php`
 
 ```ts
-import { strictTypes, psrNamespace, noInlineQueries } from 'regel';
+import { strictTypes, psrNamespace, noInlineQueries } from '@gesetz/php';
 
 // Every PHP file must declare strict_types=1
 strictTypes()
@@ -529,12 +714,15 @@ noInlineQueries(['DB::statement', 'DB::raw', 'PDO::query'])
 
 ---
 
-## Laravel presets (`@regeln/laravel`)
+## Laravel presets (`@gesetz/laravel`)
+
+Install: `bun add -d @gesetz/laravel`
 
 Ready-made rules for standard Laravel projects.
 
 ```ts
-import { defineConfig, allRules } from 'regel';
+import { allRules } from '@gesetz/laravel';
+import { defineConfig } from 'gesetz';
 
 export default defineConfig({
   rules: allRules,
@@ -551,7 +739,7 @@ import {
   noEnvOutsideConfig,
   noDebugHelpers,
   phpstan,
-} from 'regel';
+} from '@gesetz/laravel';
 ```
 
 ---
@@ -561,7 +749,7 @@ import {
 Define your monorepo layers in pure TypeScript and enforce import constraints.
 
 ```ts
-import { defineConfig, defineArchitecture } from 'regel';
+import { defineConfig, defineArchitecture } from 'gesetz';
 
 const arch = defineArchitecture({
   layers: [
@@ -611,7 +799,7 @@ defineConfig({
 Override from CLI:
 
 ```bash
-regel check --threshold 9
+gesetz check --threshold 9
 ```
 
 ---
@@ -638,64 +826,66 @@ Expired exemptions automatically stop suppressing — violations surface again.
 
 ## Agent integration
 
-Regeln is designed for AI agents. Three features make it agent-native:
+Gesetz is designed for AI agents. Three features make it agent-native:
 
-1. **`regel skill`** — outputs a markdown skill file for your agent framework (Claude Code, Cursor, Devin, etc.)
+1. **`gesetz skill`** — outputs a markdown skill file for your agent framework (Claude Code, Cursor, Devin, etc.)
 2. **`--format=json`** — structured output with per-rule guidance for automated fixing
 3. **`--no-interactive`** — fully non-interactive init with auto-detection and JSON receipts
 
 ```bash
 # Agent bootstrap
-regel init --no-interactive --format=json
+gesetz init --no-interactive --format=json
 
 # Agent quality check
-regel check --format=json --since HEAD
+gesetz check --format=json --since HEAD
 ```
 
 ---
 
 ## Monorepo setup
 
-Regeln supports per-workspace configs. Run from the workspace root:
+Gesetz supports per-workspace configs. Run from the workspace root:
 
 ```bash
-# packages/web/regel.config.ts
-regel check --project-root packages/web
+# packages/web/gesetz.config.ts
+gesetz check --project-root packages/web
 
 # Or from the repo root
-regel check --project-root apps/api
+gesetz check --project-root apps/api
 ```
 
 ---
 
 ## Packages
 
-| Package | Description |
-|---|---|
-| `regel` | **The wrapper package — install this.** Re-exports core, TypeScript checks, Effect-TS checks, adapters, and the CLI |
-| `@regeln/core` | Types, runner, primitives, `defineConfig`, `select`, `defineArchitecture` |
-| `@regeln/cli` | `regel` command-line interface |
-| `@regeln/typescript` | ts-morph AST checks |
-| `@regeln/effect-ts` | Effect-TS anti-pattern checks |
-| `@regeln/eslint` | ESLint adapter |
-| `@regeln/oxlint` | oxlint adapter |
-| `@regeln/oxfmt` | oxfmt adapter |
-| `@regeln/prettier` | Prettier adapter |
-| `@regeln/vitest` | Vitest adapter |
-| `@regeln/bun-test` | bun:test adapter |
-| `@regeln/storybook` | test-storybook adapter |
-| `@regeln/junit` | Shared JUnit XML parser |
-| `@regeln/phpstan` | PHPStan adapter |
-| `@regeln/phpunit` | PHPUnit adapter |
-| `@regeln/pest` | Pest adapter |
-| `@regeln/php` | PHP AST checks (tree-sitter-php) |
-| `@regeln/laravel` | Laravel opinionated presets |
+| Package | Description | When to install |
+|---|---|---|
+| `gesetz` | **Start here.** Core primitives, rule runner, `defineConfig`, `select`, `defineArchitecture`, and the CLI. No heavy dependencies. | Always |
+| `@gesetz/cli` | `gesetz` command-line interface (included by `gesetz`) | — |
+| `@gesetz/core` | Types, runner, primitives, file-system checks, pattern checks, architecture rules (included by `gesetz`) | — |
+| `@gesetz/typescript` | ts-morph AST checks: export pairs, call shapes, JSX, i18n | TypeScript projects needing AST rules |
+| `@gesetz/effect-ts` | Effect-TS anti-pattern detection | Effect-TS codebases |
+| `@gesetz/eslint` | ESLint adapter | Any JS/TS project using ESLint |
+| `@gesetz/oxlint` | oxlint adapter | Projects using oxlint |
+| `@gesetz/oxfmt` | oxfmt adapter | Projects using oxfmt |
+| `@gesetz/prettier` | Prettier adapter | Projects using Prettier |
+| `@gesetz/vitest` | Vitest adapter | Projects using Vitest |
+| `@gesetz/bun-test` | bun:test adapter | Projects using Bun tests |
+| `@gesetz/storybook` | test-storybook adapter | Projects with Storybook |
+| `@gesetz/junit` | Shared JUnit XML parser | Usually pulled in automatically by bun-test / PHPUnit / Pest |
+| `@gesetz/phpstan` | PHPStan adapter | PHP projects |
+| `@gesetz/phpunit` | PHPUnit adapter | PHP projects |
+| `@gesetz/pest` | Pest adapter | PHP projects |
+| `@gesetz/php` | PHP AST checks (tree-sitter-php) | PHP projects needing AST rules |
+| `@gesetz/laravel` | Laravel opinionated presets | Laravel projects |
 
 ---
 
 ## Philosophy
 
 - **One gate** — many tools, one report.
+- **Wrap, don't replace** — ESLint knows JS better than we do. PHPStan knows PHP better than we do. Gesetz wraps them so you read one output.
+- **Cross-cutting first** — Gesetz's built-in checks focus on file structure, import discipline, and conventions that span every language. Language-specific depth is delegated.
 - **Never crash the build** — a broken rule produces a warning, not a fatal error.
 - **Agent-native** — JSON output, skill files, guidance metadata.
 - **TypeScript-first** — your config is typed, your architecture is typed, your rules are typed.

@@ -4,8 +4,8 @@
  * Stories in domains/, generic/, and layout/ must NOT have an explicit `title:`
  * in the meta object. Storybook derives titles from file paths.
  */
-import { select } from '@regeln/core';
-import { noObjectProperty } from '@regeln/typescript';
+import { select } from '@gesetz/core';
+import { noObjectProperty } from '@gesetz/typescript';
 
 export const storybookNoExplicitTitle = select(
   'src/components/{domains,generic,layout}/**/*.stories.{ts,tsx}',

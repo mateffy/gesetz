@@ -4,8 +4,8 @@
  * - No raw text between JSX tags
  * - No string literals in translatable props
  */
-import { select } from '@regeln/core';
-import { noLiteralJsxText, noLiteralJsxProp } from '@regeln/typescript';
+import { select } from '@gesetz/core';
+import { noLiteralJsxText, noLiteralJsxProp } from '@gesetz/typescript';
 
 const TRANSLATABLE_PROPS = [
   'label',

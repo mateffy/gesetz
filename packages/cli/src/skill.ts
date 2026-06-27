@@ -1,17 +1,17 @@
 /**
- * The `regel skill` output — a markdown agent skill file.
- * Pipe to .agents/skills/regel/SKILL.md or directly into an agent.
+ * The `gesetz skill` output — a markdown agent skill file.
+ * Pipe to .agents/skills/gesetz/SKILL.md or directly into an agent.
  */
 export const SKILL_MARKDOWN = `---
-name: regel
+name: gesetz
 description: |
   Unified code-quality gate. Use when the user asks to "check quality",
-  "fix regel issues", "audit code", or before committing a feature.
+  "fix gesetz issues", "audit code", or before committing a feature.
 ---
 
-# Regel Agent Skill
+# Gesetz Agent Skill
 
-Regel runs deterministic, category-scored quality checks on any codebase.
+Gesetz runs deterministic, category-scored quality checks on any codebase.
 It orchestrates static analysis tools and AST checks into a single score per category.
 
 ## Categories
@@ -30,44 +30,44 @@ It orchestrates static analysis tools and AST checks into a single score per cat
 
 ### Initialize a config
 \`\`\`bash
-regel init                            # interactive wizard (TTY)
-regel init --preset tanstack-start    # explicit preset
-regel init --no-interactive --format=json  # agent mode: auto-detect + JSON receipt
-regel init --force                    # overwrite an existing regel.config.ts
-regel init --no-install --no-qa-script   # scaffold only, no side effects
+gesetz init                            # interactive wizard (TTY)
+gesetz init --preset tanstack-start    # explicit preset
+gesetz init --no-interactive --format=json  # agent mode: auto-detect + JSON receipt
+gesetz init --force                    # overwrite an existing gesetz.config.ts
+gesetz init --no-install --no-qa-script   # scaffold only, no side effects
 \`\`\`
 
 Interactive (5-question wizard: preset, tools, rules, install, qa-script) in a TTY.
 Non-interactive when piped or when an agent env var is set (CLAUDE_CODE, CURSOR,
 DEVIN, GEMINI_CLI, ...). Auto-detects framework (react, tanstack-start, laravel,
 generic) and installed QA tools (oxlint, vitest, phpstan, ...). Installs
-@regeln/* packages and adds a \`"qa"\` script unless \`--no-install\` / \`--no-qa-script\`.
+@gesetz/* packages and adds a \`"qa"\` script unless \`--no-install\` / \`--no-qa-script\`.
 Available presets: blank, generic, react, tanstack-start, laravel.
 
 ### Run checks
 \`\`\`bash
-regel check                          # full scan from project root
-regel check --since HEAD~5           # only changed files
-regel check --category strictness    # one category
-regel check --format=json             # machine-readable envelope for agents
+gesetz check                          # full scan from project root
+gesetz check --since HEAD~5           # only changed files
+gesetz check --category strictness    # one category
+gesetz check --format=json             # machine-readable envelope for agents
 \`\`\`
 
 ### Read the rule catalog
 \`\`\`bash
-regel list                           # all rules with guidance
-regel list --category cleanup        # filter by category
+gesetz list                           # all rules with guidance
+gesetz list --category cleanup        # filter by category
 \`\`\`
 
 ### Agent fix workflow
-1. Run \`regel check --format=json\` to get the machine envelope
+1. Run \`gesetz check --format=json\` to get the machine envelope
 2. Read \`summary\` for the lowest-scoring category, then \`categories[]\`
 3. For each failing rule in that category, read the guidance:
-   \`regel list --category <cat>\`
+   \`gesetz list --category <cat>\`
 4. Apply the fix structurally \u2014 never silence diagnostics
-5. Re-run \`regel check\` to confirm the score improved
+5. Re-run \`gesetz check\` to confirm the score improved
 6. Repeat until all categories are at or above threshold (default: 7/10)
 
-> When stdout is not a TTY or an agent env var is set, \`regel check\`
+> When stdout is not a TTY or an agent env var is set, \`gesetz check\`
 > automatically emits the JSON envelope \u2014 no flag needed.
 
 ## Key Principles
@@ -85,5 +85,5 @@ regel list --category cleanup        # filter by category
 Each category scores 0\u201310:
   \`score = max(0, 10 - (errors \u00d7 1.0 + warnings \u00d7 0.5 + infos \u00d7 0.1))\`
 
-Default pass threshold is 7/10 per category. Configure in \`regel.config.ts\`.
+Default pass threshold is 7/10 per category. Configure in \`gesetz.config.ts\`.
 `;

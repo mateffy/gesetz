@@ -7,7 +7,7 @@ import { detectProject } from '../src/init/detect';
 let tmpDir: string;
 
 function setupProject(files: Record<string, unknown>): string {
-  const dir = nodeFs.mkdtempSync(nodePath.join(nodeOs.tmpdir(), 'regel-init-'));
+  const dir = nodeFs.mkdtempSync(nodePath.join(nodeOs.tmpdir(), 'gesetz-init-'));
   for (const [relPath, content] of Object.entries(files)) {
     const fullPath = nodePath.join(dir, relPath);
     nodeFs.mkdirSync(nodePath.dirname(fullPath), { recursive: true });
@@ -17,7 +17,7 @@ function setupProject(files: Record<string, unknown>): string {
 }
 
 beforeEach(() => {
-  tmpDir = nodeFs.mkdtempSync(nodePath.join(nodeOs.tmpdir(), 'regel-init-'));
+  tmpDir = nodeFs.mkdtempSync(nodePath.join(nodeOs.tmpdir(), 'gesetz-init-'));
 });
 
 afterEach(() => {
@@ -188,18 +188,18 @@ describe('detectProject — source layout', () => {
     expect(p.hasDomains).toBe(true);
   });
 
-  it('detects existing regel config', () => {
+  it('detects existing gesetz config', () => {
     const dir = setupProject({
       'package.json': { name: 'x' },
-      'regel.config.ts': '// existing',
+      'gesetz.config.ts': '// existing',
     });
     expect(detectProject(dir).hasExistingConfig).toBe(true);
   });
 
-  it('detects existing regel.config.mjs', () => {
+  it('detects existing gesetz.config.mjs', () => {
     const dir = setupProject({
       'package.json': { name: 'x' },
-      'regel.config.mjs': '// existing',
+      'gesetz.config.mjs': '// existing',
     });
     expect(detectProject(dir).hasExistingConfig).toBe(true);
   });

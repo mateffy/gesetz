@@ -55,7 +55,7 @@ export interface Selector {
   category(cat: RuleCategory): Selector;
 
   /**
-   * Sets agent-facing guidance for this rule (used by `regel list` and `regel skill`).
+   * Sets agent-facing guidance for this rule (used by `gesetz list` and `gesetz skill`).
    */
   guidance(g: RuleGuidance): Selector;
 

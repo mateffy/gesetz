@@ -1,5 +1,5 @@
-import type { Check } from '@regeln/core';
-import { requireChildren } from '@regeln/core';
+import type { Check } from '@gesetz/core';
+import { requireChildren } from '@gesetz/core';
 
 /**
  * Checks that each matched directory contains all required file names.

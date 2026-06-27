@@ -4,9 +4,9 @@
  * - No deep cross-domain imports
  * - Domain folders must have index.ts
  */
-import { select } from '@regeln/core';
-import { requireChildren } from '@regeln/core';
-import { noCrossModuleImports } from '@regeln/typescript';
+import { select } from '@gesetz/core';
+import { requireChildren } from '@gesetz/core';
+import { noCrossModuleImports } from '@gesetz/typescript';
 
 // Each domain component directory must have an index.ts barrel
 export const domainIndexRequired = select('src/components/domains/*/')

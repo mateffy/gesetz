@@ -1,20 +1,20 @@
 #!/usr/bin/env bun
 /**
- * regel CLI entry point.
+ * gesetz CLI entry point.
  *
  * Commands:
- *   regel check   — run all rules, show category scores
- *   regel list    — show rule catalog with guidance
- *   regel skill   — print agent skill markdown to stdout
+ *   gesetz check   — run all rules, show category scores
+ *   gesetz list    — show rule catalog with guidance
+ *   gesetz skill   — print agent skill markdown to stdout
  */
 import { pathToFileURL } from 'node:url';
 import { Command, Options } from '@effect/cli';
 import { NodeContext, NodeRuntime } from '@effect/platform-node';
 import { Console, Effect, Layer, Option } from 'effect';
 import * as nodePath from 'node:path';
-import { runAll, FileSystemLive, PhpAdapterStub, ProjectRootLive, FileFilterLive } from '@regeln/core';
-import { TsAdapterLive } from '@regeln/typescript';
-import { PhpAdapterLive } from '@regeln/php';
+import { runAll, FileSystemLive, PhpAdapterStub, ProjectRootLive, FileFilterLive } from '@gesetz/core';
+import { TsAdapterLive } from '@gesetz/typescript';
+import { PhpAdapterLive } from '@gesetz/php';
 import { loadConfig } from './load-config';
 import {
   formatCategoryTable,
@@ -40,7 +40,7 @@ const makeServicesLayer = (root: string, fileGlobs?: readonly string[] | undefin
     FileFilterLive(fileGlobs ?? null),
   );
 
-// ─── `regel check` ───────────────────────────────────────────────────────────
+// ─── `gesetz check` ───────────────────────────────────────────────────────────
 
 const checkCommand = Command.make(
   'check',
@@ -70,7 +70,7 @@ const checkCommand = Command.make(
       Options.optional,
     ),
     config: Options.text('config').pipe(
-      Options.withDescription('Path to regel.config.ts (default: <project-root>/regel.config.ts)'),
+      Options.withDescription('Path to gesetz.config.ts (default: <project-root>/gesetz.config.ts)'),
       Options.optional,
     ),
     files: Options.text('files').pipe(
@@ -126,7 +126,7 @@ const checkCommand = Command.make(
         Effect.provide(makeServicesLayer(root, Option.getOrUndefined(filesGlobs))),
         Effect.catchAllCause((cause) =>
           Effect.gen(function* () {
-            yield* Console.error(`regel check failed: ${String(cause)}`);
+            yield* Console.error(`gesetz check failed: ${String(cause)}`);
             return yield* Effect.fail(new Error(String(cause)));
           }),
         ),
@@ -156,7 +156,7 @@ const checkCommand = Command.make(
     }),
 ).pipe(Command.withDescription('Run all quality rules and show category scores'));
 
-// ─── `regel list` ────────────────────────────────────────────────────────────
+// ─── `gesetz list` ────────────────────────────────────────────────────────────
 
 const listCommand = Command.make(
   'list',
@@ -209,7 +209,7 @@ const listCommand = Command.make(
     }),
 ).pipe(Command.withDescription('List all quality rules with guidance'));
 
-// ─── `regel skill` ───────────────────────────────────────────────────────────
+// ─── `gesetz skill` ───────────────────────────────────────────────────────────
 
 const skillCommand = Command.make(
   'skill',
@@ -219,25 +219,25 @@ const skillCommand = Command.make(
 
 // ─── Root command ─────────────────────────────────────────────────────────────
 
-const regelCommand = Command.make('regel', {}, () =>
-  Console.log('Run `regel --help` to see available commands.'),
+const gesetzCommand = Command.make('gesetz', {}, () =>
+  Console.log('Run `gesetz --help` to see available commands.'),
 ).pipe(
-  Command.withDescription('Unified code quality gate \u2014 Regel v0.1.0'),
+  Command.withDescription('Unified code quality gate \u2014 Gesetz v0.1.0'),
   Command.withSubcommands([checkCommand, listCommand, skillCommand, initCommand]),
 );
 
 // ─── Entry point ─────────────────────────────────────────────────────────────
 
-const cli = Command.run(regelCommand, {
-  name: 'Regel',
+const cli = Command.run(gesetzCommand, {
+  name: 'Gesetz',
   version: 'v0.1.0',
 });
 
-export function runRegel(): void {
+export function runGesetz(): void {
   NodeRuntime.runMain(cli(process.argv).pipe(Effect.provide(NodeContext.layer)));
 }
 
 const isEntryPoint = import.meta.url === pathToFileURL(process.argv[1] ?? '').href;
 if (isEntryPoint) {
-  runRegel();
+  runGesetz();
 }

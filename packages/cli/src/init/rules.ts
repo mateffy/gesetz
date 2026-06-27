@@ -4,7 +4,7 @@
  * Each `RuleBlueprint` has an `id`, human metadata, an `appliesTo` predicate,
  * and an `emit(ctx)` that returns the source-string for that rule. The
  * generator assembles imports (deduped) + grouped rule expressions into a
- * valid `regel.config.ts` file. Pure functions — no Effect, no adapter imports
+ * valid `gesetz.config.ts` file. Pure functions — no Effect, no adapter imports
  * at generate-time (we emit strings only).
  */
 import type { PresetId, ProjectProfile, ToolId } from './detect';
@@ -48,16 +48,16 @@ export interface Plan {
 // ─── Helper: import path per tool ─────────────────────────────────────────────
 
 const TOOL_IMPORT: Record<ToolId, string> = {
-  oxlint: '@regeln/oxlint',
-  oxfmt: '@regeln/oxfmt',
-  prettier: '@regeln/prettier',
-  eslint: '@regeln/eslint',
-  vitest: '@regeln/vitest',
-  'bun-test': '@regeln/bun-test',
-  storybook: '@regeln/storybook',
-  phpstan: '@regeln/phpstan',
-  pest: '@regeln/pest',
-  phpunit: '@regeln/phpunit',
+  oxlint: '@gesetz/oxlint',
+  oxfmt: '@gesetz/oxfmt',
+  prettier: '@gesetz/prettier',
+  eslint: '@gesetz/eslint',
+  vitest: '@gesetz/vitest',
+  'bun-test': '@gesetz/bun-test',
+  storybook: '@gesetz/storybook',
+  phpstan: '@gesetz/phpstan',
+  pest: '@gesetz/pest',
+  phpunit: '@gesetz/phpunit',
 };
 
 const TOOL_FN: Record<ToolId, string> = {
@@ -392,27 +392,27 @@ interface ImportSpec {
 }
 
 const BLUEPRINT_IMPORTS: Record<string, ImportSpec[]> = {
-  'no-god-files': [{ from: '@regeln/core', name: 'noGodFile' }],
-  'no-console-log': [{ from: '@regeln/core', name: 'noConsoleLog' }],
-  'no-empty-catch': [{ from: '@regeln/core', name: 'noEmptyCatch' }],
-  'no-trivial-comment': [{ from: '@regeln/core', name: 'noTrivialComment' }],
-  'no-hardcoded-secret': [{ from: '@regeln/core', name: 'noHardcodedSecret' }],
-  'no-debugging-residue': [{ from: '@regeln/core', name: 'noDebuggingResidueFiles' }],
-  'relative-imports': [{ from: '@regeln/core', name: 'relativeImports' }],
+  'no-god-files': [{ from: '@gesetz/core', name: 'noGodFile' }],
+  'no-console-log': [{ from: '@gesetz/core', name: 'noConsoleLog' }],
+  'no-empty-catch': [{ from: '@gesetz/core', name: 'noEmptyCatch' }],
+  'no-trivial-comment': [{ from: '@gesetz/core', name: 'noTrivialComment' }],
+  'no-hardcoded-secret': [{ from: '@gesetz/core', name: 'noHardcodedSecret' }],
+  'no-debugging-residue': [{ from: '@gesetz/core', name: 'noDebuggingResidueFiles' }],
+  'relative-imports': [{ from: '@gesetz/core', name: 'relativeImports' }],
   'require-tests-sibling': [
-    { from: '@regeln/core', name: 'requireSibling' },
+    { from: '@gesetz/core', name: 'requireSibling' },
   ],
-  'test-quality-score': [{ from: '@regeln/typescript', name: 'requireMinTestScore' }],
-  'no-hardcoded-strings': [{ from: '@regeln/typescript', name: 'noHardcodedStrings' }],
-  'component-has-stories': [{ from: '@regeln/core', name: 'requireSibling' }],
-  'component-has-tests': [{ from: '@regeln/core', name: 'requireSibling' }],
-  'storybook-no-meta-title': [{ from: '@regeln/typescript', name: 'noObjectProperty' }],
-  'no-direct-tanstack-query': [{ from: '@regeln/core', name: 'noImportFrom' }],
-  'route-no-ui-imports': [{ from: '@regeln/core', name: 'noImportFrom' }],
-  'route-no-local-components': [{ from: '@regeln/typescript', name: 'noLocalFunctionComponents' }],
-  'route-no-usestate': [{ from: '@regeln/typescript', name: 'noFunctionCalls' }],
-  'domain-isolation': [{ from: '@regeln/typescript', name: 'noCrossModuleImports' }],
-  'domain-barrel': [{ from: '@regeln/core', name: 'requireChildren' }],
+  'test-quality-score': [{ from: '@gesetz/typescript', name: 'requireMinTestScore' }],
+  'no-hardcoded-strings': [{ from: '@gesetz/typescript', name: 'noHardcodedStrings' }],
+  'component-has-stories': [{ from: '@gesetz/core', name: 'requireSibling' }],
+  'component-has-tests': [{ from: '@gesetz/core', name: 'requireSibling' }],
+  'storybook-no-meta-title': [{ from: '@gesetz/typescript', name: 'noObjectProperty' }],
+  'no-direct-tanstack-query': [{ from: '@gesetz/core', name: 'noImportFrom' }],
+  'route-no-ui-imports': [{ from: '@gesetz/core', name: 'noImportFrom' }],
+  'route-no-local-components': [{ from: '@gesetz/typescript', name: 'noLocalFunctionComponents' }],
+  'route-no-usestate': [{ from: '@gesetz/typescript', name: 'noFunctionCalls' }],
+  'domain-isolation': [{ from: '@gesetz/typescript', name: 'noCrossModuleImports' }],
+  'domain-barrel': [{ from: '@gesetz/core', name: 'requireChildren' }],
 };
 
 const LARAVEL_RULE_BLUEPRINT_IDS = [
@@ -424,11 +424,11 @@ const LARAVEL_RULE_BLUEPRINT_IDS = [
 ];
 
 /**
- * Assemble the `regel.config.ts` source string from a Plan.
+ * Assemble the `gesetz.config.ts` source string from a Plan.
  *
  * - Dedupes imports from all selected blueprints + tools.
  * - Groups rule expressions by category (as comments).
- * - Laravel rules are emitted as bare identifiers (imported from @regeln/laravel).
+ * - Laravel rules are emitted as bare identifiers (imported from @gesetz/laravel).
  */
 export function generateConfig(plan: Plan): string {
   const ctx: GenerateContext = { profile: plan.profile, tools: plan.tools };
@@ -488,8 +488,8 @@ export function generateConfig(plan: Plan): string {
     set.add(name);
   };
 
-  addImport('@regeln/core', 'defineConfig');
-  if (!isLaravel) addImport('@regeln/core', 'select');
+  addImport('@gesetz/core', 'defineConfig');
+  if (!isLaravel) addImport('@gesetz/core', 'select');
 
   // Blueprint imports.
   for (const bp of emittedBlueprints) {
@@ -499,11 +499,11 @@ export function generateConfig(plan: Plan): string {
 
   // Laravel rule imports.
   if (isLaravel && emittedBlueprints.some((b) => LARAVEL_RULE_BLUEPRINT_IDS.includes(b.id))) {
-    addImport('@regeln/laravel', 'requireStrictTypes');
-    addImport('@regeln/laravel', 'requirePsrNamespaces');
-    addImport('@regeln/laravel', 'noRawDbQueries');
-    addImport('@regeln/laravel', 'noEnvOutsideConfig');
-    addImport('@regeln/laravel', 'noDebugHelpers');
+    addImport('@gesetz/laravel', 'requireStrictTypes');
+    addImport('@gesetz/laravel', 'requirePsrNamespaces');
+    addImport('@gesetz/laravel', 'noRawDbQueries');
+    addImport('@gesetz/laravel', 'noEnvOutsideConfig');
+    addImport('@gesetz/laravel', 'noDebugHelpers');
   }
 
   // Tool imports.
@@ -532,10 +532,10 @@ export function generateConfig(plan: Plan): string {
 
   // ── Compose file ──
   const header = `/**
- * regel config — generated by \`regel init\`.
+ * gesetz config — generated by \`gesetz init\`.
  *
- * Run with:  regel check
- * Edit freely; re-run \`regel init --force\` to regenerate from scratch.
+ * Run with:  gesetz check
+ * Edit freely; re-run \`gesetz init --force\` to regenerate from scratch.
  */
 `;
 

@@ -1,5 +1,5 @@
 import { Effect } from 'effect';
-import type { Check, Violation } from '@regeln/core';
+import type { Check, Violation } from '@gesetz/core';
 
 /**
  * Checks that no variable named `varName` defines a property named `propName`

@@ -7,7 +7,7 @@ import type { Violation } from '../engine/rule';
 /**
  * Writes all violations as a JSON array to stdout.
  *
- * NOTE: the CLI (`regel check --format=json`) emits a richer versioned
+ * NOTE: the CLI (`gesetz check --format=json`) emits a richer versioned
  * envelope via `formatEnvelope`. This reporter is the minimal surface used by
  * programmatic/test-runner entry points that only need the violation list.
  */

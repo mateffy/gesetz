@@ -1,5 +1,5 @@
 import { Effect } from 'effect';
-import type { Check, Violation } from '@regeln/core';
+import type { Check, Violation } from '@gesetz/core';
 import { SyntaxKind } from 'ts-morph';
 import type { CallExpression, ObjectLiteralExpression, PropertyAssignment, SourceFile } from 'ts-morph';
 import { loadSourceFile } from './shared';

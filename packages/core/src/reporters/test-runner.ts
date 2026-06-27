@@ -53,7 +53,7 @@ export function TestRunnerReporter(runner: TestRunnerAPI): Layer.Layer<Reporter>
 /**
  * The services a QA run needs: FileSystem plus the language adapters.
  * Callers provide a merged layer built from the live implementations of the
- * packages they depend on (e.g. @regeln/typescript, @regeln/php) — @regeln/core
+ * packages they depend on (e.g. @gesetz/typescript, @gesetz/php) — @gesetz/core
  * ships only stubs and must not know about concrete adapters.
  */
 type ServicesLayer = Layer.Layer<FileSystem | TsAdapter | PhpAdapter | ProjectRoot | FileFilter, never, never>;
@@ -68,9 +68,9 @@ type ServicesLayer = Layer.Layer<FileSystem | TsAdapter | PhpAdapter | ProjectRo
  * @example
  * // quality.test.ts (Vitest)
  * import { describe, it, expect } from 'vitest';
- * import { defineConfig, FileSystemLive } from '@regeln/core';
- * import { TsAdapterLive } from '@regeln/typescript';
- * import { defineQualityTests } from '@regeln/core/reporters';
+ * import { defineConfig, FileSystemLive } from '@gesetz/core';
+ * import { TsAdapterLive } from '@gesetz/typescript';
+ * import { defineQualityTests } from '@gesetz/core/reporters';
  * import { Layer } from 'effect';
  *
  * const config = defineConfig({ rules: [...] });
@@ -105,9 +105,9 @@ export async function defineQualityTests(
  *
  * @example
  * // quality.test.ts
- * import { defineConfig, FileSystemLive } from '@regeln/core';
- * import { TsAdapterLive } from '@regeln/typescript';
- * import { defineQualityTestsVitest } from '@regeln/core/reporters';
+ * import { defineConfig, FileSystemLive } from '@gesetz/core';
+ * import { TsAdapterLive } from '@gesetz/typescript';
+ * import { defineQualityTestsVitest } from '@gesetz/core/reporters';
  * import { Layer } from 'effect';
  *
  * const config = defineConfig({ rules: [...] });
@@ -128,8 +128,8 @@ export async function defineQualityTestsVitest(
  *
  * @example
  * // quality.test.ts (bun:test)
- * import { defineConfig, FileSystemLive } from '@regeln/core';
- * import { defineQualityTestsBunTest } from '@regeln/core/reporters';
+ * import { defineConfig, FileSystemLive } from '@gesetz/core';
+ * import { defineQualityTestsBunTest } from '@gesetz/core/reporters';
  *
  * const config = defineConfig({ rules: [...] });
  * await defineQualityTestsBunTest(config, services);

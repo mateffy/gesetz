@@ -1,0 +1,32 @@
+{
+  "name": "gesetz",
+  "version": "0.1.0",
+  "description": "Unified code-quality gate — core primitives and CLI. Install adapters separately.",
+  "type": "module",
+  "bin": {
+    "gesetz": "./src/cli.ts"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@gesetz/cli": "workspace:*",
+    "@gesetz/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.8.0"
+  },
+  "keywords": [
+    "lint",
+    "quality",
+    "gate",
+    "ci",
+    "typescript",
+    "rules"
+  ],
+  "license": "MIT"
+}

@@ -55,7 +55,7 @@ export type Check = (
  * convert them to violations. The RuleRunner also catches any uncaught errors.
  */
 /**
- * Categories align with Regel's scoring dimensions.
+ * Categories align with Gesetz's scoring dimensions.
  * Rules with no category still run but don't contribute to category scores.
  */
 export type RuleCategory =
@@ -90,7 +90,7 @@ export interface Rule {
   readonly category?: RuleCategory | undefined;
   /**
    * Agent-facing guidance for fixing violations.
-   * Used by `regel list` and the `regel skill` command.
+   * Used by `gesetz list` and the `gesetz skill` command.
    */
   readonly guidance?: RuleGuidance | undefined;
   /** The Effect that produces violations when run */

@@ -1,10 +1,10 @@
-# `regel init` Command Implementation Plan
+# `gesetz init` Command Implementation Plan
 
 > **Status:** IMPLEMENTED
-> **Plan folder:** `./.plans/regel-init-command/`
+> **Plan folder:** `./.plans/gesetz-init-command/`
 > **Supporting files:** RESEARCH.md, DESIGN.md, TASKS.md, DECISIONS.md
 
-**Goal:** Add a `regel init` command that scaffolds a `regel.config.ts` in the
+**Goal:** Add a `gesetz init` command that scaffolds a `gesetz.config.ts` in the
 current project — interactive for humans (3-question wizard), fully
 non-interactive for AI agents (flags + auto-detection), with presets (blank /
 generic / tanstack-start / react) and auto-detection of installed QA tools.
@@ -15,30 +15,30 @@ interactive wizard (`prompt.ts`) uses the already-installed `@effect/cli`
 `Prompt.*` API (no new deps). A `RuleBlueprint` catalog encodes ~20 distilled
 rules; presets are mappings from preset-id to blueprint-id lists, so they
 compose (react = generic + react-set). The generator emits valid TS source that
-imports from `@regeln/core` and the chosen adapter packages.
+imports from `@gesetz/core` and the chosen adapter packages.
 
 **Tech stack:** TypeScript, Effect-TS, `@effect/cli` (Prompt API), `@effect/platform-node`
 (Terminal service), `bun build` for bundling, `vitest` for tests. Conventions:
 2-space indent, `import.meta.dirname` for projectRoot in generated configs
-(matches `regel.config.ts` dogfood style).
+(matches `gesetz.config.ts` dogfood style).
 
 ---
 
 ## Context & Orientation
 
-Regel is a unified code-quality gate. A "regel config" is a TS file
-(`regel.config.ts`) that `export default defineConfig({ rules: [...] })` where
+Gesetz is a unified code-quality gate. A "gesetz config" is a TS file
+(`gesetz.config.ts`) that `export default defineConfig({ rules: [...] })` where
 each rule is built via the `select(...).label().category().guidance().check()`
-DSL (`@regeln/core`) or is an adapter rule object (`oxlint()`, `vitest()`, …).
+DSL (`@gesetz/core`) or is an adapter rule object (`oxlint()`, `vitest()`, …).
 `defineConfig`, `select`, and all primitive checks are exported from
-`@regeln/core` (`packages/core/src/index.ts`); TypeScript-AST checks from
-`@regeln/typescript`; adapter rules from `@regeln/<tool>`.
+`@gesetz/core` (`packages/core/src/index.ts`); TypeScript-AST checks from
+`@gesetz/typescript`; adapter rules from `@gesetz/<tool>`.
 
-`regel init` generates this file. Key existing files:
+`gesetz init` generates this file. Key existing files:
 - `packages/cli/src/main.ts` — CLI entry; registers subcommands via
   `Command.withSubcommands([...])`. `init` plugs in here.
-- `packages/cli/src/load-config.ts` — searches `regel.config.{ts,js,mts,mjs}`.
-  `init` writes `regel.config.ts`.
+- `packages/cli/src/load-config.ts` — searches `gesetz.config.{ts,js,mts,mjs}`.
+  `init` writes `gesetz.config.ts`.
 - `packages/cli/src/format.ts` — has `AGENT_ENV_VARS` (agent env-var list) and
   `detectFormat`/TTY logic; `init` reuses the agent-detection approach.
 - `packages/core/src/engine/config.ts` — `UserConfig` / `defineConfig` shape.
@@ -47,7 +47,7 @@ DSL (`@regeln/core`) or is an adapter rule object (`oxlint()`, `vitest()`, …).
 
 **Preset source of truth:** the immoui project
 (`/Users/mat/.local/share/opencode/worktree/.../brave-tiger/immoui`) — a
-TanStack Start app whose `immoui.regel.config.ts` + `.agents/skills/` docs
+TanStack Start app whose `immoui.gesetz.config.ts` + `.agents/skills/` docs
 encode the rules. RESEARCH.md §3 distills which rules generalize vs. are
 SDK-specific (excluded per user). See DESIGN.md for the full preset tables.
 
@@ -66,42 +66,42 @@ SDK-specific (excluded per user). See DESIGN.md for the full preset tables.
 - Create: `packages/cli/tests/init-detect.test.ts`
 - Create: `packages/cli/tests/init-generate.test.ts`
 - Modify: `packages/cli/src/index.ts` (export `initCommand` + types)
-- Modify: `packages/cli/src/skill.ts` (document `regel init` in the skill)
+- Modify: `packages/cli/src/skill.ts` (document `gesetz init` in the skill)
 
-**Out of scope:** changes to `@regeln/core` or adapter packages; new rule
-primitives; the `check`/`list` commands; a `regel.config.json` format.
+**Out of scope:** changes to `@gesetz/core` or adapter packages; new rule
+primitives; the `check`/`list` commands; a `gesetz.config.json` format.
 
 **Forbidden actions:**
 - Do NOT add `@inquirer/prompts`, `prompts`, `enquirer`, or any new prompt dep
   (use `@effect/cli` `Prompt.*`).
-- Do NOT import adapter packages (`@regeln/oxlint` etc.) at generate-time —
+- Do NOT import adapter packages (`@gesetz/oxlint` etc.) at generate-time —
   `init` emits *strings* that import them; it must not bundle them.
-- Do NOT overwrite an existing `regel.config.ts` without `--force`.
+- Do NOT overwrite an existing `gesetz.config.ts` without `--force`.
 - Do NOT run `git` commands.
 
 ---
 
 ## Goal & Acceptance (observable outcomes)
 
-1. **Interactive (human, TTY):** `regel init` walks the user through preset →
-   tools → rules → install, writes `regel.config.ts`, prints a summary. Pressing
+1. **Interactive (human, TTY):** `gesetz init` walks the user through preset →
+   tools → rules → install, writes `gesetz.config.ts`, prints a summary. Pressing
    Enter through every prompt (accepting detected defaults) produces a working
-   config that `regel check` can load.
+   config that `gesetz check` can load.
 2. **Non-interactive (agent, piped/`--no-interactive`):**
-   `regel init --preset tanstack-start --no-interactive --format=json` writes
+   `gesetz init --preset tanstack-start --no-interactive --format=json` writes
    the config and emits a JSON receipt
    `{"v":1,"command":"init","status":"ok",...}` with no stdin reads.
-3. **Auto-detection only (no flags, agent):** `regel init --no-interactive` in
+3. **Auto-detection only (no flags, agent):** `gesetz init --no-interactive` in
    a project with oxlint+vitest+react picks the `react` preset, wires detected
    tools, and includes the react rule set — zero flags needed.
-4. **No clobber:** running `regel init` twice without `--force` exits 1 with a
+4. **No clobber:** running `gesetz init` twice without `--force` exits 1 with a
    clear "config exists, use --force" message (or a confirm prompt in
    interactive mode).
-5. **Generated config loads:** after `regel init` + install, `regel check`
+5. **Generated config loads:** after `gesetz init` + install, `gesetz check`
    runs against the new config without a `ConfigNotFoundError` or import error.
-6. **Tests:** `bun run --filter='@regeln/cli' test` includes ≥ 25 new tests
+6. **Tests:** `bun run --filter='@gesetz/cli' test` includes ≥ 25 new tests
    (detection + generation + preset composition) and all pass; the bundle
-   still builds (`bun run --filter='@regeln/cli' build`).
+   still builds (`bun run --filter='@gesetz/cli' build`).
 
 ---
 
@@ -151,9 +151,9 @@ qaScript→true (unless `--no-qa-script`), pm→`flags.pm ?? detectedPm`.
 ### Write (`write.ts`)
 `writeConfig(plan, profile, flags): Effect<void, Error>`. Refuses overwrite
 unless `--force` (or interactive confirm). Writes the file via `nodeFs.writeFileSync`.
-If `install` and not `--no-install`, runs `<pkgManager> add @regeln/core
-@regeln/<tool>...` via `child_process.execFileSync` (idempotent; `composer require`
-for Laravel). If `qaScript`, writes `scripts.qa = "regel check"` into
+If `install` and not `--no-install`, runs `<pkgManager> add @gesetz/core
+@gesetz/<tool>...` via `child_process.execFileSync` (idempotent; `composer require`
+for Laravel). If `qaScript`, writes `scripts.qa = "gesetz check"` into
 `package.json` (or `composer.json` for Laravel) — idempotent (only adds if
 missing).
 
@@ -192,7 +192,7 @@ flag-based) → write → emit summary (pretty or JSON receipt). Added to
       });
       ```
 - [ ] **Step 2: Run the test, confirm it fails**
-      Run: `bun run --filter='@regeln/cli' test init-detect`
+      Run: `bun run --filter='@gesetz/cli' test init-detect`
       Expected: FAIL — `detectProject is not defined` (module not created yet).
 - [ ] **Step 3: Implement `detectProject` in `detect.ts`**
       Implement `detectProject(cwd)`: read `package.json`, probe
@@ -200,7 +200,7 @@ flag-based) → write → emit summary (pretty or JSON receipt). Added to
       framework + suggestedPreset. Export `ProjectProfile`, `DetectedTool`,
       `ToolId` types. Pure (no Effect).
 - [ ] **Step 4: Run the test, confirm it passes**
-      Run: `bun run --filter='@regeln/cli' test init-detect`
+      Run: `bun run --filter='@gesetz/cli' test init-detect`
       Expected: PASS.
 - [ ] **Step 5: Add tests for tool detection (oxlint via devDep, vitest via
       binary, storybook via `.storybook/`) and existing-config detection.**
@@ -219,7 +219,7 @@ flag-based) → write → emit summary (pretty or JSON receipt). Added to
         const src = generateConfig(plan);
         expect(src).toContain("import { defineConfig");
         expect(src).toContain("noGodFile({ maxLines: 600 })");
-        expect(src).toContain("from '@regeln/oxlint'");
+        expect(src).toContain("from '@gesetz/oxlint'");
         expect(src).toContain("projectRoot: import.meta.dirname");
         expect(() => TS.parse // not executed, just string checks).toBeTruthy();
       });
@@ -242,7 +242,7 @@ flag-based) → write → emit summary (pretty or JSON receipt). Added to
       `prettier`/`eslint`/`vitest`/`bun-test`/`storybook`/`phpstan`/`pest`/
       `phpunit`). Each `emit(ctx)` returns the rule source string. Laravel
       blueprints emit `select('app/**/*.php')...` rules importing from
-      `@regeln/laravel` (which re-exports the check fns). Implement
+      `@gesetz/laravel` (which re-exports the check fns). Implement
       `generateConfig(plan)` to dedupe imports, group by category, assemble the
       file.
 - [ ] **Step 4: Run, confirm PASS.**
@@ -321,8 +321,8 @@ flag-based) → write → emit summary (pretty or JSON receipt). Added to
 - [ ] **Step 2: Wire into `main.ts`**
       Add `import { initCommand } from './init';` and add `initCommand` to
       `Command.withSubcommands([...])`.
-- [ ] **Step 3: Build and verify `regel init --help`**
-      Run: `bun run --filter='@regeln/cli' build`
+- [ ] **Step 3: Build and verify `gesetz init --help`**
+      Run: `bun run --filter='@gesetz/cli' build`
       Run: `./packages/cli/dist/main.js init --help`
       Expected: shows `--preset`, `--tools`, `--rules`, `--force`, `--no-install`,
       `--no-qa-script`, `--pm`, `--interactive`, `--format`, `--project-root`.
@@ -352,39 +352,39 @@ flag-based) → write → emit summary (pretty or JSON receipt). Added to
       Add `export { initCommand } from './init';` and re-export the public
       types (`PresetId`, `RuleBlueprint`, `Plan`, `ProjectProfile`).
 - [ ] **Step 2: Update `skill.ts`**
-      Add `regel init` to the "Setup" section of the skill markdown, with the
+      Add `gesetz init` to the "Setup" section of the skill markdown, with the
       non-interactive agent example:
-      `regel init --preset tanstack-start --no-interactive --format=json`.
+      `gesetz init --preset tanstack-start --no-interactive --format=json`.
 - [ ] **Step 3: Full validation** (see Validation section below).
 
 ---
 
 ## Validation & Acceptance
 
-- Run: `bun run --filter='@regeln/cli' typecheck`
+- Run: `bun run --filter='@gesetz/cli' typecheck`
   Expected: 0 errors.
-- Run: `bun run --filter='@regeln/cli' test`
+- Run: `bun run --filter='@gesetz/cli' test`
   Expected: all green, ≥ 25 new tests (detect + generate + resolve + presets).
-- Run: `bun run --filter='@regeln/cli' build`
+- Run: `bun run --filter='@gesetz/cli' build`
   Expected: bundles clean, `dist/main.js` written.
 - Run: `cd /tmp && mkdir init-test && cd init-test && npm init -y &&
   npm i oxlint vitest react react-dom && /path/to/dist/main.js init
   --no-interactive --format=json`
-  Expected: writes `regel.config.ts`, JSON receipt with
+  Expected: writes `gesetz.config.ts`, JSON receipt with
   `preset:"react"`, `tools:["oxlint","vitest"]`, `qaScript:true`, exit 0.
 - Run: `cat /tmp/init-test/package.json | python3 -c "import sys,json;d=json.load(sys.stdin);print(d['scripts'].get('qa'))"`
-  Expected: prints `regel check`.
-- Run: `cat /tmp/init-test/regel.config.ts`
-  Expected: valid TS, imports from `@regeln/core`+`@regeln/typescript`+
-  `@regeln/oxlint`+`@regeln/vitest`, `projectRoot: import.meta.dirname`,
+  Expected: prints `gesetz check`.
+- Run: `cat /tmp/init-test/gesetz.config.ts`
+  Expected: valid TS, imports from `@gesetz/core`+`@gesetz/typescript`+
+  `@gesetz/oxlint`+`@gesetz/vitest`, `projectRoot: import.meta.dirname`,
   ≥ 10 rules in the array.
 - Run: `cd /tmp && mkdir init-laravel && cd init-laravel &&
   echo '{"name":"x","require":{"php":"^8.2"}}' > composer.json &&
   /path/to/dist/main.js init --no-interactive --format=json`
-  Expected: writes `regel.config.ts`, JSON receipt with `preset:"laravel"`,
-  config imports from `@regeln/laravel`+`@regeln/php`, ≥ 5 PHP rules.
+  Expected: writes `gesetz.config.ts`, JSON receipt with `preset:"laravel"`,
+  config imports from `@gesetz/laravel`+`@gesetz/php`, ≥ 5 PHP rules.
 - Run: `./packages/cli/dist/main.js init` (second time, same dir, no `--force`)
-  Expected: exit 1, message "regel.config.ts exists — use --force to overwrite".
+  Expected: exit 1, message "gesetz.config.ts exists — use --force to overwrite".
 - Run (interactive, in a real TTY): `./packages/cli/dist/main.js init`
   Expected: up to 5 prompts shown; Enter through all → writes config using detected
   defaults; summary printed.
@@ -404,15 +404,15 @@ suites pass.
   Mitigation: detected tools shown in message text; non-interactive path is
   deterministic. Cosmetic only.
 - **Risk: generated config doesn't typecheck in target project** because
-  `@regeln/*` isn't installed yet. Likelihood: medium. Mitigation: the
+  `@gesetz/*` isn't installed yet. Likelihood: medium. Mitigation: the
   `--install` step (default in agent mode, prompted in interactive) installs
-  before the user runs `regel check`; the generated file is valid TS that
+  before the user runs `gesetz check`; the generated file is valid TS that
   typechecks once packages resolve.
 - **Risk: framework mis-detection** (e.g. a Next.js app with react in deps →
   picks `react` preset, which is fine, but `tanstack-start` rules won't apply).
   Likelihood: low. Mitigation: `react` preset is a safe superset; user can
   `--preset` override; detection is transparent (shown in Q1 message).
-- **Risk: `bun build` externalizes `@regeln/*`** so the bundled `init` can't
+- **Risk: `bun build` externalizes `@gesetz/*`** so the bundled `init` can't
   import adapter packages at runtime. Likelihood: none — by design `init`
   emits strings, never imports adapters. Validated in Task 6 step 3.
 - **Rollback:** `init` is additive — remove the `init/` dir, the import line
@@ -427,7 +427,7 @@ suites pass.
 All resolved per user feedback (2026-06-26):
 
 1. **`--tools` for undetected tools:** warn but include the adapter rule anyway
-   (so it surfaces at `regel check` time until the user installs the tool).
+   (so it surfaces at `gesetz check` time until the user installs the tool).
    Decided — recorded in DECISIONS.md.
 2. **Package manager:** `--pm <bun|pnpm|npm|yarn>` flag overrides auto-detection
    (lockfile-based); Laravel uses `composer` regardless. Decided.
@@ -438,14 +438,14 @@ All resolved per user feedback (2026-06-26):
    `requireStrictTypes`/`requirePsrNamespaces`/`noRawDbQueries`/
    `noEnvOutsideConfig`/`noDebugHelpers` + detected PHP tools). Decided.
 5. **`qa` script in package.json:** added as part of init unless `--no-qa-script`
-   (writes `scripts.qa = "regel check"`; `composer.json` for Laravel). Decided.
+   (writes `scripts.qa = "gesetz check"`; `composer.json` for Laravel). Decided.
 
 ---
 
 ## Out of Scope (explicitly)
 
-- A `regel.config.json` format or JSON-schema.
-- Migration from an existing `regel.config.ts` (only overwrite-via-`--force`).
+- A `gesetz.config.json` format or JSON-schema.
+- Migration from an existing `gesetz.config.ts` (only overwrite-via-`--force`).
 - IDE integration / `.vscode/` scaffolding.
 - Generating *other* `package.json` scripts beyond `qa` (only `qa` is added).
 - New rule primitives (the catalog uses only existing checks).

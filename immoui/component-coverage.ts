@@ -3,8 +3,8 @@
  *
  * Every component file must have a sibling .stories.tsx and .test.tsx.
  */
-import { select } from '@regeln/core';
-import { requireSibling } from '@regeln/core';
+import { select } from '@gesetz/core';
+import { requireSibling } from '@gesetz/core';
 
 export const componentStories = select('src/components/**/*.tsx')
   .exclude('**/*.test.tsx', '**/*.stories.tsx', '**/index.tsx')

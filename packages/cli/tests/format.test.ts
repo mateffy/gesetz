@@ -8,7 +8,7 @@ import {
   detectFormat,
   MAX_VIOLATIONS,
 } from '../src/format';
-import type { RunResult, RuleResult, Violation } from '@regeln/core';
+import type { RunResult, RuleResult, Violation } from '@gesetz/core';
 
 function v(over: Partial<Violation> = {}): Violation {
   return {
@@ -121,7 +121,7 @@ describe('buildEnvelope', () => {
     const env = buildEnvelope(failingResult(many));
     expect(env.violations).toHaveLength(MAX_VIOLATIONS);
     expect(env.truncated).toBe(10);
-    expect(env.hint).toBe('regel check --format=json --all');
+    expect(env.hint).toBe('gesetz check --format=json --all');
     expect(env.total).toBe(MAX_VIOLATIONS + 10);
   });
 
@@ -211,9 +211,9 @@ describe('formatCi', () => {
 
 describe('formatStatusBanner', () => {
   it('writes a one-line verdict to stderr format', () => {
-    expect(formatStatusBanner({ ...passingResult(), totalViolations: 0 })).toBe('regel: pass (0 violations)\n');
-    expect(formatStatusBanner({ ...failingResult([v()]), totalViolations: 1 })).toBe('regel: fail (1 violation)\n');
-    expect(formatStatusBanner({ ...failingResult([v(), v()]), totalViolations: 2 })).toBe('regel: fail (2 violations)\n');
+    expect(formatStatusBanner({ ...passingResult(), totalViolations: 0 })).toBe('gesetz: pass (0 violations)\n');
+    expect(formatStatusBanner({ ...failingResult([v()]), totalViolations: 1 })).toBe('gesetz: fail (1 violation)\n');
+    expect(formatStatusBanner({ ...failingResult([v(), v()]), totalViolations: 2 })).toBe('gesetz: fail (2 violations)\n');
   });
 });
 

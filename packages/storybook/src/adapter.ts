@@ -1,8 +1,8 @@
 import * as nodeFs from 'node:fs';
 import * as nodePath from 'node:path';
 import { Effect } from 'effect';
-import type { Rule, Violation } from '@regeln/core';
-import { execTool, runWithTempFile, extractLocation } from '@regeln/core';
+import type { Rule, Violation } from '@gesetz/core';
+import { execTool, runWithTempFile, extractLocation } from '@gesetz/core';
 
 export interface StorybookOptions {
   /**
@@ -111,7 +111,7 @@ export function storybook(opts: StorybookOptions = {}): Rule {
     }
     if (opts.extraArgs) baseArgs.push(...opts.extraArgs);
 
-    return yield* runWithTempFile('regeln-storybook-', 'results.json', (tmpFile) =>
+    return yield* runWithTempFile('gesetz-storybook-', 'results.json', (tmpFile) =>
       Effect.gen(function* () {
         const args = baseArgs.map((a) => (a === '__TMP__' ? tmpFile : a));
 

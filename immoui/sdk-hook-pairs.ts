@@ -4,8 +4,8 @@
  * Every useX query hook must export both useX and useSuspenseX.
  * Mutation hooks (use-create-, use-update-, etc.) must NOT use useSuspenseQuery.
  */
-import { select } from '@regeln/core';
-import { requireExportPairs, noFunctionCalls } from '@regeln/typescript';
+import { select } from '@gesetz/core';
+import { requireExportPairs, noFunctionCalls } from '@gesetz/typescript';
 
 const MUTATION_PREFIXES = [
   'use-create-',

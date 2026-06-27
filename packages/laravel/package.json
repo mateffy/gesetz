@@ -1,5 +1,5 @@
 {
-  "name": "@regeln/laravel",
+  "name": "@gesetz/laravel",
   "version": "0.1.0",
   "type": "module",
   "exports": {
@@ -9,9 +9,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@regeln/core": "workspace:*",
-    "@regeln/php": "workspace:*",
-    "@regeln/phpstan": "workspace:*",
+    "@gesetz/core": "workspace:*",
+    "@gesetz/php": "workspace:*",
+    "@gesetz/phpstan": "workspace:*",
     "effect": "^3.15.0"
   },
   "devDependencies": {

@@ -27,10 +27,10 @@ const BUN_BIN = nodeFs.existsSync('/usr/local/bin/bun')
  *    externalize `@effect/*` packages so their (correctly-encoded) source is
  *    loaded from node_modules at runtime.
  *
- * 2. Ctrl+C crash: `regel init` used to dump a full `QuitException` stack
+ * 2. Ctrl+C crash: `gesetz init` used to dump a full `QuitException` stack
  *    trace when the user pressed Ctrl+C during an interactive prompt. Fixed
  *    by catching `QuitException` in the init command and exiting cleanly
- *    with a one-line `regel init cancelled` message.
+ *    with a one-line `gesetz init cancelled` message.
  *
  * These tests run the built binary under a pseudo-PTY so the pretty-glyph
  * path (the historically buggy one) executes.
@@ -90,12 +90,12 @@ sys.stdout.buffer.write(bytes(out))`,
   const DOUBLE_ENCODED_POINTER = Buffer.from([0xc3, 0xa2, 0xc2, 0x9d, 0xc2, 0xaf]); // e2 9d af (❯)
   const DOUBLE_ENCODED_EMDASH = Buffer.from([0xc3, 0xa2, 0xc2, 0x80, 0xc2, 0x94]); // e2 80 94 (—)
 
-  it('regel check: emits correct UTF-8 box chars, no double-encoded bytes in pretty TTY mode', () => {
+  it('gesetz check: emits correct UTF-8 box chars, no double-encoded bytes in pretty TTY mode', () => {
     if (!distExists()) {
       console.warn(`skipping: ${DIST_MAIN} not built`);
       return;
     }
-    // Run against the regeln repo itself (has a regel.config.ts + src/).
+    // Run against the gesetz repo itself (has a gesetz.config.ts + src/).
     const out = runInPty(['check', '--category', 'cleanup'], { settleMs: 5000 });
     expect(out.includes(DOUBLE_ENCODED_HLINE)).toBe(false);
     expect(out.includes(DOUBLE_ENCODED_EMDASH)).toBe(false);
@@ -103,7 +103,7 @@ sys.stdout.buffer.write(bytes(out))`,
     expect(out.includes(Buffer.from([0xe2, 0x94, 0x80]))).toBe(true);
   }, 40000);
 
-  it('regel check: emits ASCII fallback (no box chars) when piped', () => {
+  it('gesetz check: emits ASCII fallback (no box chars) when piped', () => {
     if (!distExists()) {
       console.warn(`skipping: ${DIST_MAIN} not built`);
       return;
@@ -119,13 +119,13 @@ sys.stdout.buffer.write(bytes(out))`,
     expect(out).toMatch(/-{20,}/);
   }, 40000);
 
-  it('regel init: interactive prompt renders ❯ pointer and — em-dash correctly (no double-encoding)', () => {
+  it('gesetz init: interactive prompt renders ❯ pointer and — em-dash correctly (no double-encoding)', () => {
     if (!distExists()) {
       console.warn(`skipping: ${DIST_MAIN} not built`);
       return;
     }
     // Use a temp project with react deps so detection picks 'react' preset.
-    const tmp = nodeFs.mkdtempSync(nodePath.join(require('node:os').tmpdir(), 'regel-mojibake-'));
+    const tmp = nodeFs.mkdtempSync(nodePath.join(require('node:os').tmpdir(), 'gesetz-mojibake-'));
     try {
       nodeFs.writeFileSync(
         nodePath.join(tmp, 'package.json'),

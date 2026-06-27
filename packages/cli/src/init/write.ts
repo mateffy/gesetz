@@ -89,7 +89,7 @@ export interface WriteResult {
   readonly pm: PackageManager;
 }
 
-const CONFIG_PATH = 'regel.config.ts';
+const CONFIG_PATH = 'gesetz.config.ts';
 
 const INSTALL_PACKAGES: Record<PackageManager, (pkg: string) => string[]> = {
   bun: (p) => ['bun', 'add', ...p.split(' ')],
@@ -99,27 +99,27 @@ const INSTALL_PACKAGES: Record<PackageManager, (pkg: string) => string[]> = {
   composer: (p) => ['composer', 'require', ...p.split(' ')],
 };
 
-/** The @regeln packages to install for a plan. */
+/** The @gesetz packages to install for a plan. */
 function packagesForPlan(plan: Plan): string[] {
-  const pkgs = new Set<string>(['@regeln/core']);
+  const pkgs = new Set<string>(['@gesetz/core']);
   if (plan.preset === 'laravel') {
-    pkgs.add('@regeln/laravel');
-    pkgs.add('@regeln/php');
+    pkgs.add('@gesetz/laravel');
+    pkgs.add('@gesetz/php');
   } else {
-    pkgs.add('@regeln/typescript');
+    pkgs.add('@gesetz/typescript');
   }
   for (const tool of plan.tools) {
     const map: Record<ToolId, string> = {
-      oxlint: '@regeln/oxlint',
-      oxfmt: '@regeln/oxfmt',
-      prettier: '@regeln/prettier',
-      eslint: '@regeln/eslint',
-      vitest: '@regeln/vitest',
-      'bun-test': '@regeln/bun-test',
-      storybook: '@regeln/storybook',
-      phpstan: '@regeln/phpstan',
-      pest: '@regeln/pest',
-      phpunit: '@regeln/phpunit',
+      oxlint: '@gesetz/oxlint',
+      oxfmt: '@gesetz/oxfmt',
+      prettier: '@gesetz/prettier',
+      eslint: '@gesetz/eslint',
+      vitest: '@gesetz/vitest',
+      'bun-test': '@gesetz/bun-test',
+      storybook: '@gesetz/storybook',
+      phpstan: '@gesetz/phpstan',
+      pest: '@gesetz/pest',
+      phpunit: '@gesetz/phpunit',
     };
     pkgs.add(map[tool]);
   }
@@ -145,7 +145,7 @@ function writeQaScriptEffect(
       const json = JSON.parse(txt) as { scripts?: Record<string, string> };
       if (!json.scripts) json.scripts = {};
       if (json.scripts.qa) return;
-      json.scripts.qa = 'regel check';
+      json.scripts.qa = 'gesetz check';
       yield* fs.writeFileString(path, JSON.stringify(json, null, 4) + '\n').pipe(
         Effect.catchAll((e) => Console.error(`Could not write qa script: ${String(e)}`)),
       );
@@ -162,7 +162,7 @@ function writeQaScriptEffect(
     const json = JSON.parse(txt) as { scripts?: Record<string, string> };
     if (!json.scripts) json.scripts = {};
     if (json.scripts.qa) return;
-    json.scripts.qa = 'regel check';
+    json.scripts.qa = 'gesetz check';
     yield* fs.writeFileString(path, JSON.stringify(json, null, 2) + '\n').pipe(
       Effect.catchAll((e) => Console.error(`Could not write qa script: ${String(e)}`)),
     );

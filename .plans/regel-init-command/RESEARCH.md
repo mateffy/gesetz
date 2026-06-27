@@ -1,8 +1,8 @@
-# Research: `regel init` command
+# Research: `gesetz init` command
 
 ## Goal of the command
 
-`regel init` scaffolds a `regel.config.ts` in the current project. It must work:
+`gesetz init` scaffolds a `gesetz.config.ts` in the current project. It must work:
 - **Non-interactively** for AI agents / CI (flags + auto-detection, no stdin reads).
 - **Interactively** for humans (guided wizard with prompts, sensible defaults).
 
@@ -12,7 +12,7 @@ customize which rules are auto-added — with auto-detected tools preselected.
 
 ---
 
-## 1. Current regel config format (the thing `init` generates)
+## 1. Current gesetz config format (the thing `init` generates)
 
 **File:** `packages/core/src/engine/config.ts` — `defineConfig`.
 
@@ -29,7 +29,7 @@ export function defineConfig(config: UserConfig): ResolvedConfig { ... }
 ```
 
 **Config file names searched** (`packages/cli/src/load-config.ts`):
-`regel.config.ts`, `.js`, `.mts`, `.mjs`. The file must `export default defineConfig({...})`.
+`gesetz.config.ts`, `.js`, `.mts`, `.mjs`. The file must `export default defineConfig({...})`.
 
 **Rule shape** (`packages/core/src/engine/rule.ts`):
 ```ts
@@ -37,7 +37,7 @@ interface Rule {
   id: string;                 // slugified from description
   description: string;        // human label
   category?: RuleCategory;    // 'strictness'|'structure'|'cleanup'|'react'|'effect-ts'|...
-  guidance?: RuleGuidance;    // { what, do, dont } — shown by `regel list`/`regel skill`
+  guidance?: RuleGuidance;    // { what, do, dont } — shown by `gesetz list`/`gesetz skill`
   run: Effect<Violation[], never, FileSystem|TsAdapter|PhpAdapter|ProjectRoot|FileFilter>;
 }
 ```
@@ -57,7 +57,7 @@ select('src/**/*.tsx')
 - Adapter rules (oxlint, vitest, …) are plain `Rule` objects, not selectors —
   called as functions: `oxlint({ pattern: 'src/', category: 'strictness' })`.
 
-**The generated config is pure TS** that imports from `@regeln/core` and the
+**The generated config is pure TS** that imports from `@gesetz/core` and the
 adapter packages. So `init` must emit `import` statements matching the chosen
 rules — it is a code generator, not a JSON writer.
 
@@ -65,7 +65,7 @@ rules — it is a code generator, not a JSON writer.
 
 ## 2. Available rule primitives (the menu `init` chooses from)
 
-### Language-agnostic (`@regeln/core`)
+### Language-agnostic (`@gesetz/core`)
 `packages/core/src/index.ts` exports:
 - **DSL:** `select`, `slugify`
 - **FS checks** (`primitives/checks/fs.ts`): `requireSibling(ext)`,
@@ -79,7 +79,7 @@ rules — it is a code generator, not a JSON writer.
 - **Graph:** `noCycles`
 - **Architecture:** `defineArchitecture` (layer-based import boundaries)
 
-### TypeScript AST (`@regeln/typescript`)
+### TypeScript AST (`@gesetz/typescript`)
 `requireExportPairs(fn)`, `requireExportFactories({pattern,minCount})`,
 `requireCallShape(name, requiredProps)`, `noFunctionCalls(names, opts)`,
 `noLiteralJsxText`, `noLiteralJsxProp`, `noJsxElements`,
@@ -88,23 +88,23 @@ rules — it is a code generator, not a JSON writer.
 `noCrossModuleImports({modulePattern, message})`,
 `requireDirectoryStructure(files)`, `requireMinTestScore(opts)`.
 
-### Effect-TS (`@regeln/effect-ts`)
+### Effect-TS (`@gesetz/effect-ts`)
 `noRunPromiseScattered({entryPoints})`, `noThrowInEffectGen()`,
 `noYieldWithoutStar()`, `noUnboundedEffectAll()`.
 
 ### External-tool adapters (each returns a `Rule`)
 | Adapter pkg | fn | key options |
 |---|---|---|
-| `@regeln/oxlint` | `oxlint()` | `pattern`, `cwd`, `configFile`, `label`, `category` |
-| `@regeln/oxfmt` | `oxfmt()` | `pattern`, `cwd`, `label`, `category` |
-| `@regeln/prettier` | `prettier()` | `pattern`, `cwd`, `configFile`, `label`, `category` |
-| `@regeln/eslint` | `eslint()` | `pattern`, `cwd`, `overrideConfigFile`, `label`, `category` |
-| `@regeln/vitest` | `vitest()` | `pattern`, `cwd`, `project`, `label`, `category` |
-| `@regeln/bun-test` | `bunTest()` | `pattern`, `cwd`, `label`, `category` |
-| `@regeln/storybook` | `storybook()` | `url`, `cwd`, `label`, `category` |
-| `@regeln/phpstan` | `phpstan()` | `pattern`, `bin`, `cwd`, `configFile`, `label`, `category` |
-| `@regeln/phpunit` | `phpunit()` | `pattern`, `cwd`, `configFile`, `label`, `category` |
-| `@regeln/pest` | `pest()` | `pattern`, `cwd`, `label`, `category` |
+| `@gesetz/oxlint` | `oxlint()` | `pattern`, `cwd`, `configFile`, `label`, `category` |
+| `@gesetz/oxfmt` | `oxfmt()` | `pattern`, `cwd`, `label`, `category` |
+| `@gesetz/prettier` | `prettier()` | `pattern`, `cwd`, `configFile`, `label`, `category` |
+| `@gesetz/eslint` | `eslint()` | `pattern`, `cwd`, `overrideConfigFile`, `label`, `category` |
+| `@gesetz/vitest` | `vitest()` | `pattern`, `cwd`, `project`, `label`, `category` |
+| `@gesetz/bun-test` | `bunTest()` | `pattern`, `cwd`, `label`, `category` |
+| `@gesetz/storybook` | `storybook()` | `url`, `cwd`, `label`, `category` |
+| `@gesetz/phpstan` | `phpstan()` | `pattern`, `bin`, `cwd`, `configFile`, `label`, `category` |
+| `@gesetz/phpunit` | `phpunit()` | `pattern`, `cwd`, `configFile`, `label`, `category` |
+| `@gesetz/pest` | `pest()` | `pattern`, `cwd`, `label`, `category` |
 
 ### The `requireMinTestScore` check (the "tests test important things" rule)
 `packages/typescript/src/checks.ts`. This is the metatest that scores test
@@ -119,7 +119,7 @@ Options: `minScore`, `assertionThresholds`, `testCountThresholds`, bonuses,
 ## 3. The immoui reference project (presets source of truth)
 
 **Path:** `/Users/mat/.local/share/opencode/worktree/.../brave-tiger/immoui`
-(A TanStack Start + React 19 + Vite app; the project regel was born from.)
+(A TanStack Start + React 19 + Vite app; the project gesetz was born from.)
 
 ### Stack detected in its `package.json`
 - **Runtime:** Bun, Vite 8, React 19, TanStack Start/Router/Query/Table
@@ -129,7 +129,7 @@ Options: `minScore`, `assertionThresholds`, `testCountThresholds`, bonuses,
 - **Scripts:** `lint` (oxlint), `check` (oxlint+oxfmt), `lint:arch` (eslint
   boundaries), `test:component`, `test:storybook`, `typecheck`, `qa` (all).
 
-### immoui's rules (from `immoui.regel.config.ts` + skill docs)
+### immoui's rules (from `immoui.gesetz.config.ts` + skill docs)
 Organized by what `init` should generalize:
 
 **A. Universal / framework-agnostic (→ `generic` preset):**
@@ -197,7 +197,7 @@ not the SDK pattern.
 ## 4. Interaction / prompt infrastructure
 
 **No prompt library is currently a dependency.** But `@effect/cli` (already a
-`@regeln/cli` dep) ships a `Prompt` module (`packages/cli/node_modules/@effect/cli/dist/dts/Prompt.d.ts`):
+`@gesetz/cli` dep) ships a `Prompt` module (`packages/cli/node_modules/@effect/cli/dist/dts/Prompt.d.ts`):
 - `Prompt.text({message, default})` → `Prompt<string>`
 - `Prompt.select({message, choices:[{title,value,description?}]})` → `Prompt<A>`
 - `Prompt.confirm({message, initial})` → `Prompt<boolean>`
@@ -241,7 +241,7 @@ never hang on stdin. Agent env vars (`CLAUDE_CODE` etc., already enumerated in
 - **`antfu/eslint-config`** wizard (deepwiki): framework selection →
   dependency install → config generation → IDE setup, as 3 staged updates.
   Detects existing configs to prevent overwrite. Lesson: **detect & don't
-  clobber** existing `regel.config.ts`; offer `--force`.
+  clobber** existing `gesetz.config.ts`; offer `--force`.
 - **Agent-CLI best practices** (infoq, dev.to, agentao, openstatus):
   - Every command needs a machine escape hatch: `--no-interactive` /
     `--no-prompt` flags, env vars, semantic exit codes.
@@ -311,14 +311,14 @@ subcommands list. It shares `NodeContext.layer` (which provides `Terminal` for
 ## 8. Constraints / gotchas
 
 - The generated config imports from adapter packages; the target project must
-  have `@regeln/core` + chosen adapters installed. `init` should offer to write
+  have `@gesetz/core` + chosen adapters installed. `init` should offer to write
   the install command (and optionally run it with `--install`).
 - `defineConfig` requires `rules: Rule[]`. A "blank" preset = empty array.
 - Generated file is `.ts` → needs `// @ts-nocheck`? No — it should typecheck.
-  But the target project may not have `@regeln/*` types until installed. The
+  But the target project may not have `@gesetz/*` types until installed. The
   generator should emit valid TS and the install step makes it typecheck.
-- Must not overwrite an existing `regel.config.ts` without `--force`.
-- The CLI is bundled via `bun build` with `--external @regeln/*`. The `init`
+- Must not overwrite an existing `gesetz.config.ts` without `--force`.
+- The CLI is bundled via `bun build` with `--external @gesetz/*`. The `init`
   command runs in the bundled binary; detection code must use only Node APIs
   (`node:fs`, `node:child_process`, `node:path`) — no adapter imports at
   generate-time (we generate *strings* that import adapters, we don't import them).

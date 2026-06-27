@@ -72,7 +72,7 @@ describe('FileSystem service — FileSystemLive (integration)', () => {
       const content = yield* fs.readFile(
         new URL('../../package.json', import.meta.url).pathname,
       );
-      expect(content).toContain('@regeln/core');
+      expect(content).toContain('@gesetz/core');
     }).pipe(
       Effect.provide(FileSystemLive),
       Effect.runPromise,

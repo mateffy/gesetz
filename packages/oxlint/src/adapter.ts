@@ -1,7 +1,7 @@
 import * as nodePath from 'node:path';
 import { Effect } from 'effect';
-import type { Rule, Violation } from '@regeln/core';
-import { execTool } from '@regeln/core';
+import type { Rule, Violation } from '@gesetz/core';
+import { execTool } from '@gesetz/core';
 
 export interface OxlintOptions {
   pattern?: string | string[];

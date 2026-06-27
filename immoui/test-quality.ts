@@ -3,8 +3,8 @@
  *
  * Adapted from immoui's test-quality.test.ts scoring algorithm.
  */
-import { select } from '@regeln/core';
-import { requireMinTestScore } from '@regeln/typescript';
+import { select } from '@gesetz/core';
+import { requireMinTestScore } from '@gesetz/typescript';
 
 export const testQualityScore = select('src/**/*.test.{ts,tsx}')
   .label('Test files must meet minimum quality score')

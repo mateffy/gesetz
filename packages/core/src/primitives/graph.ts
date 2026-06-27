@@ -62,7 +62,7 @@ export function noCycles(pattern: string | string[], opts: NoCyclesOptions = {})
 
     if (raw === null || typeof raw.cruise !== 'function') {
       yield* Effect.logWarning(
-        '[regeln] dependency-cruiser is not installed or export shape changed — noCycles() produced no violations.',
+        '[gesetz] dependency-cruiser is not installed or export shape changed — noCycles() produced no violations.',
       );
       return [];
     }
@@ -93,7 +93,7 @@ export function noCycles(pattern: string | string[], opts: NoCyclesOptions = {})
 
     if (result === null) {
       yield* Effect.logWarning(
-        '[regeln] dependency-cruiser cruise() failed — noCycles() produced no violations.',
+        '[gesetz] dependency-cruiser cruise() failed — noCycles() produced no violations.',
       );
       return [];
     }

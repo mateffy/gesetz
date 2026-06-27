@@ -1,26 +1,26 @@
 {
-  "name": "regel-workspace",
+  "name": "gesetz-workspace",
   "private": true,
   "workspaces": ["packages/*", "immoui"],
   "dependencies": {
-    "@regeln/core": "workspace:*",
-    "@regeln/effect-ts": "workspace:*",
-    "@regeln/typescript": "workspace:*",
-    "@regeln/junit": "workspace:*",
-    "@regeln/vitest": "workspace:*",
-    "@regeln/bun-test": "workspace:*",
-    "@regeln/pest": "workspace:*",
-    "@regeln/prettier": "workspace:*",
-    "@regeln/oxfmt": "workspace:*",
-    "@regeln/oxlint": "workspace:*",
-    "@regeln/storybook": "workspace:*",
-    "@regeln/phpunit": "workspace:*",
+    "@gesetz/core": "workspace:*",
+    "@gesetz/effect-ts": "workspace:*",
+    "@gesetz/typescript": "workspace:*",
+    "@gesetz/junit": "workspace:*",
+    "@gesetz/vitest": "workspace:*",
+    "@gesetz/bun-test": "workspace:*",
+    "@gesetz/pest": "workspace:*",
+    "@gesetz/prettier": "workspace:*",
+    "@gesetz/oxfmt": "workspace:*",
+    "@gesetz/oxlint": "workspace:*",
+    "@gesetz/storybook": "workspace:*",
+    "@gesetz/phpunit": "workspace:*",
     "dependency-cruiser": "^18.0.0",
     "enhanced-resolve": "^5.24.1"
   },
   "scripts": {
     "test": "bun run --filter='*' test",
     "typecheck": "bun run --filter='*' typecheck",
-    "build": "bun run --filter='@regeln/cli' build"
+    "build": "bun run --filter='@gesetz/cli' build"
   }
 }

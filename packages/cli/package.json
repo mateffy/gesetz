@@ -1,15 +1,15 @@
 {
-  "name": "@regeln/cli",
+  "name": "@gesetz/cli",
   "version": "0.1.0",
   "type": "module",
   "bin": {
-    "regel": "./dist/main.js"
+    "gesetz": "./dist/main.js"
   },
   "exports": {
     ".": "./src/index.ts"
   },
   "scripts": {
-    "build": "bun build src/main.ts --outdir dist --target bun --format esm --sourcemap --external dependency-cruiser --external eslint --external ts-morph --external tree-sitter --external tree-sitter-php --external @regeln/core --external @regeln/typescript --external @regeln/php --external @regeln/oxlint --external @regeln/oxfmt --external @regeln/vitest --external @regeln/bun-test --external @regeln/pest --external @regeln/prettier --external @regeln/junit --external @regeln/effect-ts --external @regeln/eslint --external @regeln/phpstan --external @regeln/storybook --external @regeln/phpunit --external effect --external @effect/cli --external @effect/platform --external @effect/platform-node --external @effect/platform-node-shared --external @effect/printer --external @effect/printer-ansi",
+    "build": "bun build src/main.ts --outdir dist --target bun --format esm --sourcemap --external dependency-cruiser --external eslint --external ts-morph --external tree-sitter --external tree-sitter-php --external @gesetz/core --external @gesetz/typescript --external @gesetz/php --external @gesetz/oxlint --external @gesetz/oxfmt --external @gesetz/vitest --external @gesetz/bun-test --external @gesetz/pest --external @gesetz/prettier --external @gesetz/junit --external @gesetz/effect-ts --external @gesetz/eslint --external @gesetz/phpstan --external @gesetz/storybook --external @gesetz/phpunit --external effect --external @effect/cli --external @effect/platform --external @effect/platform-node --external @effect/platform-node-shared --external @effect/printer --external @effect/printer-ansi",
     "dev": "bun run src/main.ts",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -19,9 +19,9 @@
     "@effect/cli": "^0.55.0",
     "@effect/platform": "^0.80.0",
     "@effect/platform-node": "^0.73.0",
-    "@regeln/core": "workspace:*",
-    "@regeln/typescript": "workspace:*",
-    "@regeln/php": "workspace:*",
+    "@gesetz/core": "workspace:*",
+    "@gesetz/typescript": "workspace:*",
+    "@gesetz/php": "workspace:*",
     "effect": "^3.15.0"
   },
   "devDependencies": {

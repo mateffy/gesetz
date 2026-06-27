@@ -1,6 +1,6 @@
-# Tasks: `regel init` Command
+# Tasks: `gesetz init` Command
 
-**Plan:** `./.plans/regel-init-command/PLAN.md`
+**Plan:** `./.plans/gesetz-init-command/PLAN.md`
 
 - [x] Task 1: Detection module — `detect.ts` + tests (framework/tools/config detection)
 - [x] Task 2: Blueprint catalog & config generator — `rules.ts` + `generateConfig` tests

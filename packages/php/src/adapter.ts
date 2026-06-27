@@ -4,8 +4,8 @@
  * Gracefully degrades when not installed.
  */
 import { Effect, Layer } from 'effect';
-import { PhpAdapter, PhpAdapterError } from '@regeln/core';
-import type { PhpSyntaxNode } from '@regeln/core';
+import { PhpAdapter, PhpAdapterError } from '@gesetz/core';
+import type { PhpSyntaxNode } from '@gesetz/core';
 
 /** Minimal typed view of the tree-sitter Parser. */
 interface TreeSitterParser {

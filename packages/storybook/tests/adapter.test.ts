@@ -4,7 +4,7 @@ import * as nodeFs from 'node:fs';
 import * as nodePath from 'node:path';
 import { Effect, Layer } from 'effect';
 import { storybook } from '../src/adapter';
-import { MemoryFileSystem, ProjectRootLive, FileFilterLive, TsAdapterStub, PhpAdapterStub } from '@regeln/core';
+import { MemoryFileSystem, ProjectRootLive, FileFilterLive, TsAdapterStub, PhpAdapterStub } from '@gesetz/core';
 
 const TestLayer = Layer.mergeAll(
   MemoryFileSystem({}),
@@ -65,7 +65,7 @@ describe('storybook', () => {
   });
 
   it('maps failed story assertions to violations', async () => {
-    const tmpDir = '/tmp/regeln-storybook-test-1';
+    const tmpDir = '/tmp/gesetz-storybook-test-1';
     const tmpFile = nodePath.join(tmpDir, 'results.json');
     (nodeFs.mkdtempSync as ReturnType<typeof vi.fn>).mockReturnValue(tmpDir);
     (nodeFs.readFileSync as ReturnType<typeof vi.fn>).mockReturnValue(STORYBOOK_JSON);
@@ -85,7 +85,7 @@ describe('storybook', () => {
   });
 
   it('passes the URL and --ci flag', async () => {
-    const tmpDir = '/tmp/regeln-storybook-test-2';
+    const tmpDir = '/tmp/gesetz-storybook-test-2';
     (nodeFs.mkdtempSync as ReturnType<typeof vi.fn>).mockReturnValue(tmpDir);
     (nodeFs.readFileSync as ReturnType<typeof vi.fn>).mockReturnValue('{}');
     const spy = childProcess.execFileSync as ReturnType<typeof vi.fn>;
@@ -102,7 +102,7 @@ describe('storybook', () => {
   });
 
   it('returns empty array when no failures', async () => {
-    const tmpDir = '/tmp/regeln-storybook-test-3';
+    const tmpDir = '/tmp/gesetz-storybook-test-3';
     (nodeFs.mkdtempSync as ReturnType<typeof vi.fn>).mockReturnValue(tmpDir);
     (nodeFs.readFileSync as ReturnType<typeof vi.fn>).mockReturnValue(
       JSON.stringify({ numFailedTests: 0, testResults: [] }),

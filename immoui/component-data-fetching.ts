@@ -4,9 +4,9 @@
  * Components must not import from @tanstack/react-query directly.
  * They must use named SDK hooks instead.
  */
-import { select } from '@regeln/core';
-import { noImportFrom } from '@regeln/core';
-import { noFunctionCalls } from '@regeln/typescript';
+import { select } from '@gesetz/core';
+import { noImportFrom } from '@gesetz/core';
+import { noFunctionCalls } from '@gesetz/typescript';
 
 const ALLOWED_PATTERNS = [
   'src/sdk/**',

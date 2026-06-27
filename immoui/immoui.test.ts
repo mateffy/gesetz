@@ -10,8 +10,8 @@
 import { describe, it, expect } from 'vitest';
 import { Effect, Layer } from 'effect';
 import * as nodePath from 'node:path';
-import { runAll, defineConfig, FileSystemLive, PhpAdapterStub, ProjectRootLive, FileFilterLive } from '@regeln/core';
-import { TsAdapterLive } from '@regeln/typescript';
+import { runAll, defineConfig, FileSystemLive, PhpAdapterStub, ProjectRootLive, FileFilterLive } from '@gesetz/core';
+import { TsAdapterLive } from '@gesetz/typescript';
 import { relativeImportsRule } from './relative-imports';
 import { storybookNoExplicitTitle } from './storybook-grouping';
 import { componentStories } from './component-coverage';
@@ -27,7 +27,7 @@ const TestLayer = Layer.mergeAll(
   FileFilterLive(null),
 );
 
-const runRules = (rules: import('@regeln/core').Rule[]) => {
+const runRules = (rules: import('@gesetz/core').Rule[]) => {
   const config = defineConfig({
     projectRoot: IMMOUI_ROOT,
     rules,

@@ -1,9 +1,9 @@
-# Design: `regel init` command
+# Design: `gesetz init` command
 
 ## Architecture / data flow
 
 ```
-regel init [--preset <p>] [--tools <t,t,...>] [--rules <r,r,...>] [--force]
+gesetz init [--preset <p>] [--tools <t,t,...>] [--rules <r,r,...>] [--force]
            [--no-install] [--format pretty|json] [--project-root <d>]
   │
   1. Detect env: TTY? agent env var? → interactive vs non-interactive mode
@@ -12,7 +12,7 @@ regel init [--preset <p>] [--tools <t,t,...>] [--rules <r,r,...>] [--force]
        interactive  → Prompt.* wizard (Q1 preset → Q2 tools → Q3 rules)
        non-interactive → flags, falling back to auto-detection for any omitted
   4. Build a Plan: { preset, tools: Set, rules: Set, install: bool }
-  5. Generate regel.config.ts source from the plan (string templates)
+  5. Generate gesetz.config.ts source from the plan (string templates)
   6. Write file (refuse overwrite unless --force); optionally run install
   7. Emit summary: human (pretty) or JSON envelope (agent)
 ```
@@ -46,7 +46,7 @@ packages/cli/src/init/
 ```ts
 interface ProjectProfile {
   cwd: string;
-  hasExistingConfig: boolean;          // regel.config.ts exists
+  hasExistingConfig: boolean;          // gesetz.config.ts exists
   packageManager: 'bun' | 'pnpm' | 'npm' | 'yarn' | null;
   framework: 'tanstack-start' | 'react' | 'effect-ts' | 'laravel' | 'generic';
   hasSrc: boolean;
@@ -118,7 +118,7 @@ Empty rules array. Just `defineConfig({ projectRoot, rules: [] })`. For users
 who want to build their config from scratch.
 
 ### `laravel` (PHP / Laravel project)
-Laravel-opinionated rules from `@regeln/laravel` + `@regeln/php`. Framework
+Laravel-opinionated rules from `@gesetz/laravel` + `@gesetz/php`. Framework
 detection: `composer.json` present or `artisan` binary. These rules all assume
 the standard Laravel layout (`app/**/*.php`, `routes/**/*.php`).
 
@@ -132,8 +132,8 @@ the standard Laravel layout (`app/**/*.php`, `routes/**/*.php`).
 
 Plus detected PHP tools auto-added: `phpstan()` (if `vendor/bin/phpstan` or
 `phpstan.neon`), `pest()` or `phpunit()` (if detected), each as adapter rules.
-`@regeln/laravel` re-exports `phpstan()` for convenience, but the generator
-emits explicit imports from `@regeln/phpstan`/`@regeln/pest`/`@regeln/phpunit`
+`@gesetz/laravel` re-exports `phpstan()` for convenience, but the generator
+emits explicit imports from `@gesetz/phpstan`/`@gesetz/pest`/`@gesetz/phpunit`
 to keep the import graph explicit.
 
 ### `generic` (framework-agnostic TS/JS project)
@@ -186,8 +186,8 @@ conventions, `requireExportPairs` (useX/useSuspenseX), mutation lifecycle
 
 **Laravel preset rules** come from `packages/laravel/src/checks.ts`
 (`requireStrictTypes`, `requirePsrNamespaces`, `noRawDbQueries`,
-`noEnvOutsideConfig`, `noDebugHelpers`) + `@regeln/phpstan`/`@regeln/pest`/
-`@regeln/phpunit` adapters. All assume the standard Laravel `app/`+`routes/`
+`noEnvOutsideConfig`, `noDebugHelpers`) + `@gesetz/phpstan`/`@gesetz/pest`/
+`@gesetz/phpunit` adapters. All assume the standard Laravel `app/`+`routes/`
 layout. RESEARCH.md §6 has the detection table for PHP tools.
 
 ---
@@ -246,7 +246,7 @@ default rule set ∪ tool-derived rules. `--rules` flag overrides (comma-separat
 ### (implicit Q4) — Install dependencies
 ```
 Prompt.confirm({
-  message: 'Install @regeln/* packages now via <pkgManager>? (recommended)',
+  message: 'Install @gesetz/* packages now via <pkgManager>? (recommended)',
   initial: true,
 })
 ```
@@ -254,13 +254,13 @@ Skipped if `--no-install`. Non-interactive: default `true` unless `--no-install`
 Package manager: `--pm <bun|pnpm|npm|yarn>` overrides; otherwise auto-detected
 from lockfile (`bun.lock`→bun, `pnpm-lock.yaml`→pnpm, `package-lock.json`→npm,
 `yarn.lock`→yarn; none→npm). For Laravel (composer), install is `composer
-require @regeln/core @regeln/laravel ...` — the `--pm` flag is ignored and
+require @gesetz/core @gesetz/laravel ...` — the `--pm` flag is ignored and
 `composer` is used.
 
 ### (implicit Q5) — Add `qa` script to package.json
 ```
 Prompt.confirm({
-  message: 'Add a "qa": "regel check" script to package.json? (recommended)',
+  message: 'Add a "qa": "gesetz check" script to package.json? (recommended)',
   initial: true,
 })
 ```
@@ -271,7 +271,7 @@ Skipped if `--no-qa-script`. Non-interactive: default `true` unless
 ### Refuse-overwrite gate (before writing)
 If `hasExistingConfig` and not `--force`:
 ```
-Prompt.confirm({ message: 'regel.config.ts exists. Overwrite?', initial: false })
+Prompt.confirm({ message: 'gesetz.config.ts exists. Overwrite?', initial: false })
 ```
 Non-interactive: error + exit 1 unless `--force`.
 
@@ -279,7 +279,7 @@ Non-interactive: error + exit 1 unless `--force`.
 
 ## Non-interactive contract (agent mode)
 
-`regel init` is fully scriptable. Every prompt has a flag equivalent:
+`gesetz init` is fully scriptable. Every prompt has a flag equivalent:
 
 | Prompt | Flag | If flag omitted (agent mode) |
 |---|---|---|
@@ -300,7 +300,7 @@ non-interactive. `--interactive`/`--no-interactive` forces a mode.
 ```json
 {"v":1,"command":"init","status":"ok","preset":"tanstack-start",
  "tools":["oxlint","oxfmt","vitest"],"rules":["no-god-files",...],
- "configPath":"regel.config.ts","installed":["@regeln/core","@regeln/oxlint"],
+ "configPath":"gesetz.config.ts","installed":["@gesetz/core","@gesetz/oxlint"],
  "qaScript":true,"pm":"bun"}
 ```
 This is the agent's confirmation receipt. `--format=pretty` (default) prints a
@@ -312,14 +312,14 @@ human summary.
 
 ```ts
 /**
- * regel config — generated by `regel init` (preset: tanstack-start).
- * Run: regel check
+ * gesetz config — generated by `gesetz init` (preset: tanstack-start).
+ * Run: gesetz check
  */
-import { defineConfig, select, noGodFile, noConsoleLog, noEmptyCatch, noTrivialComment, noHardcodedSecret, noDebuggingResidueFiles, relativeImports, requireSibling } from '@regeln/core';
-import { requireMinTestScore, noHardcodedStrings, noObjectProperty, noImportFrom, noFunctionCalls, noLocalFunctionComponents, noCrossModuleImports, requireChildren } from '@regeln/typescript';
-import { oxlint } from '@regeln/oxlint';
-import { oxfmt } from '@regeln/oxfmt';
-import { vitest } from '@regeln/vitest';
+import { defineConfig, select, noGodFile, noConsoleLog, noEmptyCatch, noTrivialComment, noHardcodedSecret, noDebuggingResidueFiles, relativeImports, requireSibling } from '@gesetz/core';
+import { requireMinTestScore, noHardcodedStrings, noObjectProperty, noImportFrom, noFunctionCalls, noLocalFunctionComponents, noCrossModuleImports, requireChildren } from '@gesetz/typescript';
+import { oxlint } from '@gesetz/oxlint';
+import { oxfmt } from '@gesetz/oxfmt';
+import { vitest } from '@gesetz/vitest';
 
 export default defineConfig({
   projectRoot: import.meta.dirname,
@@ -358,10 +358,10 @@ The generator:
 
 ## Alternatives considered (rejected)
 
-- **JSON config instead of TS.** Rejected: regel's `loadConfig` already expects
+- **JSON config instead of TS.** Rejected: gesetz's `loadConfig` already expects
   a TS/JS module that calls `defineConfig`; the whole ecosystem (select DSL,
   adapter fns) is TS-native. Emitting JSON would need a separate loader.
-- **A `regel.config.json` schema + generator from JSON.** Rejected for v1: too
+- **A `gesetz.config.json` schema + generator from JSON.** Rejected for v1: too
   much surface area; TS config is more expressive (predicates, fns). Keep TS.
 - **A huge rule catalog with 50+ blueprints.** Rejected: YAGNI. Ship the ~20
   distilled from immoui + research; the catalog is extensible later.
@@ -392,7 +392,7 @@ The generator:
    contract; agents get a machine-parseable confirmation. Includes `qaScript`
    and `pm` fields.
 8. **Add a `qa` script to package.json** as part of init (unless `--no-qa-script`),
-   so `npm run qa` / `bun run qa` runs `regel check`. For Laravel, writes
+   so `npm run qa` / `bun run qa` runs `gesetz check`. For Laravel, writes
    `composer.json` `scripts.qa`. Idempotent (only adds if missing).
 9. **`--pm` flag for package manager** overrides auto-detection (lockfile-based);
    Laravel uses `composer` regardless.

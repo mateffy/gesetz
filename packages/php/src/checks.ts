@@ -1,5 +1,5 @@
 import { Effect } from 'effect';
-import type { Check, Violation } from '@regeln/core';
+import type { Check, Violation } from '@gesetz/core';
 
 /**
  * Checks that PHP files declare strict types.

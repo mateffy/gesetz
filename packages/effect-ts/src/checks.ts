@@ -7,9 +7,9 @@
 import { Effect } from 'effect';
 import { SyntaxKind } from 'ts-morph';
 import type { CallExpression, Node, SourceFile } from 'ts-morph';
-import { TsAdapter } from '@regeln/core';
-import type { Check, Violation } from '@regeln/core';
-import type { FileSystem } from '@regeln/core';
+import { TsAdapter } from '@gesetz/core';
+import type { Check, Violation } from '@gesetz/core';
+import type { FileSystem } from '@gesetz/core';
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
 

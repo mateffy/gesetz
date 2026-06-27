@@ -1,5 +1,5 @@
 // Re-export the ts-morph type we expose
-export type { TsSourceFile } from '@regeln/core';
+export type { TsSourceFile } from '@gesetz/core';
 
 // Live TsAdapter implementation (requires ts-morph)
 export { TsAdapterLive } from './adapter';

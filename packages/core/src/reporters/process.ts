@@ -13,7 +13,7 @@ export const ProcessReporter: Layer.Layer<Reporter> = Layer.succeed(Reporter, {
     Effect.sync(() => {
       const verdict = result.passing ? 'pass' : 'fail';
       process.stderr.write(
-        `regel: ${verdict} (${result.totalViolations} violation${result.totalViolations === 1 ? '' : 's'})\n`,
+        `gesetz: ${verdict} (${result.totalViolations} violation${result.totalViolations === 1 ? '' : 's'})\n`,
       );
       // Set exit code without short-circuiting finalizers — lets the Effect
       // runtime finish cleanup before the process exits.

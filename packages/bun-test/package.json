@@ -1,5 +1,5 @@
 {
-  "name": "@regeln/bun-test",
+  "name": "@gesetz/bun-test",
   "version": "0.1.0",
   "type": "module",
   "exports": {
@@ -9,8 +9,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@regeln/core": "workspace:*",
-    "@regeln/junit": "workspace:*",
+    "@gesetz/core": "workspace:*",
+    "@gesetz/junit": "workspace:*",
     "effect": "^3.15.0"
   },
   "devDependencies": {

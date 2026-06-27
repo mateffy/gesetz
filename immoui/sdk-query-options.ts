@@ -4,8 +4,8 @@
  * - queryOptions() calls must define queryKey, queryFn, and staleTime
  * - SDK query files must export at least one key factory (xKeys)
  */
-import { select } from '@regeln/core';
-import { requireCallShape, requireExportFactories } from '@regeln/typescript';
+import { select } from '@gesetz/core';
+import { requireCallShape, requireExportFactories } from '@gesetz/typescript';
 
 export const sdkQueryOptionsShape = select('src/sdk/**/hooks/queries.ts')
   .label('queryOptions() calls must define queryKey, queryFn, and staleTime')

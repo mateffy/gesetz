@@ -1,6 +1,6 @@
 import * as nodePath from 'node:path';
 import { Effect } from 'effect';
-import type { Rule, Violation } from '@regeln/core';
+import type { Rule, Violation } from '@gesetz/core';
 
 export interface EslintOptions {
   pattern?: string | string[];
@@ -77,7 +77,7 @@ export function eslint(opts: EslintOptions = {}): Rule {
       Effect.catchAll((cause) =>
         Effect.gen(function* () {
           yield* Effect.logWarning(
-            `[regeln] eslint failed (${String(cause)}) — eslint() produced no violations.`,
+            `[gesetz] eslint failed (${String(cause)}) — eslint() produced no violations.`,
           );
           return [] as EslintResult[];
         }),

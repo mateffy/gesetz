@@ -6,8 +6,8 @@
  *
  * @example
  * ```ts
- * import { defineConfig } from '@regeln/core';
- * import { requireStrictTypes, noRawDbQueries, phpstan } from '@regeln/laravel';
+ * import { defineConfig } from '@gesetz/core';
+ * import { requireStrictTypes, noRawDbQueries, phpstan } from '@gesetz/laravel';
  *
  * export default defineConfig({
  *   rules: [requireStrictTypes, noRawDbQueries, phpstan()],
@@ -23,7 +23,7 @@ export {
 } from './checks';
 
 // Re-export phpstan() from /phpstan for convenience
-export { phpstan } from '@regeln/phpstan';
+export { phpstan } from '@gesetz/phpstan';
 
 /** All Laravel rules as a ready-to-use array. */
 import {
@@ -33,7 +33,7 @@ import {
   noEnvOutsideConfig,
   noDebugHelpers,
 } from './checks';
-import { phpstan } from '@regeln/phpstan';
+import { phpstan } from '@gesetz/phpstan';
 
 export const allRules = [
   requireStrictTypes,

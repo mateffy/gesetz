@@ -3,8 +3,8 @@
  *
  * Generated OpenAPI types (types.gen.ts) must only be imported inside src/sdk/.
  */
-import { select } from '@regeln/core';
-import { requireImportBoundary } from '@regeln/typescript';
+import { select } from '@gesetz/core';
+import { requireImportBoundary } from '@gesetz/typescript';
 
 export const noGeneratedTypeLeaks = select('src/**/*.{ts,tsx}')
   .exclude('src/sdk/**')

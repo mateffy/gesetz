@@ -1,5 +1,5 @@
 import { Effect } from 'effect';
-import type { Check, Severity, Violation } from '@regeln/core';
+import type { Check, Severity, Violation } from '@gesetz/core';
 import { SyntaxKind } from 'ts-morph';
 import type {
   JsxAttribute,

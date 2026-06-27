@@ -4,8 +4,8 @@
  * Every useMutation() call must implement the full lifecycle:
  * onMutate, onError, and onSettled or onSuccess.
  */
-import { select } from '@regeln/core';
-import { requireCallShape } from '@regeln/typescript';
+import { select } from '@gesetz/core';
+import { requireCallShape } from '@gesetz/typescript';
 
 export const sdkMutationDiscipline = select(
   'src/sdk/**/hooks/use-{create,update,delete,move,duplicate,restore}-*.ts',

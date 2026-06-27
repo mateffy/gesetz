@@ -1,5 +1,5 @@
-// CLI entry point — re-exported by the `regel` wrapper package
-export { runRegel } from './main';
+// CLI entry point — re-exported by the `gesetz` wrapper package
+export { runGesetz } from './main';
 
 // Re-export public types useful for programmatic usage of the CLI layer
 export { loadConfig, ConfigNotFoundError } from './load-config';

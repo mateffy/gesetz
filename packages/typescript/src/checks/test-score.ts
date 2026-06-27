@@ -1,5 +1,5 @@
 import { Effect } from 'effect';
-import type { Check } from '@regeln/core';
+import type { Check } from '@gesetz/core';
 
 export interface TestScoring {
   /** Minimum score required. Files below this score get a violation. */

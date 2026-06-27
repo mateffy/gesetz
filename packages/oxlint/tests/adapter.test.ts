@@ -2,8 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import * as childProcess from 'node:child_process';
 import { Effect, Layer } from 'effect';
 import { oxlint } from '../src/adapter';
-import { MemoryFileSystem, ProjectRootLive, FileFilterLive } from '@regeln/core';
-import { TsAdapterStub, PhpAdapterStub } from '@regeln/core';
+import { MemoryFileSystem, ProjectRootLive, FileFilterLive } from '@gesetz/core';
+import { TsAdapterStub, PhpAdapterStub } from '@gesetz/core';
 
 const TestLayer = Layer.mergeAll(
   MemoryFileSystem({}),

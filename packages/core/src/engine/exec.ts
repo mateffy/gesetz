@@ -57,7 +57,7 @@ export function execTool(
     Effect.catchAll((cause) =>
       Effect.gen(function* () {
         yield* Effect.logWarning(
-          `[regeln] ${toolName} failed (${String(cause)}) — ${toolName}() produced no violations.`,
+          `[gesetz] ${toolName} failed (${String(cause)}) — ${toolName}() produced no violations.`,
         );
         return '';
       }),

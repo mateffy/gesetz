@@ -1,15 +1,15 @@
 /**
- * Regel config — dogfooding regel on itself.
+ * Gesetz config — dogfooding gesetz on itself.
  *
  * Run: bun run packages/cli/src/main.ts check
  */
-import { defineConfig, select, noGodFile, noConsoleLog, noEmptyCatch, noTrivialComment } from '@regeln/core';
+import { defineConfig, select, noGodFile, noConsoleLog, noEmptyCatch, noTrivialComment } from '@gesetz/core';
 import {
   noRunPromiseScattered,
   noThrowInEffectGen,
   noYieldWithoutStar,
   noUnboundedEffectAll,
-} from '@regeln/effect-ts';
+} from '@gesetz/effect-ts';
 
 export default defineConfig({
   projectRoot: import.meta.dirname,

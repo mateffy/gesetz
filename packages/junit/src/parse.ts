@@ -17,7 +17,7 @@
  * `file` attribute and leave the line undefined.
  */
 import * as nodePath from 'node:path';
-import type { Violation } from '@regeln/core';
+import type { Violation } from '@gesetz/core';
 
 export interface ParsedTestCase {
   readonly name: string;
