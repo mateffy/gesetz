@@ -22,9 +22,10 @@
  * const config = defineConfig({ rules: arch });
  * ```
  */
+import * as nodePath from 'node:path';
 import { Effect } from 'effect';
 import micromatch from 'micromatch';
-import { FileSystem } from './services/fs';
+import { FileSystem, ProjectRoot } from './services/fs';
 import { TsAdapter } from './services/ts-adapter';
 import type { PhpAdapter } from './services/php-adapter';
 import type { Rule, Violation } from './engine/rule';
@@ -113,15 +114,16 @@ function buildLayerRule(config: ArchitectureConfig): Rule {
   const id = 'architecture-layer-violations';
   const description = 'Architecture layer constraints must not be violated';
 
-  const run: Effect.Effect<Violation[], never, FileSystem | TsAdapter | PhpAdapter> =
+  const run: Effect.Effect<Violation[], never, FileSystem | TsAdapter | PhpAdapter | ProjectRoot> =
     Effect.gen(function* () {
       const fs = yield* FileSystem;
+      const projectRoot = yield* ProjectRoot;
 
       // Gather all patterns across all layers
       const allPatterns = config.layers.flatMap((l) =>
         Array.isArray(l.pattern) ? l.pattern : [l.pattern],
       );
-      const allFiles = yield* fs.glob(allPatterns).pipe(
+      const allFiles = yield* fs.glob(allPatterns, { cwd: projectRoot }).pipe(
         Effect.catchAll(() => Effect.succeed([])),
       );
 
@@ -192,7 +194,7 @@ function buildLayerRule(config: ArchitectureConfig): Rule {
           // Find which layer the import target belongs to
           // Resolve relative to file.dir
           const importedPath = importPath.startsWith('.')
-            ? `${file.dir}/${importPath}`
+            ? nodePath.normalize(`${file.dir}/${importPath}`)
             : importPath;
 
           let toLayer: string | undefined;

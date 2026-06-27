@@ -28,5 +28,14 @@
     "typescript",
     "rules"
   ],
-  "license": "MIT"
+  "license": "MIT",
+  "author": "Lukas Mateffy <hey@mateffy.me>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mateffy/gesetz.git"
+  },
+  "bugs": {
+    "url": "https://github.com/mateffy/gesetz/issues"
+  },
+  "homepage": "https://github.com/mateffy/gesetz#readme"
 }

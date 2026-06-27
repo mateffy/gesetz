@@ -158,14 +158,8 @@ export const MemoryFileSystem = (files: Record<string, string>): Layer.Layer<Fil
       };
 
       const matched = Object.entries(files).filter(([p]) => {
-        try {
-          // Try to match using fast-glob
-          const results = fastGlob.sync(patterns, syncOptions);
-          const abs = nodePath.isAbsolute(p) ? p : nodePath.resolve(effectiveCwd, p);
-          return results.some((r) => nodePath.resolve(effectiveCwd, r) === abs);
-        } catch {
-          return false;
-        }
+        const relativePath = nodePath.isAbsolute(p) ? nodePath.relative(effectiveCwd, p) : p;
+        return micromatch.isMatch(relativePath, patterns);
       });
 
       return Effect.succeed(

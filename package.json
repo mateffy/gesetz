@@ -1,7 +1,7 @@
 {
   "name": "gesetz-workspace",
   "private": true,
-  "workspaces": ["packages/*", "immoui"],
+  "workspaces": ["packages/*"],
   "dependencies": {
     "@gesetz/core": "workspace:*",
     "@gesetz/effect-ts": "workspace:*",
