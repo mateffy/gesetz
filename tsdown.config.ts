@@ -16,12 +16,20 @@ import { defineConfig } from 'tsdown';
  *
  * outExtensions forces `.js`/`.d.ts` (not `.mjs`/`.d.mts`) since every
  * package declares `"type": "module"`, making `.js` ESM by default.
+ *
+ * NOTE: per-package `prepack` scripts (`tsdown`) must NOT load this root
+ * workspace config — `workspace: 'packages/*'` resolves relative to the
+ * current cwd and fails when pnpm runs prepack from inside a sub-package.
+ * The per-package `build`/`prepack` scripts instead invoke `tsdown` with
+ * `--config ./tsdown.config.ts` where present, or rely on tsdown's
+ * auto-detection of src/index.ts with a no-workspace config. See
+ * packages/{core,cli}/tsdown.config.ts for the overrides.
  */
 export default defineConfig({
   workspace: 'packages/*',
   entry: ['src/index.ts'],
   format: ['esm'],
   dts: true,
-  clean: false,
+  clean: true,
   outExtensions: () => ({ js: '.js', dts: '.d.ts' }),
 });
