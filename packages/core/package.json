@@ -1,15 +1,23 @@
 {
   "name": "@gesetz/core",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "type": "module",
   "exports": {
-    ".": "./src/index.ts",
-    "./reporters": "./src/reporters/index.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./reporters": {
+      "types": "./dist/reporters.d.ts",
+      "import": "./dist/reporters.js"
+    }
   },
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "build": "tsdown",
+    "prepack": "tsdown"
   },
   "dependencies": {
     "effect": "^3.15.0",
@@ -21,5 +29,9 @@
     "@types/node": "^22.0.0",
     "typescript": "^5.8.0",
     "vitest": "^4.0.0"
-  }
+  },
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ]
 }

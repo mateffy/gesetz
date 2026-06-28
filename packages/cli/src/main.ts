@@ -1,4 +1,3 @@
-#!/usr/bin/env bun
 /**
  * gesetz CLI entry point.
  *

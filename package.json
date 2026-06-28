@@ -1,28 +1,34 @@
 {
   "name": "gesetz-workspace",
   "private": true,
-  "workspaces": ["packages/*"],
+  "type": "module",
+  "packageManager": "pnpm@11.9.0",
   "dependencies": {
+    "@gesetz/bun-test": "workspace:*",
     "@gesetz/core": "workspace:*",
     "@gesetz/effect-ts": "workspace:*",
-    "@gesetz/typescript": "workspace:*",
     "@gesetz/junit": "workspace:*",
-    "@gesetz/vitest": "workspace:*",
-    "@gesetz/bun-test": "workspace:*",
-    "@gesetz/pest": "workspace:*",
-    "@gesetz/prettier": "workspace:*",
     "@gesetz/oxfmt": "workspace:*",
     "@gesetz/oxlint": "workspace:*",
+    "@gesetz/pest": "workspace:*",
+    "@gesetz/phpunit": "workspace:*",
+    "@gesetz/prettier": "workspace:*",
     "@gesetz/storybook": "workspace:*",
-    "@gesetz/phpunit": "workspace:*"
+    "@gesetz/typescript": "workspace:*",
+    "@gesetz/vitest": "workspace:*"
   },
   "scripts": {
-    "test": "bun run --filter='*' test",
-    "typecheck": "bun run --filter='*' typecheck",
-    "build": "bun run --filter='@gesetz/cli' build",
-    "version:patch": "bun run scripts/bump-version.ts patch",
-    "version:minor": "bun run scripts/bump-version.ts minor",
-    "version:major": "bun run scripts/bump-version.ts major",
-    "publish": "bun run scripts/publish-all.ts"
+    "test": "pnpm -r run test",
+    "typecheck": "pnpm -r run typecheck",
+    "build": "tsdown -W",
+    "prepack": "tsdown -W",
+    "publish": "pnpm -r publish --access public",
+    "publint": "pnpm -r exec publint",
+    "attw": "pnpm -r exec attw --pack"
+  },
+  "devDependencies": {
+    "@arethetypeswrong/cli": "^0.18.4",
+    "publint": "^0.3.21",
+    "tsdown": "^0.22.3"
   }
 }
