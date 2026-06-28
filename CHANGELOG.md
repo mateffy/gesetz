@@ -5,6 +5,30 @@ All notable changes to **Gesetz** and the `@gesetz/*` packages are documented he
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.3] — 2026-06-28
+
+### Fixed
+
+- **`noHardcodedStrings` (in `@gesetz/typescript`) produced massive false-positive
+  rates on real React codebases.** The 1.3.0 rewrite added a third detection
+  case — "string literals anywhere inside a JSX expression container `{...}`" —
+  implemented with a recursive AST search. This flagged every utility token
+  string nested inside expressions: Tailwind classes inside `cn("flex …")`, route
+  paths in `<Link to="/companies" />`, enum-like prop values like
+  `variant="outline"`, CSS classes like `className="h-8 w-8"`, internal toggle
+  values like `value="stacking"`, and any string passed to a helper inside `{}`.
+  Reverted to the original immoui behavior: only **raw JSX text children**
+  (`<div>Hello</div>`) and **string literals on a narrow, fixed allowlist of
+  translatable props** are flagged. The allowlist is now exactly: `label`,
+  `placeholder`, `title`, `aria-label`, `heading`, `subtitle`, `description`,
+  `helperText`, `hint`, `emptyStateHeading`, `emptyStateDescription`,
+  `modalHeading` (previously included `alt`, `content`, `text`, `message`,
+  `caption`, `tooltip`, `summary`, and several `aria-*` props that carry tokens,
+  not prose). Strings inside JSX expression containers are never flagged.
+  Added 16 regression tests covering the exact upstream false-positive cases.
+
+---
+
 ## [1.3.2] — 2026-06-28
 
 ### Fixed

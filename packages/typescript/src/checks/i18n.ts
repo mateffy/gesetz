@@ -4,42 +4,30 @@ import { parseFile, findByKind, startLine } from './shared';
 import type { SgNode } from '@ast-grep/napi';
 
 /**
- * Default set of HTML/ARIA attributes known to carry user-visible text.
- * Derived from the HTML spec + common React component libraries.
+ * Allowlist of JSX attributes known to carry user-visible, natural-language
+ * text that should go through a translation API.
  *
- * Source: consensus across eslint-plugin-no-hardcoded-strings,
- * eslint-plugin-react/jsx-no-literals, and Shopify's jsx-no-hardcoded-content.
+ * This is intentionally narrow. Props NOT in this list (e.g. `className`,
+ * `href`, `to`, `variant`, `size`, `value`, `src`) carry utility tokens,
+ * enum-like identifiers, URLs, or CSS classes — NOT translatable prose — and
+ * must never be flagged.
+ *
+ * Derived from the original immoui rule. Do not broaden without evidence that
+ * a prop actually carries user-facing natural language in real codebases.
  */
 export const DEFAULT_TEXT_ATTRIBUTES = [
   'label',
   'placeholder',
   'title',
-  'alt',
   'aria-label',
-  'aria-description',
-  'aria-placeholder',
-  'aria-roledescription',
-  'aria-valuetext',
   'heading',
   'subtitle',
   'description',
   'helperText',
   'hint',
-  'caption',
-  'summary',
-  'content',
-  'text',
-  'message',
-  'tooltip',
   'emptyStateHeading',
   'emptyStateDescription',
   'modalHeading',
-  'modalLabel',
-  'confirmText',
-  'cancelText',
-  'okText',
-  'submitText',
-  'buttonText',
 ] as const;
 
 export interface NoHardcodedStringsOptions {
@@ -49,13 +37,10 @@ export interface NoHardcodedStringsOptions {
    */
   readonly textAttributes?: readonly string[];
   /**
-   * Severity for attribute violations. Defaults to `'warn'` — attributes like
-   * `className` or `href` are not translatable, so we only check a known
-   * allowlist and warn (rather than error) to avoid false positives on
-   * edge cases like `alt="logo"`.
+   * Severity for attribute violations. Defaults to `'warn'`.
    */
   readonly attributeSeverity?: Severity;
-  /** Severity for JSX text nodes and expression-container strings. Default: 'error'. */
+  /** Severity for JSX text nodes. Default: 'error'. */
   readonly textSeverity?: Severity;
   /**
    * Regex to detect "letter" content. Strings matching this are considered
@@ -75,17 +60,36 @@ function stringLiteralValue(node: SgNode): string | null {
  * Flags hardcoded user-visible strings in JSX that should go through a
  * translation API (e.g. Paraglide `m.*()`, react-intl `FormattedMessage`).
  *
- * Catches three cases in one pass:
+ * Catches exactly two cases — the same two the original immoui rule flagged:
  *
- * 1. **JSX text nodes** — `<div>Hello world</div>` → flagged (letters present)
- * 2. **String literals in JSX expressions** — `<div>{"Hello world"}</div>` → flagged
- * 3. **Known text-bearing attributes** — `<input placeholder="Search" />` → flagged
+ * 1. **Raw JSX text children** — `<div>Hello world</div>` → flagged
+ *    (only when the text contains a letter, so whitespace/ punctuation-only
+ *    text is ignored).
+ * 2. **String literals on a known, narrow allowlist of translatable props** —
+ *    `<input placeholder="Search" />` → flagged. Only props in
+ *    {@link DEFAULT_TEXT_ATTRIBUTES} (label, placeholder, title, aria-label,
+ *    heading, subtitle, description, helperText, hint, emptyStateHeading,
+ *    emptyStateDescription, modalHeading) are checked.
  *
- * Implemented with ast-grep (syntactic). Replaces the ts-morph version.
+ * ## What is NOT flagged
+ *
+ * Strings inside JSX **expression containers** (`{...}`) are never flagged.
+ * This is deliberate: expression containers carry utility tokens (Tailwind
+ * classes inside `cn(...)`, route paths, enum-like prop values, numeric
+ * toggles, CSS class strings) far more often than natural-language text, and
+ * flagging them produces unworkable false-positive rates. User-facing text in
+ * real codebases flows through either JSX text children or named props — both
+ * of which are covered above.
+ *
+ * Non-allowlisted props (`className`, `href`, `to`, `variant`, `size`,
+ * `value`, `src`, `alt`, …) are never flagged: they carry tokens/URLs/identifiers,
+ * not translatable prose.
+ *
+ * Implemented with ast-grep (syntactic).
  *
  * @example
  * noHardcodedStrings()                                    // defaults
- * noHardcodedStrings({ attributeSeverity: 'error' })      // strict
+ * noHardcodedStrings({ attributeSeverity: 'error' })      // strict props
  * noHardcodedStrings({ textAttributes: ['label', 'placeholder'] })
  */
 export function noHardcodedStrings(opts: NoHardcodedStringsOptions = {}): Check {
@@ -101,7 +105,11 @@ export function noHardcodedStrings(opts: NoHardcodedStringsOptions = {}): Check 
 
       const violations: Violation[] = [];
 
-      // ── Case 1: JSX text nodes ──
+      // ── Case 1: Raw JSX text children ──
+      // <div>Hello world</div>  →  "Hello world" is a jsx_text node.
+      // Only flagged when it contains a letter, so whitespace-only and
+      // punctuation-only text nodes (commonly used for JSX formatting) are
+      // ignored.
       for (const node of findByKind(root, 'jsx_text')) {
         const text = node.text();
         if (hasLetter.test(text)) {
@@ -117,26 +125,12 @@ export function noHardcodedStrings(opts: NoHardcodedStringsOptions = {}): Check 
         }
       }
 
-      // ── Case 2: String literals directly inside JSX expression containers ──
-      for (const expr of findByKind(root, 'jsx_expression')) {
-        // The inner string literal (if any) is a direct `string` child.
-        const innerStr = expr.find({ rule: { kind: 'string' } });
-        if (!innerStr) continue;
-        const value = stringLiteralValue(innerStr) ?? '';
-        if (hasLetter.test(value)) {
-          violations.push({
-            rule: '',
-            severity: textSeverity,
-            source: 'core',
-            message: `String literal "${value.slice(0, 40)}" in JSX must use a translation API`,
-            path: file.path,
-            line: startLine(innerStr),
-            context: `JSX expression: ${JSON.stringify(value.slice(0, 60))}`,
-          });
-        }
-      }
-
-      // ── Case 3: Known text-bearing attributes with string-literal values ──
+      // ── Case 2: Known text-bearing attributes with string-literal values ──
+      // <input placeholder="Search" />  →  placeholder is in the allowlist and
+      // its value is a raw string literal. Props not in the allowlist
+      // (className, href, to, variant, size, value, src, ...) are skipped.
+      // Expression-container values ({m.foo()}) are skipped — only raw string
+      // literals are flagged.
       for (const attr of findByKind(root, 'jsx_attribute')) {
         const name = attr.child(0)?.text() ?? '';
         if (!textAttributes.has(name)) continue;
