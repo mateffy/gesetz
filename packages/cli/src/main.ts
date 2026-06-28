@@ -7,6 +7,7 @@
  *   gesetz skill   — print agent skill markdown to stdout
  */
 import { pathToFileURL } from 'node:url';
+import * as nodeFs from 'node:fs';
 import { Command, Options } from '@effect/cli';
 import { NodeContext, NodeRuntime } from '@effect/platform-node';
 import { Console, Effect, Layer, Option } from 'effect';
@@ -238,7 +239,15 @@ export function runGesetz(): void {
   NodeRuntime.runMain(cli(process.argv).pipe(Effect.provide(NodeContext.layer)));
 }
 
-const isEntryPoint = import.meta.url === pathToFileURL(process.argv[1] ?? '').href;
+// Detect whether this module is the process entry point. We must resolve
+// symlinks (npm/pnpm install the bin as a symlink in node_modules/.bin/
+// pointing at dist/main.js), otherwise process.argv[1] is the symlink path
+// while import.meta.url is the real file URL and the comparison fails —
+// silently making the CLI produce no output and exit 0.
+const entryArg = process.argv[1] ?? '';
+const isEntryPoint =
+  entryArg.length > 0 &&
+  import.meta.url === pathToFileURL(nodeFs.realpathSync(entryArg)).href;
 if (isEntryPoint) {
   runGesetz();
 }

@@ -5,6 +5,20 @@ All notable changes to **Gesetz** and the `@gesetz/*` packages are documented he
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.1] — 2026-06-28
+
+### Fixed
+
+- **`@gesetz/cli` produced no output when invoked via the `node_modules/.bin/gesetz`
+  symlink** (the normal consumer install path). The entry-point guard compared
+  `import.meta.url` to `pathToFileURL(process.argv[1])`, but `process.argv[1]`
+  is the *unresolved* symlink path while `import.meta.url` is the real file URL,
+  so the guard failed and `runGesetz()` was never called — the CLI silently
+  exited 0. Now resolves `process.argv[1]` with `fs.realpathSync` before
+  comparing, so symlinked bin invocation works.
+
+---
+
 ## [1.3.0] — 2026-06-28
 
 Migrated the entire toolchain from **Bun to pnpm + tsdown**. Packages now
