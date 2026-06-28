@@ -7,6 +7,7 @@
 import * as nodePath from 'node:path';
 import * as nodeFs from 'node:fs';
 import { Effect } from 'effect';
+import { createJiti } from 'jiti';
 import type { ResolvedConfig } from '@gesetz/core';
 
 const CONFIG_NAMES = [
@@ -45,14 +46,27 @@ export function loadConfig(
       return yield* Effect.fail(new ConfigNotFoundError(projectRoot));
     }
 
-    // Dynamic import works for both .ts (via bun) and .js
-    const mod = yield* Effect.tryPromise({
-      try: () => import(resolvedConfigPath),
+    // jiti transpiles TypeScript config files on the fly so the CLI can load
+    // `gesetz.config.ts` under plain Node (not just under Bun). It also handles
+    // `.js`/`.mjs`/`.cjs`, so it's a strict superset of the native `import()`
+    // we used before. The jiti instance is cheap to create; its filesystem
+    // transpile cache lives in `node_modules/.cache/jiti`.
+    const jiti = createJiti(import.meta.url, {
+      // Force jiti to transpile TypeScript itself rather than delegating to
+      // Node's native (experimental) TS support. Node 22+ strips types only
+      // for files in a `"type": "module"` package or with `.mts`/`.mjs` — a
+      // consumer project with a CJS package.json and `gesetz.config.ts`
+      // would otherwise fail to load. Disabling `tryNative` gives consistent
+      // behavior across Node versions and package configurations.
+      tryNative: false,
+    });
+    const mod = (yield* Effect.tryPromise({
+      try: () => jiti.import(resolvedConfigPath),
       catch: (e) =>
         new ConfigNotFoundError(
           `${projectRoot} (failed to import ${resolvedConfigPath}: ${String(e)})`,
         ),
-    });
+    })) as { default?: unknown } & Record<string, unknown>;
 
     const raw = mod.default ?? mod;
     if (typeof raw !== 'object' || raw === null || !Array.isArray((raw as Record<string, unknown>).rules)) {

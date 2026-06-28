@@ -23,6 +23,7 @@ const external = [
   '@ast-grep/napi',
   '@ast-grep/lang-php',
   'eslint',
+  'jiti',
   '@gesetz/core',
   '@gesetz/typescript',
   '@gesetz/php',
