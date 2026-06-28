@@ -73,15 +73,29 @@ for (const rel of packages) {
 }
 
 console.log('\nRegenerating lockfile (delete + fresh install)…');
-// `bun install` alone no-ops on version-only changes and leaves the lockfile
-// with stale versions. `bun pm pack` then resolves `workspace:*` from the
-// stale lockfile, producing internally-inconsistent published packages
-// (e.g. 1.2.0 adapters depending on @gesetz/core 1.1.1). Deleting the
-// lockfile first forces a full rewrite that picks up the new versions.
+// `bun install` (including --force and --lockfile-only) does NOT update
+// workspace package versions in bun.lock when only package.json versions
+// change — a known Bun bug (#18906) still live as of Bun 1.3.11. Verified
+// empirically: --force and --lockfile-only both leave workspace versions
+// stale; only deleting bun.lock + fresh install picks up the new versions.
+// `bun pm pack` / `bun publish` resolve `workspace:*` from bun.lock, not from
+// package.json (issue #20477), so a stale lockfile produces internally-
+// inconsistent published packages (e.g. 1.2.0 adapters depending on
+// @gesetz/core 1.1.1). Deleting the lockfile is heavy but it is the only
+// reliable workaround until Bun fixes #18906. publish-all.ts has a
+// verification step that catches any residual mismatch before publishing.
 const lockPath = nodePath.join(ROOT, 'bun.lock');
 if (nodeFs.existsSync(lockPath)) {
   nodeFs.unlinkSync(lockPath);
 }
-const proc = Bun.spawn(['bun', 'install'], { cwd: ROOT, stdout: 'inherit', stderr: 'inherit' });
+const proc = Bun.spawn(['bun', 'install'], {
+  cwd: ROOT,
+  stdout: 'inherit',
+  stderr: 'inherit',
+});
 await proc.exited;
+if (proc.exitCode !== 0) {
+  console.error('\n❌ bun install failed');
+  process.exit(1);
+}
 console.log('\nDone.');
