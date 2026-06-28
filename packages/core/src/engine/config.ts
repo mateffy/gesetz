@@ -1,5 +1,6 @@
 import * as nodePath from 'node:path';
 import type { Rule, Exemption } from './rule';
+import type { SyntaxBackend } from '../services/syntax-tree';
 
 export interface CategoryThreshold {
   /** Category name matching `Rule.category` */
@@ -32,6 +33,21 @@ export interface UserConfig {
    * Default minimum is 7 for all categories.
    */
   readonly thresholds?: CategoryThreshold[] | undefined;
+  /**
+   * SyntaxBackend objects from language adapters.
+   * Provide these to enable structural checks (noDirectCalls, requireNamingConvention, etc.)
+   * and accurate import extraction for defineArchitecture and noCycles.
+   *
+   * @example
+   * import { typescriptSyntaxBackend } from '@gesetz/typescript'
+   * import { phpSyntaxBackend } from '@gesetz/php'
+   *
+   * defineConfig({
+   *   adapters: [typescriptSyntaxBackend, phpSyntaxBackend],
+   *   rules: [...]
+   * })
+   */
+  readonly adapters?: readonly SyntaxBackend[] | undefined;
 }
 
 export interface ResolvedConfig {
@@ -41,6 +57,7 @@ export interface ResolvedConfig {
   readonly exemptions: Exemption[];
   readonly changedSince: string | undefined;
   readonly thresholds: CategoryThreshold[];
+  readonly adapters: readonly SyntaxBackend[];
 }
 
 /**
@@ -64,5 +81,6 @@ export function defineConfig(config: UserConfig): ResolvedConfig {
     exemptions: config.exemptions ?? [],
     changedSince: config.changedSince,
     thresholds: config.thresholds ?? [],
+    adapters: config.adapters ?? [],
   };
 }

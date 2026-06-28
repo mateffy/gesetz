@@ -1,25 +1,47 @@
-// Re-export the ts-morph type we expose
-export type { TsSourceFile } from '@gesetz/core';
-
-// Live TsAdapter implementation (requires ts-morph)
-export { TsAdapterLive } from './adapter';
+// SyntaxBackend for TypeScript/JavaScript (oxc-parser + @ast-grep/napi).
+export { typescriptSyntaxBackend } from './syntax-backend';
 
 // TypeScript check primitives
 export {
-  requireExportPairs,
-  requireExportFactories,
-  requireCallShape,
+  requireRelatedExports,
+  requireExportsMatching,
+  requireOptionsObject,
   noFunctionCalls,
   noLiteralJsxText,
   noLiteralJsxProp,
   noJsxElements,
   noHardcodedStrings,
   DEFAULT_TEXT_ATTRIBUTES,
-  requireImportBoundary,
   noLocalFunctionComponents,
   noObjectProperty,
-  noCrossModuleImports,
   requireDirectoryStructure,
   requireMinTestScore,
+  // Moved from @gesetz/core:
+  noConsoleLog,
+  noEmptyCatch,
+  noMagicNumbers,
+  noTrivialComment,
+  relativeImports,
+  // New checks:
+  noTypedAny,
+  noAsUnknownAs,
+  noDefaultExport,
+  noEnum,
+  noBarrelFile,
+  requireExplicitReturnType,
 } from './checks';
-export type { TestScoring, NoHardcodedStringsOptions } from './checks';
+export type {
+  NoHardcodedStringsOptions,
+  TestScoring,
+  RequireOptionsObjectOptions,
+  NoConsoleLogOptions,
+  NoEmptyCatchOptions,
+  NoMagicNumbersOptions,
+  NoTrivialCommentOptions,
+  NoTypedAnyOptions,
+  NoAsUnknownAsOptions,
+  NoDefaultExportOptions,
+  NoEnumOptions,
+  NoBarrelFileOptions,
+  RequireExplicitReturnTypeOptions,
+} from './checks';

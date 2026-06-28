@@ -2,13 +2,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import * as childProcess from 'node:child_process';
 import { Effect, Layer } from 'effect';
 import { prettier } from '../src/adapter';
-import { MemoryFileSystem, ProjectRootLive, FileFilterLive } from '@gesetz/core';
-import { TsAdapterStub, PhpAdapterStub } from '@gesetz/core';
+import { MemoryFileSystem, ProjectRootLive, FileFilterLive, SyntaxTreeStub, ImportResolverDefault } from '@gesetz/core';
 
 const TestLayer = Layer.mergeAll(
   MemoryFileSystem({}),
-  TsAdapterStub,
-  PhpAdapterStub,
+  SyntaxTreeStub,
+  ImportResolverDefault,
   ProjectRootLive('/project'),
   FileFilterLive(null),
 );

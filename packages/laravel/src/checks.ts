@@ -6,7 +6,8 @@
  */
 import { select } from '@gesetz/core';
 import { strictTypes, psrNamespace, noInlineQueries } from '@gesetz/php';
-import type { Rule } from '@gesetz/core';
+import type { Rule, Check, Violation } from '@gesetz/core';
+import { Effect } from 'effect';
 
 // ─── declare strict_types=1 ───────────────────────────────────────────────────
 
@@ -121,3 +122,84 @@ export const noDebugHelpers: Rule = select('app/**/*.php', 'routes/**/*.php')
       message: 'Debug helper (dd/dump/ddd/ray) left in code — remove before committing.',
     }),
   );
+
+// ─── noDd (standalone Check) ───────────────────────────────────────────────
+
+export interface NoDdOptions {
+  readonly message?: string;
+  readonly severity?: Violation['severity'];
+}
+
+/**
+ * Standalone Check banning dd(), ddd(), dump(), debug() calls.
+ * More precise than the noDebugHelpers Rule (which is a pre-built select rule).
+ * Use this inside select().check() when you want custom file targeting.
+ */
+export function noDd(opts: NoDdOptions = {}): Check {
+  const patterns = ['dd(', 'ddd(', 'dump(', 'debug('];
+  return (file) =>
+    Effect.sync(() => {
+      const violations: Violation[] = [];
+      const lines = file.content.split('\n');
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i] ?? '';
+        for (const p of patterns) {
+          if (line.includes(p)) {
+            violations.push({
+              rule: '',
+              severity: opts.severity ?? 'error',
+              source: 'core',
+              message: opts.message ?? `Remove Laravel debug helper: ${p})`,
+              path: file.path,
+              line: i + 1,
+            });
+            break;
+          }
+        }
+      }
+      return violations;
+    });
+}
+
+// ─── noFacades ───────────────────────────────────────────────────────────────
+
+export interface NoFacadesOptions {
+  readonly facades?: string[];
+  readonly message?: string;
+  readonly severity?: Violation['severity'];
+}
+
+const DEFAULT_FACADES = [
+  'Auth::', 'DB::', 'Cache::', 'Config::', 'Event::', 'Mail::',
+  'Notification::', 'Queue::', 'Route::', 'Session::', 'Storage::',
+];
+
+/**
+ * Bans Laravel Facade usage (Auth::, DB::, Cache::, etc.) in favor of
+ * dependency injection.
+ */
+export function noFacades(opts: NoFacadesOptions = {}): Check {
+  const facades = opts.facades ?? DEFAULT_FACADES;
+  return (file) =>
+    Effect.sync(() => {
+      const violations: Violation[] = [];
+      const lines = file.content.split('\n');
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i] ?? '';
+        for (const f of facades) {
+          if (line.includes(f)) {
+            violations.push({
+              rule: '',
+              severity: opts.severity ?? 'warn',
+              source: 'core',
+              message: opts.message ?? `Avoid Laravel Facade '${f}' — use dependency injection instead`,
+              path: file.path,
+              line: i + 1,
+            });
+            break;
+          }
+        }
+      }
+      return violations;
+    });
+}

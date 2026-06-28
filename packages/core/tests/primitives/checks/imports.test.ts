@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { Effect } from 'effect';
 import { noImportFrom, requireImportFrom } from '../../../src/primitives/checks/imports';
+import { SyntaxTreeStub } from '../../../src/services/syntax-tree';
 import type { File } from '../../../src/engine/rule';
 
 function makeFile(content: string, path = 'src/foo.ts'): File {
@@ -17,9 +18,11 @@ function makeFile(content: string, path = 'src/foo.ts'): File {
   };
 }
 
+// Provide SyntaxTreeStub so canProcess() returns false and the checks use
+// the regex fallback (the behaviour these tests validate).
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const run = (effect: Effect.Effect<any, any, any>): Promise<any> =>
-  Effect.runPromise(effect as any);
+  Effect.provide(effect, SyntaxTreeStub as any).pipe(Effect.runPromise as any);
 
 describe('noImportFrom', () => {
   it('passes when the module is not imported', async () => {

@@ -108,7 +108,10 @@ sys.stdout.buffer.write(bytes(out))`,
       console.warn(`skipping: ${DIST_MAIN} not built`);
       return;
     }
-    const out = execFileSync(BUN_BIN, [DIST_MAIN, 'check', '--format=pretty'], {
+    // Scope to a category the repo passes (organization, score 10) so the
+    // command exits 0 and we can assert on the rendered table's encoding.
+    // The test verifies mojibake/box-char handling, not the quality gate.
+    const out = execFileSync(BUN_BIN, [DIST_MAIN, 'check', '--category', 'organization', '--format', 'pretty'], {
       cwd: REPO_ROOT,
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'ignore'],

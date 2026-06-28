@@ -4,10 +4,10 @@ import { runAll, applyExemptions } from '../../src/engine/runner';
 import { defineConfig } from '../../src/engine/config';
 import type { Rule, Violation } from '../../src/engine/rule';
 import { MemoryFileSystem, ProjectRootLive, FileFilterLive } from '../../src/services/fs';
-import { TsAdapterStub } from '../../src/services/ts-adapter';
-import { PhpAdapterStub } from '../../src/services/php-adapter';
+import { SyntaxTreeStub } from '../../src/services/syntax-tree';
+import { ImportResolverDefault } from '../../src/services/import-resolver';
 
-const TestLayer = Layer.mergeAll(MemoryFileSystem({}), TsAdapterStub, PhpAdapterStub, ProjectRootLive(process.cwd()), FileFilterLive(null));
+const TestLayer = Layer.mergeAll(MemoryFileSystem({}), SyntaxTreeStub, ImportResolverDefault, ProjectRootLive(process.cwd()), FileFilterLive(null));
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyServiceContext = any;
 

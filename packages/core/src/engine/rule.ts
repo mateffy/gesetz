@@ -1,7 +1,7 @@
 import type { Effect } from 'effect';
 import type { FileSystem, ProjectRoot, FileFilter } from '../services/fs';
-import type { TsAdapter } from '../services/ts-adapter';
-import type { PhpAdapter } from '../services/php-adapter';
+import type { SyntaxTree } from '../services/syntax-tree';
+import type { ImportResolver } from '../services/import-resolver';
 export type Severity = 'error' | 'warn' | 'info';
 export type ViolationSource = 'core' | 'eslint' | 'phpstan' | 'oxlint' | 'custom';
 
@@ -44,12 +44,12 @@ export interface File {
  */
 export type Check = (
   file: File,
-) => Effect.Effect<Violation[], never, FileSystem | TsAdapter | ProjectRoot>;
+) => Effect.Effect<Violation[], never, FileSystem | SyntaxTree | ImportResolver | ProjectRoot>;
 
 /**
  * A named rule that runs against the entire project context.
  * The rule's run Effect is fully self-contained — it accesses files via the
- * FileSystem service, and AST analysis via TsAdapter / PhpAdapter.
+ * FileSystem service, and AST analysis via the SyntaxTree service.
  *
  * The error channel is `never` — rules must catch all internal errors and
  * convert them to violations. The RuleRunner also catches any uncaught errors.
@@ -94,7 +94,11 @@ export interface Rule {
    */
   readonly guidance?: RuleGuidance | undefined;
   /** The Effect that produces violations when run */
-  readonly run: Effect.Effect<Violation[], never, FileSystem | TsAdapter | PhpAdapter | ProjectRoot | FileFilter>;
+  readonly run: Effect.Effect<
+    Violation[],
+    never,
+    FileSystem | SyntaxTree | ImportResolver | ProjectRoot | FileFilter
+  >;
 }
 
 export interface Exemption {

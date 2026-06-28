@@ -2,13 +2,13 @@ import { describe, it, expect } from 'vitest';
 import { Effect, Layer } from 'effect';
 import { defineArchitecture } from '../../src/architecture';
 import { MemoryFileSystem, ProjectRootLive, FileFilterLive } from '../../src/services/fs';
-import { TsAdapterStub } from '../../src/services/ts-adapter';
-import { PhpAdapterStub } from '../../src/services/php-adapter';
+import { SyntaxTreeStub } from '../../src/services/syntax-tree';
+import { ImportResolverDefault } from '../../src/services/import-resolver';
 
 const TestLayer = Layer.mergeAll(
   MemoryFileSystem({}),
-  TsAdapterStub,
-  PhpAdapterStub,
+  SyntaxTreeStub,
+  ImportResolverDefault,
   ProjectRootLive('/project'),
   FileFilterLive(null),
 );
@@ -46,8 +46,8 @@ describe('defineArchitecture', () => {
 
     const layer = Layer.mergeAll(
       MemoryFileSystem(files),
-      TsAdapterStub,
-      PhpAdapterStub,
+      SyntaxTreeStub,
+      ImportResolverDefault,
       ProjectRootLive('/project'),
       FileFilterLive(null),
     );
@@ -71,8 +71,8 @@ describe('defineArchitecture', () => {
 
     const layer = Layer.mergeAll(
       MemoryFileSystem(files),
-      TsAdapterStub,
-      PhpAdapterStub,
+      SyntaxTreeStub,
+      ImportResolverDefault,
       ProjectRootLive('/project'),
       FileFilterLive(null),
     );
@@ -102,8 +102,8 @@ describe('defineArchitecture', () => {
 
     const layer = Layer.mergeAll(
       MemoryFileSystem(files),
-      TsAdapterStub,
-      PhpAdapterStub,
+      SyntaxTreeStub,
+      ImportResolverDefault,
       ProjectRootLive('/project'),
       FileFilterLive(null),
     );
@@ -129,8 +129,8 @@ describe('defineArchitecture', () => {
 
     const layer = Layer.mergeAll(
       MemoryFileSystem(files),
-      TsAdapterStub,
-      PhpAdapterStub,
+      SyntaxTreeStub,
+      ImportResolverDefault,
       ProjectRootLive('/project'),
       FileFilterLive(null),
     );
@@ -154,8 +154,8 @@ describe('defineArchitecture', () => {
 
     const layer = Layer.mergeAll(
       MemoryFileSystem(files),
-      TsAdapterStub,
-      PhpAdapterStub,
+      SyntaxTreeStub,
+      ImportResolverDefault,
       ProjectRootLive('/project'),
       FileFilterLive(null),
     );

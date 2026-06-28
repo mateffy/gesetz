@@ -12,9 +12,7 @@ import { Command, Options } from '@effect/cli';
 import { NodeContext, NodeRuntime } from '@effect/platform-node';
 import { Console, Effect, Layer, Option } from 'effect';
 import * as nodePath from 'node:path';
-import { runAll, FileSystemLive, PhpAdapterStub, ProjectRootLive, FileFilterLive } from '@gesetz/core';
-import { TsAdapterLive } from '@gesetz/typescript';
-import { PhpAdapterLive } from '@gesetz/php';
+import { runAll, FileSystemLive, ProjectRootLive, FileFilterLive, SyntaxTreeLive, ImportResolverDefault } from '@gesetz/core';
 import { loadConfig } from './load-config';
 import {
   formatCategoryTable,
@@ -31,11 +29,15 @@ import { initCommand } from './init';
 
 // ─── Shared services layer ────────────────────────────────────────────────────
 
-const makeServicesLayer = (root: string, fileGlobs?: readonly string[] | undefined) =>
+const makeServicesLayer = (
+  root: string,
+  adapters: readonly import('@gesetz/core').SyntaxBackend[],
+  fileGlobs?: readonly string[] | undefined,
+) =>
   Layer.mergeAll(
     FileSystemLive,
-    TsAdapterLive,
-    PhpAdapterLive,
+    SyntaxTreeLive(adapters),
+    ImportResolverDefault,
     ProjectRootLive(root),
     FileFilterLive(fileGlobs ?? null),
   );
@@ -123,7 +125,7 @@ const checkCommand = Command.make(
       });
 
       const result = yield* runAll({ ...filteredConfig, thresholds }).pipe(
-        Effect.provide(makeServicesLayer(root, Option.getOrUndefined(filesGlobs))),
+        Effect.provide(makeServicesLayer(root, config.adapters, Option.getOrUndefined(filesGlobs))),
         Effect.catchAllCause((cause) =>
           Effect.gen(function* () {
             yield* Console.error(`gesetz check failed: ${String(cause)}`);

@@ -1,6 +1,6 @@
 {
   "name": "@gesetz/php",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "type": "module",
   "exports": {
     ".": "./src/index.ts"
@@ -12,11 +12,11 @@
   },
   "dependencies": {
     "@gesetz/core": "workspace:*",
-    "effect": "^3.15.0"
+    "effect": "^3.15.0",
+    "@ast-grep/napi": "^0.44.0"
   },
   "optionalDependencies": {
-    "tree-sitter": "^0.21.1",
-    "tree-sitter-php": "^0.23.4"
+    "@ast-grep/lang-php": "^0.0.7"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

@@ -1,50 +1,23 @@
-import { describe, it, expect, vi } from 'vitest';
-import { Effect, Layer } from 'effect';
+import { describe, it, expect } from 'vitest';
+import { Effect } from 'effect';
 import {
   noRunPromiseScattered,
   noThrowInEffectGen,
   noYieldWithoutStar,
   noUnboundedEffectAll,
 } from '../src/checks';
-import { TsAdapter, MemoryFileSystem, ProjectRootLive, FileFilterLive, TsAdapterError } from '@gesetz/core';
-import { PhpAdapterStub } from '@gesetz/core';
+import type { File } from '@gesetz/core';
 
-// Helper to create a ts-morph SourceFile from content
-function makeTsAdapter(content: string) {
-  return Layer.succeed(TsAdapter, {
-    getSourceFile: (_path: string, _tsConfigPath: string) =>
-      Effect.tryPromise({
-        try: async () => {
-          const { Project } = await import('ts-morph');
-          const project = new Project({ skipAddingFilesFromTsConfig: true });
-          const sf = project.createSourceFile('test.ts', content);
-          return {
-            getFilePath: () => sf.getFilePath(),
-            getText: () => sf.getText(),
-            _tsMorph: sf as unknown,
-          };
-        },
-        catch: (e) => new TsAdapterError({ cause: String(e) }),
-      }),
-    isAvailable: () => Effect.succeed(true),
-  });
-}
-
+// The migrated checks use ast-grep via Effect.sync — no services required.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const run = (effect: Effect.Effect<any, never, any>, content: string): Promise<any> =>
-  Effect.provide(effect, Layer.mergeAll(
-    MemoryFileSystem({ 'test.ts': content }),
-    makeTsAdapter(content),
-    PhpAdapterStub,
-    ProjectRootLive(process.cwd()),
-    FileFilterLive(null),
-  )).pipe(Effect.runPromise as any);
+const run = (effect: Effect.Effect<any, never, any>): Promise<any> =>
+  Effect.runPromise(effect as any);
 
 // Simple file object for the check functions
-function file(content: string) {
+function file(content: string, path = 'test.ts'): File {
   return {
-    path: 'test.ts',
-    absolutePath: '/project/test.ts',
+    path,
+    absolutePath: `/project/${path}`,
     name: 'test.ts',
     stem: 'test',
     ext: '.ts',
@@ -61,7 +34,7 @@ describe('noRunPromiseScattered', () => {
       import { Effect } from 'effect';
       export const program = Effect.runPromise(Effect.succeed(1));
     `;
-    const violations = await run(noRunPromiseScattered()({ ...file(content), absolutePath: '/project/src/lib.ts' }), content);
+    const violations = await run(noRunPromiseScattered()(file(content, 'src/lib.ts')));
     expect(violations).toHaveLength(1);
     expect(violations[0]?.rule).toBe('no-run-promise-scattered');
     expect(violations[0]?.message).toContain('runPromise');
@@ -73,8 +46,7 @@ describe('noRunPromiseScattered', () => {
       Effect.runPromise(main);
     `;
     const violations = await run(
-      noRunPromiseScattered({ entryPoints: ['src/main.ts'] })({ ...file(content), path: 'src/main.ts', absolutePath: '/project/src/main.ts' }),
-      content,
+      noRunPromiseScattered({ entryPoints: ['src/main.ts'] })(file(content, 'src/main.ts')),
     );
     expect(violations).toHaveLength(0);
   });
@@ -85,8 +57,7 @@ describe('noRunPromiseScattered', () => {
       Effect.runSync(main);
     `;
     const violations = await run(
-      noRunPromiseScattered({ entryPoints: ['src/main.ts'] })({ ...file(content), path: 'src/main.ts', absolutePath: '/project/src/main.ts' }),
-      content,
+      noRunPromiseScattered({ entryPoints: ['src/main.ts'] })(file(content, 'src/main.ts')),
     );
     expect(violations).toHaveLength(0);
   });
@@ -96,7 +67,7 @@ describe('noRunPromiseScattered', () => {
       const runner = { runPromise: (x: number) => x };
       runner.runPromise(1);
     `;
-    const violations = await run(noRunPromiseScattered()({ ...file(content), absolutePath: '/project/src/lib.ts' }), content);
+    const violations = await run(noRunPromiseScattered()(file(content, 'src/lib.ts')));
     expect(violations).toHaveLength(0);
   });
 });
@@ -111,7 +82,7 @@ describe('noThrowInEffectGen', () => {
         return x;
       });
     `;
-    const violations = await run(noThrowInEffectGen()({ ...file(content), absolutePath: '/project/test.ts' }), content);
+    const violations = await run(noThrowInEffectGen()(file(content)));
     expect(violations).toHaveLength(1);
     expect(violations[0]?.rule).toBe('no-throw-in-effect-gen');
     expect(violations[0]?.message).toContain('throw');
@@ -123,7 +94,7 @@ describe('noThrowInEffectGen', () => {
         if (false) throw new Error('ok');
       }
     `;
-    const violations = await run(noThrowInEffectGen()({ ...file(content), absolutePath: '/project/test.ts' }), content);
+    const violations = await run(noThrowInEffectGen()(file(content)));
     expect(violations).toHaveLength(0);
   });
 
@@ -135,7 +106,7 @@ describe('noThrowInEffectGen', () => {
         return n;
       });
     `;
-    const violations = await run(noThrowInEffectGen()({ ...file(content), absolutePath: '/project/test.ts' }), content);
+    const violations = await run(noThrowInEffectGen()(file(content)));
     expect(violations).toHaveLength(1);
   });
 });
@@ -149,7 +120,7 @@ describe('noYieldWithoutStar', () => {
         return x;
       });
     `;
-    const violations = await run(noYieldWithoutStar()({ ...file(content), absolutePath: '/project/test.ts' }), content);
+    const violations = await run(noYieldWithoutStar()(file(content)));
     expect(violations).toHaveLength(1);
     expect(violations[0]?.rule).toBe('no-yield-without-star');
   });
@@ -162,7 +133,7 @@ describe('noYieldWithoutStar', () => {
         return x;
       });
     `;
-    const violations = await run(noYieldWithoutStar()({ ...file(content), absolutePath: '/project/test.ts' }), content);
+    const violations = await run(noYieldWithoutStar()(file(content)));
     expect(violations).toHaveLength(0);
   });
 
@@ -172,7 +143,7 @@ describe('noYieldWithoutStar', () => {
         yield 1;
       }
     `;
-    const violations = await run(noYieldWithoutStar()({ ...file(content), absolutePath: '/project/test.ts' }), content);
+    const violations = await run(noYieldWithoutStar()(file(content)));
     expect(violations).toHaveLength(0);
   });
 });
@@ -183,7 +154,7 @@ describe('noUnboundedEffectAll', () => {
       import { Effect } from 'effect';
       const program = Effect.all([Effect.succeed(1), Effect.succeed(2)]);
     `;
-    const violations = await run(noUnboundedEffectAll()({ ...file(content), absolutePath: '/project/test.ts' }), content);
+    const violations = await run(noUnboundedEffectAll()(file(content)));
     expect(violations).toHaveLength(1);
     expect(violations[0]?.rule).toBe('no-unbounded-effect-all');
     expect(violations[0]?.message).toContain('concurrency');
@@ -194,7 +165,7 @@ describe('noUnboundedEffectAll', () => {
       import { Effect } from 'effect';
       const program = Effect.all([Effect.succeed(1), Effect.succeed(2)], { concurrency: 2 });
     `;
-    const violations = await run(noUnboundedEffectAll()({ ...file(content), absolutePath: '/project/test.ts' }), content);
+    const violations = await run(noUnboundedEffectAll()(file(content)));
     expect(violations).toHaveLength(0);
   });
 
@@ -203,7 +174,7 @@ describe('noUnboundedEffectAll', () => {
       import { Effect } from 'effect';
       const x = Effect.succeed(1);
     `;
-    const violations = await run(noUnboundedEffectAll()({ ...file(content), absolutePath: '/project/test.ts' }), content);
+    const violations = await run(noUnboundedEffectAll()(file(content)));
     expect(violations).toHaveLength(0);
   });
 });

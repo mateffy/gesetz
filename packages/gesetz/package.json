@@ -1,11 +1,8 @@
 {
   "name": "gesetz",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "description": "Unified code-quality gate — core primitives and CLI. Install adapters separately.",
   "type": "module",
-  "bin": {
-    "gesetz": "./src/cli.ts"
-  },
   "exports": {
     ".": "./src/index.ts"
   },

@@ -2,11 +2,11 @@ import { describe, it, expect } from 'vitest';
 import { Effect, Layer } from 'effect';
 import { select, slugify } from '../../src/primitives/select';
 import { MemoryFileSystem, ProjectRootLive, FileFilterLive } from '../../src/services/fs';
-import { TsAdapterStub } from '../../src/services/ts-adapter';
-import { PhpAdapterStub } from '../../src/services/php-adapter';
+import { SyntaxTreeStub } from '../../src/services/syntax-tree';
+import { ImportResolverDefault } from '../../src/services/import-resolver';
 import type { File, Violation } from '../../src/engine/rule';
 
-const TestLayer = Layer.mergeAll(MemoryFileSystem({}), TsAdapterStub, PhpAdapterStub, ProjectRootLive(process.cwd()), FileFilterLive(null));
+const TestLayer = Layer.mergeAll(MemoryFileSystem({}), SyntaxTreeStub, ImportResolverDefault, ProjectRootLive(process.cwd()), FileFilterLive(null));
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const runWith = (effect: Effect.Effect<any, any, any>): Promise<any> =>
@@ -89,8 +89,8 @@ describe('select', () => {
 
       const violations = await rule.run.pipe(
         Effect.provide(MemoryFileSystem(files)),
-        Effect.provide(TsAdapterStub),
-        Effect.provide(PhpAdapterStub),
+        Effect.provide(SyntaxTreeStub),
+        Effect.provide(ImportResolverDefault),
         Effect.provide(ProjectRootLive(process.cwd())),
         Effect.provide(FileFilterLive(null)),
         Effect.runPromise,
@@ -121,8 +121,8 @@ describe('select', () => {
 
       await rule.run.pipe(
         Effect.provide(MemoryFileSystem(files)),
-        Effect.provide(TsAdapterStub),
-        Effect.provide(PhpAdapterStub),
+        Effect.provide(SyntaxTreeStub),
+        Effect.provide(ImportResolverDefault),
         Effect.provide(ProjectRootLive(process.cwd())),
         Effect.provide(FileFilterLive(null)),
         Effect.runPromise,

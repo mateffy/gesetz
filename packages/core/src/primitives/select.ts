@@ -2,8 +2,8 @@ import { Effect } from 'effect';
 import micromatch from 'micromatch';
 import { FileSystem, ProjectRoot, FileFilter } from '../services/fs';
 import type { Check, File, Rule, RuleCategory, RuleGuidance, Violation } from '../engine/rule';
-import type { TsAdapter } from '../services/ts-adapter';
-import type { PhpAdapter } from '../services/php-adapter';
+import type { SyntaxTree } from '../services/syntax-tree';
+import type { ImportResolver } from '../services/import-resolver';
 
 /**
  * Converts a human-readable label into a stable kebab-case slug.
@@ -90,8 +90,11 @@ function buildRule(state: SelectorState, checks: Check[]): Rule {
     : slugify(state.patterns.join(' ')) || 'rule';
   const description = humanLabel !== null ? humanLabel : `select(${state.patterns.join(', ')})`;
 
-  const run: Effect.Effect<Violation[], never, FileSystem | TsAdapter | PhpAdapter | ProjectRoot | FileFilter> =
-    Effect.gen(function* () {
+  const run: Effect.Effect<
+    Violation[],
+    never,
+    FileSystem | SyntaxTree | ImportResolver | ProjectRoot | FileFilter
+  > = Effect.gen(function* () {
       const fs = yield* FileSystem;
       const root = yield* ProjectRoot;
 

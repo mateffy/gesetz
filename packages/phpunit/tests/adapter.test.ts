@@ -5,12 +5,12 @@ import * as nodeOs from 'node:os';
 import * as nodePath from 'node:path';
 import { Effect, Layer } from 'effect';
 import { phpunit } from '../src/adapter';
-import { MemoryFileSystem, ProjectRootLive, FileFilterLive, TsAdapterStub, PhpAdapterStub } from '@gesetz/core';
+import { MemoryFileSystem, ProjectRootLive, FileFilterLive, SyntaxTreeStub, ImportResolverDefault } from '@gesetz/core';
 
 const TestLayer = Layer.mergeAll(
   MemoryFileSystem({}),
-  TsAdapterStub,
-  PhpAdapterStub,
+  SyntaxTreeStub,
+  ImportResolverDefault,
   ProjectRootLive('/project'),
   FileFilterLive(null),
 );

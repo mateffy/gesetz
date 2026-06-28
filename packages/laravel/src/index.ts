@@ -1,5 +1,5 @@
 /**
- * /laravel — Laravel-specific quality rules.
+ * /laravel -- Laravel-specific quality rules.
  *
  * Depends on /php for PHP AST analysis and /phpstan for
  * static analysis integration.
@@ -20,7 +20,10 @@ export {
   noRawDbQueries,
   noEnvOutsideConfig,
   noDebugHelpers,
+  noDd,
+  noFacades,
 } from './checks';
+export type { NoDdOptions, NoFacadesOptions } from './checks';
 
 // Re-export phpstan() from /phpstan for convenience
 export { phpstan } from '@gesetz/phpstan';

@@ -18,8 +18,6 @@ export {
   RuleError,
   PhpstanError,
   ExecError,
-  TsAdapterError,
-  PhpAdapterError,
   ReporterError,
 } from './engine/errors';
 
@@ -38,32 +36,56 @@ export { execTool, runWithTempFile, extractLocation } from './engine/exec';
 export { FileSystem, FileSystemLive, MemoryFileSystem, ProjectRoot, ProjectRootLive, FileFilter, FileFilterLive } from './services/fs';
 export type { GlobOptions, FileSystemService, FileFilterService } from './services/fs';
 
-// TsAdapter — abstract tag + stub. Live implementation: /typescript
-export { TsAdapter, TsAdapterStub } from './services/ts-adapter';
-export type { TsSourceFile, TsAdapterService } from './services/ts-adapter';
+// SyntaxTree — abstract tag + router factory. Live backends: /typescript, /php, /python
+export { SyntaxTree, SyntaxTreeLive, SyntaxTreeStub, SyntaxTreeError } from './services/syntax-tree';
+export type {
+  SyntaxBackend,
+  ParsedImport,
+  ParsedCall,
+  ParsedExport,
+  StructureItem,
+  SyntaxBackendProcessResult,
+  SyntaxTreeProcessOptions,
+  SyntaxTreeService,
+} from './services/syntax-tree';
 
-// PhpAdapter — abstract tag + stub. Live implementation: /php
-export { PhpAdapter, PhpAdapterStub } from './services/php-adapter';
-export type { PhpSyntaxNode, PhpAdapterService } from './services/php-adapter';
+// ImportResolver — abstract tag + default relative-path resolver
+export { ImportResolver, ImportResolverDefault, ImportResolveError } from './services/import-resolver';
+export type { ImportResolverService } from './services/import-resolver';
 
 // ─── Select DSL ───────────────────────────────────────────────────────────────
 export { select, slugify } from './primitives/select';
 export type { Selector } from './primitives/select';
 
 // ─── Primitive checks (language-agnostic) ─────────────────────────────────────
-export { requireSibling, requireChildren, forbidFile, relativeImports } from './primitives/checks/fs';
+export { requireSibling, requireChildren, forbidFile } from './primitives/checks/fs';
 export { noImportFrom, requireImportFrom } from './primitives/checks/imports';
 export { noPattern, requirePattern } from './primitives/checks/patterns';
 export {
   noGodFile,
   noDeepNesting,
-  noConsoleLog,
-  noEmptyCatch,
-  noMagicNumbers,
-  noTrivialComment,
   noDebuggingResidueFiles,
   noHardcodedSecret,
 } from './primitives/checks/structure';
+
+// ─── New structural primitives (SyntaxTree-backed) ────────────────────────────
+export { noDebugLogging } from './primitives/checks/debug-logging';
+export type { NoDebugLoggingOptions } from './primitives/checks/debug-logging';
+
+export { noDirectCalls } from './primitives/checks/calls';
+export type { NoDirectCallsOptions } from './primitives/checks/calls';
+
+export { requireNamingConvention, noForbiddenNames } from './primitives/checks/naming';
+export type { RequireNamingConventionOptions, NoForbiddenNamesOptions } from './primitives/checks/naming';
+
+export { requireDocstrings } from './primitives/checks/docstrings';
+export type { RequireDocstringsOptions } from './primitives/checks/docstrings';
+
+export { requireExportsMatching, requireRelatedExports } from './primitives/checks/exports';
+export type { RequireExportsMatchingOptions, RequireRelatedExportsOptions } from './primitives/checks/exports';
+
+export { requireMinStructureCount } from './primitives/checks/structure-count';
+export type { RequireMinStructureCountOptions } from './primitives/checks/structure-count';
 
 // ─── Dependency graph ─────────────────────────────────────────────────────────
 export { noCycles } from './primitives/graph';

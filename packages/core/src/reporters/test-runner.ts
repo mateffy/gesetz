@@ -3,8 +3,8 @@ import { Reporter } from './reporter';
 import { ReporterError } from '../engine/errors';
 import type { RunResult } from '../engine/runner';
 import type { FileSystem, ProjectRoot, FileFilter } from '../services/fs';
-import type { TsAdapter } from '../services/ts-adapter';
-import type { PhpAdapter } from '../services/php-adapter';
+import type { SyntaxTree } from '../services/syntax-tree';
+import type { ImportResolver } from '../services/import-resolver';
 
 /**
  * Minimal interface required from a test runner.
@@ -56,7 +56,11 @@ export function TestRunnerReporter(runner: TestRunnerAPI): Layer.Layer<Reporter>
  * packages they depend on (e.g. @gesetz/typescript, @gesetz/php) — @gesetz/core
  * ships only stubs and must not know about concrete adapters.
  */
-type ServicesLayer = Layer.Layer<FileSystem | TsAdapter | PhpAdapter | ProjectRoot | FileFilter, never, never>;
+type ServicesLayer = Layer.Layer<
+  FileSystem | SyntaxTree | ImportResolver | ProjectRoot | FileFilter,
+  never,
+  never
+>;
 
 /**
  * Runs the QA config and reports results through the given test runner.
@@ -68,13 +72,13 @@ type ServicesLayer = Layer.Layer<FileSystem | TsAdapter | PhpAdapter | ProjectRo
  * @example
  * // quality.test.ts (Vitest)
  * import { describe, it, expect } from 'vitest';
- * import { defineConfig, FileSystemLive } from '@gesetz/core';
- * import { TsAdapterLive } from '@gesetz/typescript';
+ * import { defineConfig, FileSystemLive, SyntaxTreeLive, ImportResolverDefault } from '@gesetz/core';
+ * import { typescriptSyntaxBackend } from '@gesetz/typescript';
  * import { defineQualityTests } from '@gesetz/core/reporters';
  * import { Layer } from 'effect';
  *
- * const config = defineConfig({ rules: [...] });
- * const services = Layer.mergeAll(FileSystemLive, TsAdapterLive);
+ * const config = defineConfig({ adapters: [typescriptSyntaxBackend], rules: [...] });
+ * const services = Layer.mergeAll(FileSystemLive, SyntaxTreeLive(config.adapters), ImportResolverDefault);
  * await defineQualityTests(config, { describe, it, expect }, services);
  */
 export async function defineQualityTests(
@@ -105,13 +109,13 @@ export async function defineQualityTests(
  *
  * @example
  * // quality.test.ts
- * import { defineConfig, FileSystemLive } from '@gesetz/core';
- * import { TsAdapterLive } from '@gesetz/typescript';
+ * import { defineConfig, FileSystemLive, SyntaxTreeLive, ImportResolverDefault } from '@gesetz/core';
+ * import { typescriptSyntaxBackend } from '@gesetz/typescript';
  * import { defineQualityTestsVitest } from '@gesetz/core/reporters';
  * import { Layer } from 'effect';
  *
- * const config = defineConfig({ rules: [...] });
- * const services = Layer.mergeAll(FileSystemLive, TsAdapterLive);
+ * const config = defineConfig({ adapters: [typescriptSyntaxBackend], rules: [...] });
+ * const services = Layer.mergeAll(FileSystemLive, SyntaxTreeLive(config.adapters), ImportResolverDefault);
  * await defineQualityTestsVitest(config, services);
  */
 export async function defineQualityTestsVitest(

@@ -8,12 +8,8 @@
 import {
   defineConfig,
   select,
-  noConsoleLog,
   noGodFile,
   noDeepNesting,
-  noEmptyCatch,
-  noMagicNumbers,
-  noTrivialComment,
   noDebuggingResidueFiles,
   noHardcodedSecret,
   noPattern,
@@ -22,6 +18,13 @@ import {
   noImportFrom,
   defineArchitecture,
 } from '@gesetz/core';
+import {
+  noConsoleLog,
+  noEmptyCatch,
+  noMagicNumbers,
+  noTrivialComment,
+  typescriptSyntaxBackend,
+} from '@gesetz/typescript';
 
 // ─── Architecture: package import boundaries ──────────────────────────────────
 
@@ -48,6 +51,9 @@ const arch = defineArchitecture({
 // ─── Config ──────────────────────────────────────────────────────────────────
 
 export default defineConfig({
+  // Enable the TypeScript SyntaxBackend so defineArchitecture can extract
+  // imports accurately (via oxc-parser) instead of falling back to regex.
+  adapters: [typescriptSyntaxBackend],
   rules: [
     // Architecture
     ...arch,
@@ -67,25 +73,25 @@ export default defineConfig({
       .check(noDeepNesting({ maxLevels: 5 })),
 
     select('packages/**/*.ts')
-      .exclude('**/*.test.ts', '**/tests/**')
+      .exclude('**/*.test.ts', '**/tests/**', '**/node_modules/**', '**/dist/**')
       .label('No console.log in production')
       .category('cleanup')
       .check(noConsoleLog({ allowWarnError: true })),
 
     select('packages/**/*.ts')
-      .exclude('**/*.test.ts', '**/tests/**')
+      .exclude('**/*.test.ts', '**/tests/**', '**/node_modules/**', '**/dist/**')
       .label('No empty catch blocks')
       .category('strictness')
       .check(noEmptyCatch()),
 
     select('packages/**/*.ts')
-      .exclude('**/*.test.ts', '**/tests/**', 'packages/cli/src/init/rules.ts')
+      .exclude('**/*.test.ts', '**/tests/**', '**/node_modules/**', '**/dist/**', 'packages/cli/src/init/rules.ts')
       .label('No magic numbers')
       .category('strictness')
       .check(noMagicNumbers({ ignore: [0, 1, -1, 2, 10, 100] })),
 
     select('packages/**/*.ts')
-      .exclude('**/*.test.ts', '**/tests/**')
+      .exclude('**/*.test.ts', '**/tests/**', '**/node_modules/**', '**/dist/**')
       .label('No trivial comments')
       .category('cleanup')
       .check(noTrivialComment()),
@@ -93,6 +99,7 @@ export default defineConfig({
     // ─── Security ───────────────────────────────────────────────────────────
 
     select('packages/**/*.ts')
+      .exclude('**/*.test.ts', '**/tests/**', '**/node_modules/**', '**/dist/**')
       .label('No hardcoded secrets')
       .category('security')
       .check(noHardcodedSecret()),

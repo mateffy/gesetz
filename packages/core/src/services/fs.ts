@@ -77,7 +77,13 @@ export const FileSystemLive: Layer.Layer<FileSystem> = Layer.effect(
           absolute: false,
           dot: options?.dot ?? false,
           stats: false,
-          ...(options?.ignore !== undefined ? { ignore: options.ignore } : {}),
+          // Sane defaults for a code-quality tool: never scan dependency trees
+          // or VCS metadata even if the caller's pattern would match them.
+          // Caller-supplied `ignore` overrides these defaults.
+          ignore:
+            options?.ignore !== undefined
+              ? options.ignore
+              : ['**/node_modules/**', '**/.git/**'],
         };
         return Effect.tryPromise({
           try: () => fastGlob(patterns, globOptions),
@@ -86,14 +92,14 @@ export const FileSystemLive: Layer.Layer<FileSystem> = Layer.effect(
           Effect.map((paths: string[]) =>
             paths.map((relativePath) => {
               const absolutePath = nodePath.resolve(effectiveCwd, relativePath);
-              const content = readFileSafe(absolutePath);
               let stat: nodeFs.Stats | null = null;
               try {
                 stat = nodeFs.statSync(absolutePath);
               } catch {
                 // ignore
               }
-              return buildFile(relativePath, absolutePath, content, stat);
+              // Content is loaded lazily on first `file.content` access.
+              return buildFile(relativePath, absolutePath, () => readFileSafe(absolutePath), stat);
             }),
           ),
         );
@@ -122,13 +128,17 @@ function readFileSafe(absolutePath: string): string {
 function buildFile(
   relativePath: string,
   absolutePath: string,
-  content: string,
+  contentLoader: () => string,
   stat: nodeFs.Stats | null,
 ): File {
   const name = nodePath.basename(relativePath);
   const ext = nodePath.extname(name);
   const stem = name.slice(0, name.length - ext.length);
   const dir = nodePath.dirname(relativePath);
+  // Lazy content: read from disk on first access and cache. This avoids
+  // materializing every globbed file's content in memory simultaneously when
+  // a check only inspects file metadata (name, path, size).
+  let cached: string | undefined;
   return {
     path: relativePath,
     absolutePath,
@@ -136,8 +146,11 @@ function buildFile(
     stem,
     ext,
     dir: dir === '.' ? '' : dir,
-    content,
-    size: stat?.size ?? content.length,
+    get content(): string {
+      if (cached === undefined) cached = contentLoader();
+      return cached;
+    },
+    size: stat?.size ?? 0,
     mtimeMs: stat?.mtimeMs ?? 0,
   };
 }
@@ -166,7 +179,8 @@ export const MemoryFileSystem = (files: Record<string, string>): Layer.Layer<Fil
         matched.map(([p, content]) => {
           const absolutePath = nodePath.isAbsolute(p) ? p : nodePath.resolve(effectiveCwd, p);
           const relativePath = nodePath.isAbsolute(p) ? nodePath.relative(effectiveCwd, p) : p;
-          return buildFile(relativePath, absolutePath, content, null);
+          const fakeStat = { size: content.length, mtimeMs: 0 } as nodeFs.Stats;
+          return buildFile(relativePath, absolutePath, () => content, fakeStat);
         }),
       );
     },

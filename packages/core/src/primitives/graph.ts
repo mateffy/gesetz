@@ -1,45 +1,42 @@
+import * as nodePath from 'node:path';
 import { Effect } from 'effect';
-import { FileSystem } from '../services/fs';
-import type { Rule, Violation } from '../engine/rule';
-import type { TsAdapter } from '../services/ts-adapter';
-import type { PhpAdapter } from '../services/php-adapter';
-
-/** Subset of dependency-cruiser's `ICruiseResult` that we read. */
-interface CruiseResult {
-  readonly output: {
-    readonly modules: ReadonlyArray<{
-      readonly source: string;
-      readonly dependencies: ReadonlyArray<{
-        readonly resolved: string;
-        readonly circular: boolean;
-      }>;
-    }>;
-  };
-}
-
-/**
- * Minimal typed view of the dependency-cruiser module's `cruise` export.
- * Defined locally so this file compiles without the optional peer dep
- * installed; the cast to this interface happens at the single import site.
- */
-interface DependencyCruiserModule {
-  readonly cruise: (
-    patterns: string[],
-    options: Record<string, unknown>,
-    resolveOptions: { cwd: string },
-  ) => CruiseResult;
-}
+import { FileSystem, ProjectRoot } from '../services/fs';
+import { SyntaxTree } from '../services/syntax-tree';
+import type { ParsedImport } from '../services/syntax-tree';
+import { ImportResolver } from '../services/import-resolver';
+import type { File, Rule, Violation } from '../engine/rule';
 
 export interface NoCyclesOptions {
-  cwd?: string;
-  tsConfigPath?: string;
-  label?: string;
-  id?: string;
+  /** Human-readable label / description. */
+  readonly label?: string;
+  /** Stable rule id. Default: 'no-cycles'. */
+  readonly id?: string;
+}
+
+/** Extension/index variants to try when matching a resolved path to a real file. */
+function candidatePaths(resolved: string): string[] {
+  return [
+    nodePath.normalize(resolved),
+    nodePath.normalize(resolved + '.ts'),
+    nodePath.normalize(resolved + '.tsx'),
+    nodePath.normalize(resolved + '.js'),
+    nodePath.normalize(resolved + '.jsx'),
+    nodePath.normalize(resolved + '.php'),
+    nodePath.normalize(nodePath.join(resolved, 'index.ts')),
+    nodePath.normalize(nodePath.join(resolved, 'index.tsx')),
+    nodePath.normalize(nodePath.join(resolved, 'index.js')),
+    nodePath.normalize(nodePath.join(resolved, 'index.php')),
+  ];
 }
 
 /**
- * Creates a Rule that checks for circular dependencies using dependency-cruiser.
- * Requires `dependency-cruiser` to be installed as a peer dependency.
+ * Creates a Rule that checks for circular dependencies using the SyntaxTree
+ * service (for import extraction) and ImportResolver (for resolving relative
+ * specifiers to absolute paths), then a DFS over the dependency graph.
+ *
+ * Files whose extension has no registered SyntaxBackend are skipped.
+ * External (non-resolvable) imports are ignored — only local-file cycles
+ * are reported.
  *
  * @example
  * noCycles('src/**\/*.{ts,tsx}', { label: 'No circular dependencies' })
@@ -47,70 +44,81 @@ export interface NoCyclesOptions {
 export function noCycles(pattern: string | string[], opts: NoCyclesOptions = {}): Rule {
   const id = opts.id ?? 'no-cycles';
   const description = opts.label ?? 'No circular dependencies';
-  const cwd = opts.cwd ?? process.cwd();
   const patterns = Array.isArray(pattern) ? pattern : [pattern];
 
-  const run: Rule['run'] = Effect.gen(function* () {
-    // dependency-cruiser is an optional peer dep — degrade gracefully.
-    const raw = yield* Effect.tryPromise({
-      try: async () =>
-        // @ts-ignore — dependency-cruiser is an optional peer dep; present in
-        // some workspaces, absent in others. Cast to DependencyCruiserModule.
-        (await import('dependency-cruiser')) as unknown as DependencyCruiserModule,
-      catch: () => null,
-    }).pipe(Effect.catchAll(() => Effect.succeed(null)));
+  const run = Effect.gen(function* () {
+    const fs = yield* FileSystem;
+    const root = yield* ProjectRoot;
+    const st = yield* SyntaxTree;
+    const resolver = yield* ImportResolver;
 
-    if (raw === null || typeof raw.cruise !== 'function') {
-      yield* Effect.logWarning(
-        '[gesetz] dependency-cruiser is not installed or export shape changed — noCycles() produced no violations.',
-      );
-      return [];
-    }
-    const cruiser = raw;
+    const files = yield* fs.glob(patterns, { cwd: root }).pipe(
+      Effect.catchAll(() => Effect.succeed<File[]>([])),
+    );
+    if (files.length === 0) return [];
 
-    const result = yield* Effect.try({
-      try: () =>
-        cruiser.cruise(
-          patterns,
-          {
-            ruleSet: {
-              forbidden: [
-                {
-                  name: 'no-circular',
-                  severity: 'error',
-                  from: {},
-                  to: { circular: true },
-                },
-              ],
-            },
-            tsPreCompilationDeps: true,
-            ...(opts.tsConfigPath ? { tsConfig: { fileName: opts.tsConfigPath } } : {}),
-          },
-          { cwd },
-        ),
-      catch: () => null,
-    }).pipe(Effect.catchAll(() => Effect.succeed(null)));
+    const rel = (absPath: string): string => {
+      const r = nodePath.relative(root, absPath);
+      return r.startsWith('..') ? absPath : r;
+    };
 
-    if (result === null) {
-      yield* Effect.logWarning(
-        '[gesetz] dependency-cruiser cruise() failed — noCycles() produced no violations.',
-      );
-      return [];
+    // Build adjacency map: absolutePath → [absolutePath, ...]
+    const fileByAbs = new Map<string, File>();
+    for (const file of files) {
+      fileByAbs.set(nodePath.normalize(file.absolutePath), file);
     }
 
-    const violations: Violation[] = [];
-    for (const mod of result.output.modules) {
-      for (const dep of mod.dependencies) {
-        if (dep.circular) {
-          violations.push({
-            rule: id,
-            message: `Circular dependency: ${mod.source} \u2192 ${dep.resolved}`,
-            path: mod.source,
-            severity: 'error',
-            source: 'custom',
-          });
+    const adjacency = new Map<string, string[]>();
+    for (const file of files) {
+      const norm = nodePath.normalize(file.absolutePath);
+      if (!st.canProcess(file)) continue;
+      const result = yield* st.process(file, { imports: true }).pipe(
+        Effect.catchAll(() => Effect.succeed({ imports: [], calls: [], exports: [], structure: [] })),
+      );
+      const deps: string[] = [];
+      for (const imp of result.imports as readonly ParsedImport[]) {
+        const resolved = resolver.resolve(file, imp.specifier);
+        if (resolved === null) continue;
+        for (const candidate of candidatePaths(resolved)) {
+          if (fileByAbs.has(candidate)) {
+            deps.push(candidate);
+            break;
+          }
         }
       }
+      adjacency.set(norm, deps);
+    }
+
+    // DFS cycle detection
+    const visited = new Set<string>();
+    const inStack = new Set<string>();
+    const violations: Violation[] = [];
+
+    function dfs(node: string, stack: string[]): void {
+      if (inStack.has(node)) {
+        const cycleStart = stack.indexOf(node);
+        const cycle = stack.slice(cycleStart);
+        const chain = cycle.map((p) => rel(p)).join(' → ') + ' → ' + rel(node);
+        violations.push({
+          rule: id,
+          message: `Circular dependency: ${chain}`,
+          path: rel(stack[stack.length - 1] ?? node),
+          severity: 'error',
+          source: 'custom',
+        });
+        return;
+      }
+      if (visited.has(node)) return;
+      visited.add(node);
+      inStack.add(node);
+      for (const dep of adjacency.get(node) ?? []) {
+        dfs(dep, [...stack, node]);
+      }
+      inStack.delete(node);
+    }
+
+    for (const file of files) {
+      dfs(nodePath.normalize(file.absolutePath), []);
     }
 
     return violations;

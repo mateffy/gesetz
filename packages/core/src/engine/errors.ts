@@ -25,14 +25,6 @@ export class ExecError extends Data.TaggedError('ExecError')<{
   readonly cause: unknown;
 }> {}
 
-export class TsAdapterError extends Data.TaggedError('TsAdapterError')<{
-  readonly cause: unknown;
-}> {}
-
-export class PhpAdapterError extends Data.TaggedError('PhpAdapterError')<{
-  readonly message: string;
-}> {}
-
 export class ReporterError extends Data.TaggedError('ReporterError')<{
   readonly cause: unknown;
 }> {}

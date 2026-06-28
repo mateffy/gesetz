@@ -4,12 +4,12 @@ import * as nodeFs from 'node:fs';
 import * as nodePath from 'node:path';
 import { Effect, Layer } from 'effect';
 import { storybook } from '../src/adapter';
-import { MemoryFileSystem, ProjectRootLive, FileFilterLive, TsAdapterStub, PhpAdapterStub } from '@gesetz/core';
+import { MemoryFileSystem, ProjectRootLive, FileFilterLive, SyntaxTreeStub, ImportResolverDefault } from '@gesetz/core';
 
 const TestLayer = Layer.mergeAll(
   MemoryFileSystem({}),
-  TsAdapterStub,
-  PhpAdapterStub,
+  SyntaxTreeStub,
+  ImportResolverDefault,
   ProjectRootLive('/project'),
   FileFilterLive(null),
 );

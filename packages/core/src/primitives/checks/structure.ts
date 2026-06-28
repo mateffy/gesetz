@@ -7,8 +7,6 @@
  */
 import { Effect } from 'effect';
 import type { Check, Violation } from '../../engine/rule';
-import type { FileSystem } from '../../services/fs';
-import type { TsAdapter } from '../../services/ts-adapter';
 
 // ─── God file ────────────────────────────────────────────────────────────────
 
@@ -26,7 +24,7 @@ export interface NoGodFileOptions {
  */
 export function noGodFile(options: NoGodFileOptions = {}): Check {
   const maxLines = options.maxLines ?? 400;
-  return (file): Effect.Effect<Violation[], never, FileSystem | TsAdapter> =>
+  return (file) =>
     Effect.sync(() => {
       const count = file.content.split('\n').length;
       if (count <= maxLines) return [];
@@ -59,7 +57,7 @@ export interface NoDeepNestingOptions {
  */
 export function noDeepNesting(options: NoDeepNestingOptions = {}): Check {
   const maxLevels = options.maxLevels ?? 4;
-  return (file): Effect.Effect<Violation[], never, FileSystem | TsAdapter> =>
+  return (file) =>
     Effect.sync(() => {
       const violations: Violation[] = [];
       const lines = file.content.split('\n');
@@ -104,7 +102,7 @@ export function noConsoleLog(options: NoConsoleLogOptions = {}): Check {
     ? /\bconsole\.(log|debug|info)\s*\(/g
     : /\bconsole\.(log|debug|info|warn|error)\s*\(/g;
 
-  return (file): Effect.Effect<Violation[], never, FileSystem | TsAdapter> =>
+  return (file) =>
     Effect.sync(() => {
       const violations: Violation[] = [];
       const lines = file.content.split('\n');
@@ -138,7 +136,7 @@ export interface NoEmptyCatchOptions {
  * Detects empty or trivially-commented catch blocks that swallow errors.
  */
 export function noEmptyCatch(options: NoEmptyCatchOptions = {}): Check {
-  return (file): Effect.Effect<Violation[], never, FileSystem | TsAdapter> =>
+  return (file) =>
     Effect.sync(() => {
       const violations: Violation[] = [];
       const lines = file.content.split('\n');
@@ -187,14 +185,14 @@ export function noMagicNumbers(options: NoMagicNumbersOptions = {}): Check {
   const numericLit = /(?<!\w)(-?\d+\.?\d*)(?!\w)/g;
   const constDecl = /^\s*(?:export\s+)?(?:const|readonly)\s+[A-Z][A-Z_0-9]+\s*=/;
 
-  return (file): Effect.Effect<Violation[], never, FileSystem | TsAdapter> =>
+  return (file) =>
     Effect.sync(() => {
       const violations: Violation[] = [];
       const lines = file.content.split('\n');
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i] ?? '';
         // Skip named constant declarations and comment lines
-        if (constDecl.test(line) || /^\s*\/\//.test(line) || /^\s*\*/.test(line)) continue;
+        if (constDecl.test(line) || /^\s*\/\//.test(line) || /^\s*\*\//.test(line)) continue;
         let match: RegExpExecArray | null;
         numericLit.lastIndex = 0;
         while ((match = numericLit.exec(line)) !== null) {
@@ -232,7 +230,7 @@ export function noTrivialComment(options: NoTrivialCommentOptions = {}): Check {
     /^\s*\/\/\s*(?:import|define|create|add|set|update|delete|remove|return|export|initialize|handle|check|call|use|get|fetch|render|make|build|iterate|loop|map|filter)\s+\w/i;
   const dividerPattern = /^\s*\/\/\s*[-=*]{5,}/;
 
-  return (file): Effect.Effect<Violation[], never, FileSystem | TsAdapter> =>
+  return (file) =>
     Effect.sync(() => {
       const violations: Violation[] = [];
       const lines = file.content.split('\n');
@@ -271,7 +269,7 @@ export function noDebuggingResidueFiles(options: NoDebuggingResidueFilesOptions 
   const builtIn =
     /[._-](v\d+|backup|fixed|copy|old|new|temp|tmp|wip|draft|delete_me|deleteme)\.(ts|tsx|js|jsx|php|py)$/i;
 
-  return (file): Effect.Effect<Violation[], never, FileSystem | TsAdapter> =>
+  return (file) =>
     Effect.sync(() => {
       const hit =
         builtIn.test(file.name) ||
@@ -305,7 +303,7 @@ export function noHardcodedSecret(options: NoHardcodedSecretOptions = {}): Check
   const pattern =
     /(?:api[_-]?key|api[_-]?secret|access[_-]?token|secret[_-]?key|auth[_-]?token|bearer|password|passwd|private[_-]?key)\s*[:=]\s*["'][^"']{8,}["']/i;
 
-  return (file): Effect.Effect<Violation[], never, FileSystem | TsAdapter> =>
+  return (file) =>
     Effect.sync(() => {
       const violations: Violation[] = [];
       const lines = file.content.split('\n');

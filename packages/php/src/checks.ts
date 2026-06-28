@@ -120,3 +120,208 @@ export function noInlineQueries(
       return violations;
     });
 }
+
+// ─── requireTypeHints ───────────────────────────────────────────────────────
+
+export interface RequireTypeHintsOptions {
+  readonly message?: string;
+}
+
+/**
+ * Checks that function parameters have type hints.
+ * A param without a type hint looks like `($varname)` rather than `(Type $varname)`.
+ *
+ * Text-based (regex on function signatures).
+ */
+export function requireTypeHints(opts: RequireTypeHintsOptions = {}): Check {
+  return (file) =>
+    Effect.sync(() => {
+      const lines = file.content.split('\n');
+      const violations: Violation[] = [];
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i] ?? '';
+        // Find function declarations: function name(params)
+        const fnMatch = /\bfunction\s+\w+\s*\(([^)]*)\)/.exec(line);
+        if (!fnMatch) continue;
+        const params = fnMatch[1]?.split(',') ?? [];
+        for (const param of params) {
+          const trimmed = param.trim();
+          if (!trimmed || trimmed === '...') continue;
+          // A typed param does NOT start with `$` (the type comes first).
+          // Untyped: `$x`, `&$x`, `...$x`, `&$x = null`.
+          if (/^[&.]*\$/.test(trimmed)) {
+            const paramName = trimmed.replace(/^[&.]+/, '').split('=')[0]?.trim() ?? trimmed;
+            violations.push({
+              rule: '',
+              severity: 'warn' as const,
+              source: 'core' as const,
+              message: opts.message ?? `Function parameter '${paramName}' is missing a type hint`,
+              path: file.path,
+              line: i + 1,
+            });
+          }
+        }
+      }
+      return violations;
+    });
+}
+
+// ─── requireReturnType ─────────────────────────────────────────────────────
+
+export interface RequireReturnTypeOptions {
+  readonly message?: string;
+}
+
+/**
+ * Checks that function declarations have return type declarations (`: string`,
+ * `: void`, etc.). Text-based.
+ */
+export function requireReturnType(opts: RequireReturnTypeOptions = {}): Check {
+  return (file) =>
+    Effect.sync(() => {
+      const lines = file.content.split('\n');
+      const violations: Violation[] = [];
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i] ?? '';
+        // Match `function name(...) {` or `function name(...):` — we want to flag
+        // those WITHOUT a `:` return type after the closing paren.
+        const fnMatch = /\bfunction\s+\w+\s*\(([^)]*)\)\s*(:|\{)/.exec(line);
+        if (!fnMatch) continue;
+        const after = fnMatch[2];
+        if (after === ':') continue; // has a return type
+        violations.push({
+          rule: '',
+          severity: 'warn' as const,
+          source: 'core' as const,
+          message: opts.message ?? `Function is missing a return type declaration`,
+          path: file.path,
+          line: i + 1,
+        });
+      }
+      return violations;
+    });
+}
+
+// ─── requireNamespace ───────────────────────────────────────────────────────
+
+export interface RequireNamespaceOptions {
+  readonly message?: string;
+}
+
+/**
+ * Checks that the file declares a `namespace`. Text-based.
+ */
+export function requireNamespace(opts: RequireNamespaceOptions = {}): Check {
+  return (file) =>
+    Effect.sync(() => {
+      if (/^\s*namespace\s+[\w\\]+\s*;/m.test(file.content)) return [];
+      return [
+        {
+          rule: '',
+          severity: 'error' as const,
+          source: 'core' as const,
+          message: opts.message ?? `Missing namespace declaration`,
+          path: file.path,
+        },
+      ];
+    });
+}
+
+// ─── noDieOrExit ──────────────────────────────────────────────────────────────
+
+export interface NoDieOrExitOptions {
+  readonly message?: string;
+}
+
+/**
+ * Bans `die(` and `exit(`. Text-based regex.
+ */
+export function noDieOrExit(opts: NoDieOrExitOptions = {}): Check {
+  return (file) =>
+    Effect.sync(() => {
+      const violations: Violation[] = [];
+      const lines = file.content.split('\n');
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i] ?? '';
+        if (/(?<![\w.])\b(?:die|exit)\s*\(/.test(line)) {
+          violations.push({
+            rule: '',
+            severity: 'error' as const,
+            source: 'core' as const,
+            message: opts.message ?? `Avoid die()/exit() — handle errors explicitly`,
+            path: file.path,
+            line: i + 1,
+          });
+        }
+      }
+      return violations;
+    });
+}
+
+// ─── noEval ─────────────────────────────────────────────────────────────────
+
+export interface NoEvalOptions {
+  readonly message?: string;
+}
+
+/**
+ * Bans `eval(`. Text-based regex.
+ */
+export function noEval(opts: NoEvalOptions = {}): Check {
+  return (file) =>
+    Effect.sync(() => {
+      const violations: Violation[] = [];
+      const lines = file.content.split('\n');
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i] ?? '';
+        if (/(?<![\w.])\beval\s*\(/.test(line)) {
+          violations.push({
+            rule: '',
+            severity: 'error' as const,
+            source: 'core' as const,
+            message: opts.message ?? `Avoid eval() — it is unsafe and hard to reason about`,
+            path: file.path,
+            line: i + 1,
+          });
+        }
+      }
+      return violations;
+    });
+}
+
+// ─── requireFinalClasses ─────────────────────────────────────────────────────
+
+export interface RequireFinalClassesOptions {
+  readonly message?: string;
+}
+
+/**
+ * Checks that class declarations include the `final` keyword. Text-based.
+ * Skips abstract classes (which cannot be final) and anonymous classes.
+ */
+export function requireFinalClasses(opts: RequireFinalClassesOptions = {}): Check {
+  return (file) =>
+    Effect.sync(() => {
+      const violations: Violation[] = [];
+      const lines = file.content.split('\n');
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i] ?? '';
+        // Match `class Name` declarations (not `new class`, not `abstract class`).
+        const classMatch = /^\s*(?:(?:final|abstract)\s+)*class\s+(\w+)/.exec(line);
+        if (!classMatch) continue;
+        // Skip abstract classes (cannot be final) and anonymous classes.
+        if (/\babstract\s+class\b/.test(line)) continue;
+        if (/\bfinal\s+class\b/.test(line)) continue;
+        const name = classMatch[1] ?? '';
+        violations.push({
+          rule: '',
+          severity: 'warn' as const,
+          source: 'core' as const,
+          message: opts.message ?? `Class '${name}' should be declared final`,
+          path: file.path,
+          line: i + 1,
+        });
+      }
+      return violations;
+    });
+}

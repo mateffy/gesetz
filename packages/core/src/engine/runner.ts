@@ -5,8 +5,8 @@ import type { Violation, Exemption } from './rule';
 import type { ResolvedConfig } from './config';
 import type { FileSystem, ProjectRoot } from '../services/fs';
 import { FileFilter } from '../services/fs';
-import type { TsAdapter } from '../services/ts-adapter';
-import type { PhpAdapter } from '../services/php-adapter';
+import type { SyntaxTree } from '../services/syntax-tree';
+import type { ImportResolver } from '../services/import-resolver';
 
 export interface RuleResult {
   readonly ruleId: string;
@@ -149,7 +149,11 @@ export function applyExemptions(
  */
 export const runAll = (
   config: ResolvedConfig,
-): Effect.Effect<RunResult, never, FileSystem | TsAdapter | PhpAdapter | ProjectRoot | FileFilter> =>
+): Effect.Effect<
+  RunResult,
+  never,
+  FileSystem | SyntaxTree | ImportResolver | ProjectRoot | FileFilter
+> =>
   Effect.gen(function* () {
     const changedFiles = resolveChangedFiles(config.changedSince, config.projectRoot);
     const fileFilter = yield* FileFilter;

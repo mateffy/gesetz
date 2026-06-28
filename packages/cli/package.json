@@ -1,6 +1,6 @@
 {
   "name": "@gesetz/cli",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "type": "module",
   "bin": {
     "gesetz": "./dist/main.js"
@@ -9,12 +9,17 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "build": "bun build src/main.ts --outdir dist --target bun --format esm --sourcemap --external dependency-cruiser --external eslint --external ts-morph --external tree-sitter --external tree-sitter-php --external @gesetz/core --external @gesetz/typescript --external @gesetz/php --external @gesetz/oxlint --external @gesetz/oxfmt --external @gesetz/vitest --external @gesetz/bun-test --external @gesetz/pest --external @gesetz/prettier --external @gesetz/junit --external @gesetz/effect-ts --external @gesetz/eslint --external @gesetz/phpstan --external @gesetz/storybook --external @gesetz/phpunit --external effect --external @effect/cli --external @effect/platform --external @effect/platform-node --external @effect/platform-node-shared --external @effect/printer --external @effect/printer-ansi",
+    "build": "bun build src/main.ts --outdir dist --target bun --format esm --sourcemap --external oxc-parser --external @ast-grep/napi --external @ast-grep/lang-php --external eslint --external @gesetz/core --external @gesetz/typescript --external @gesetz/php --external @gesetz/oxlint --external @gesetz/oxfmt --external @gesetz/vitest --external @gesetz/bun-test --external @gesetz/pest --external @gesetz/prettier --external @gesetz/junit --external @gesetz/effect-ts --external @gesetz/eslint --external @gesetz/phpstan --external @gesetz/storybook --external @gesetz/phpunit --external effect --external @effect/cli --external @effect/platform --external @effect/platform-node --external @effect/platform-node-shared --external @effect/printer --external @effect/printer-ansi",
+    "prepack": "bun run build",
     "dev": "bun run src/main.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
   },
+  "files": [
+    "dist",
+    "src"
+  ],
   "dependencies": {
     "@effect/cli": "^0.55.0",
     "@effect/platform": "^0.80.0",

@@ -1,6 +1,6 @@
 {
   "name": "@gesetz/typescript",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "type": "module",
   "exports": {
     ".": "./src/index.ts"
@@ -14,7 +14,8 @@
     "@gesetz/core": "workspace:*",
     "effect": "^3.15.0",
     "micromatch": "^4.0.8",
-    "ts-morph": "^25.0.1"
+    "oxc-parser": "^0.137.0",
+    "@ast-grep/napi": "^0.44.0"
   },
   "devDependencies": {
     "@types/micromatch": "^4.0.9",

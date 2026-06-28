@@ -1,12 +1,14 @@
 import { Effect } from 'effect';
+import { SyntaxTree } from '@gesetz/core';
 import type { Check, Violation } from '@gesetz/core';
-import { SyntaxKind } from 'ts-morph';
-import type { FunctionDeclaration, SourceFile } from 'ts-morph';
-import { loadSourceFile } from './shared';
+import { parseFile, findByKind, findChildText, startLine } from './shared';
 
 /**
  * Checks that the file does not define local helper function components
  * (functions returning JSX that are not the main exported component).
+ *
+ * Implemented with ast-grep (syntactic) for JSX detection + `SyntaxTree`
+ * (oxc-parser) for the exported-names list. Replaces the ts-morph version.
  *
  * @example
  * // Route files must not define local helper components
@@ -14,38 +16,41 @@ import { loadSourceFile } from './shared';
  */
 export function noLocalFunctionComponents(
   opts: {
-    tsConfigPath?: string;
-    message?: (name: string) => string;
+    readonly message?: (name: string) => string;
     /** If true, only flag non-exported components (default: flag all non-main components) */
-    excludeExportedNames?: boolean;
+    readonly excludeExportedNames?: boolean;
   } = {},
 ): Check {
   return (file) =>
     Effect.gen(function* () {
-      const sourceFile = yield* loadSourceFile(file.absolutePath, opts.tsConfigPath);
+      const root = parseFile(file.content, file.path);
+      if (root === null) return [];
 
-      if (sourceFile === null) return [];
+      // Build the set of exported names via the SyntaxTree service (oxc-parser).
+      const st = yield* SyntaxTree;
+      let exportedNames = new Set<string>();
+      if (st.canProcess(file)) {
+        const result = yield* st.process(file, { exports: true }).pipe(
+          Effect.catchAll(() => Effect.succeed({ imports: [], calls: [], exports: [], structure: [] })),
+        );
+        exportedNames = new Set(result.exports.map((e) => e.name));
+      }
 
-      const sf = sourceFile._tsMorph as SourceFile;
       const violations: Violation[] = [];
-
-      // Get all exported declaration names to identify the "main" component
-      const exportedNames = new Set<string>(
-        [...sf.getExportedDeclarations()].map(([name]) => name),
-      );
-
-      const functions: readonly FunctionDeclaration[] = sf.getDescendantsOfKind?.(SyntaxKind.FunctionDeclaration) ?? [];
+      const functions = findByKind(root, 'function_declaration');
 
       for (const fn of functions) {
-        const name = fn.getName?.();
+        const name = findChildText(fn, 'identifier');
         if (!name || name === 'default') continue;
         if (opts.excludeExportedNames && exportedNames.has(name)) continue;
         if (exportedNames.has(name)) continue; // main export — skip
 
-        // Check if it contains JSX
-        const hasJsx = fn.getDescendantsOfKind?.(SyntaxKind.JsxElement)?.length > 0 ||
-          fn.getDescendantsOfKind?.(SyntaxKind.JsxSelfClosingElement)?.length > 0 ||
-          fn.getDescendantsOfKind?.(SyntaxKind.JsxFragment)?.length > 0;
+        // Check if it contains JSX. ast-grep parses `<>...</>` as a
+        // `jsx_element` with an empty opening, so `jsx_element` +
+        // `jsx_self_closing_element` covers all JSX forms.
+        const hasJsx =
+          fn.findAll({ rule: { kind: 'jsx_element' } }).length > 0 ||
+          fn.findAll({ rule: { kind: 'jsx_self_closing_element' } }).length > 0;
 
         if (hasJsx) {
           violations.push({
@@ -56,7 +61,7 @@ export function noLocalFunctionComponents(
               opts.message?.(name) ??
               `Local function component '${name}' should be moved to its own file`,
             path: file.path,
-            line: fn.getStartLineNumber?.(),
+            line: startLine(fn),
           });
         }
       }
