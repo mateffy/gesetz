@@ -14,9 +14,7 @@
     "@gesetz/oxfmt": "workspace:*",
     "@gesetz/oxlint": "workspace:*",
     "@gesetz/storybook": "workspace:*",
-    "@gesetz/phpunit": "workspace:*",
-    "dependency-cruiser": "^18.0.0",
-    "enhanced-resolve": "^5.24.1"
+    "@gesetz/phpunit": "workspace:*"
   },
   "scripts": {
     "test": "bun run --filter='*' test",

@@ -72,7 +72,16 @@ for (const rel of packages) {
   if (report) console.log(`  ${rel.padEnd(32)} ${report}`);
 }
 
-console.log('\nRunning bun install to update lockfile…');
+console.log('\nRegenerating lockfile (delete + fresh install)…');
+// `bun install` alone no-ops on version-only changes and leaves the lockfile
+// with stale versions. `bun pm pack` then resolves `workspace:*` from the
+// stale lockfile, producing internally-inconsistent published packages
+// (e.g. 1.2.0 adapters depending on @gesetz/core 1.1.1). Deleting the
+// lockfile first forces a full rewrite that picks up the new versions.
+const lockPath = nodePath.join(ROOT, 'bun.lock');
+if (nodeFs.existsSync(lockPath)) {
+  nodeFs.unlinkSync(lockPath);
+}
 const proc = Bun.spawn(['bun', 'install'], { cwd: ROOT, stdout: 'inherit', stderr: 'inherit' });
 await proc.exited;
 console.log('\nDone.');
