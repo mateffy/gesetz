@@ -5,6 +5,77 @@ All notable changes to **Gesetz** and the `@gesetz/*` packages are documented he
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] — 2026-06-28
+
+Migrated the entire toolchain from **Bun to pnpm + tsdown**. Packages now
+ship compiled JavaScript (ESM) and TypeScript declarations instead of raw
+`.ts` source, so they run under any Node-compatible runtime — not just Bun.
+This release also fixes the publishing correctness bug that made 1.2.0
+internally inconsistent (adapters resolving `@gesetz/core` to a stale
+`1.1.1` in their tarballs).
+
+### Changed
+
+**Package manager: Bun → pnpm 11.9.0.** `bun.lock` replaced by
+`pnpm-lock.yaml`; `pnpm-workspace.yaml` added; `packageManager: "pnpm@11.9.0"`
+declared. The `workspaces` field was removed from the root `package.json`
+(pnpm reads `pnpm-workspace.yaml` instead). Root scripts now use `pnpm -r`
+and `pnpm --filter`.
+
+This fixes the core publishing problem: Bun resolves `workspace:*` from
+`bun.lock`, and `bun install` does **not** refresh workspace versions in
+`bun.lock` after a version bump (oven-sh/bun#18906, still open as of Bun
+1.3.14 — also affects `bun install --force` and `bun install
+--lockfile-only`). The result was that `bun pm pack` / `bun publish` baked
+stale dependency versions into published tarballs. **pnpm resolves
+`workspace:*` from each package's `package.json` at pack/publish time** —
+the documented, correct behavior — so no lockfile gymnastics are required.
+
+**Build tool: `bun build` → tsdown 0.22.3.** tsdown (Rolldown-based, the
+official successor to tsup) builds every package to `dist/*.js` (ESM) +
+`dist/*.d.ts`. `exports` now point at `dist` with a `types` condition;
+`files: ["dist"]`; `prepack: tsdown`. The root `tsdown.config.ts` drives
+workspace builds (`tsdown -W`); per-package configs in `packages/*/
+tsdown.config.ts` handle the `./reporters` subpath (`@gesetz/core`) and the
+bundled executable with node shebang (`@gesetz/cli`).
+
+**`@gesetz/cli` runs under plain Node.** The shebang changed from
+`#!/usr/bin/env bun` to `#!/usr/bin/env node`. The CLI is now a self-contained
+ESM bundle (`dist/main.js`, ~58 KB) with `@gesetz/*`, the Effect ecosystem,
+oxc-parser, and `@ast-grep/*` kept external. Verified: `node dist/main.js
+--help` works.
+
+**Every published package now ships compiled JS + types**, not raw
+TypeScript. `exports` use the conditional `{ "types": "./dist/*.d.ts",
+"import": "./dist/*.js" }` shape. `publint` reports clean across all 18
+packages.
+
+### Removed
+
+- **`bun.lock`** — replaced by `pnpm-lock.yaml`.
+- **`scripts/bump-version.ts`** — the hand-rolled version bumper whose only
+  job was to delete-and-regenerate `bun.lock` to work around Bun's stale-
+  workspace-version bug. With pnpm, `pnpm version` and `pnpm -r publish`
+  handle this natively.
+- **`scripts/publish-all.ts`** — the hand-rolled publish orchestrator with
+  its pre-publish `workspace:*` consistency check. Replaced by
+  `pnpm -r publish --access public`, which resolves workspace versions
+  correctly without a safety net.
+- **`tsup`** dev dependency on `@gesetz/cli` — replaced by `tsdown`.
+
+### Migration notes (from 1.2.0)
+
+1. **No source-level changes required.** The public API of every package is
+   unchanged; only the published artifact format changed (`.ts` → `.js` +
+   `.d.ts`).
+2. **Runtime no longer requires Bun.** Any Node 20+ runtime works.
+3. **If you develop in this repo**, switch to pnpm: `npm i -g pnpm`, then
+   `pnpm install`. Use `pnpm run build` / `pnpm run test` / `pnpm run
+   typecheck` instead of the `bun run` equivalents. The `pnpm publish`
+   flow replaces the deleted scripts.
+
+---
+
 ## [1.2.0] — 2026-06-27
 
 A ground-up rewrite of the rule engine. Core is now parser-free; language
