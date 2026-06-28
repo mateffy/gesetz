@@ -57,7 +57,7 @@ async function publish(dir: string): Promise<void> {
     return;
   }
   // Run the package's `prepack` script if it declares one. This guarantees
-  // build artifacts (e.g. @gesellschaft/cli's dist/main.js) exist before the
+  // build artifacts (e.g. @gesetz/cli's dist/main.js) exist before the
   // tarball is packed, even if `bun publish` does not honour the lifecycle
   // hook itself. Belt-and-suspenders alongside the package.json prepack hook.
   const prepack = pkg.scripts?.prepack;
@@ -90,11 +90,11 @@ async function publish(dir: string): Promise<void> {
 console.log('Publishing all packages…\n');
 
 // Pre-publish guard: verify workspace dependency consistency.
-// Packs @gesellschaft/cli (the package with the deepest @gesellschaft/* dep
-// chain) and asserts every @gesellschaft/* dependency in the tarball resolves
+// Packs @gesetz/cli (the package with the deepest @gesetz/* dep
+// chain) and asserts every @gesetz/* dependency in the tarball resolves
 // to the version declared in that dependency's own package.json. This catches
 // the known Bun bug where bun.lock keeps stale workspace versions after a
-// version bump, which would ship packages whose @gesellschaft/* deps point at
+// version bump, which would ship packages whose @gesetz/* deps point at
 // old registry versions.
 await verifyWorkspaceConsistency();
 
@@ -106,7 +106,7 @@ console.log('\n✅ All packages published.');
 // ─── Verification ────────────────────────────────────────────────────────
 
 async function verifyWorkspaceConsistency(): Promise<void> {
-  // Build a map of @gesellschaft/* package name → expected version, read from
+  // Build a map of @gesetz/* package name → expected version, read from
   // each workspace's package.json (the source of truth after a bump).
   const expectedVersions = new Map<string, string>();
   for (const dir of PACKAGES) {
@@ -121,11 +121,11 @@ async function verifyWorkspaceConsistency(): Promise<void> {
     expectedVersions.set(pkg.name, pkg.version);
   }
 
-  // Pack @gesellschaft/cli (deepest dep chain: core, typescript, php).
+  // Pack @gesetz/cli (deepest dep chain: core, typescript, php).
   // `bun pm pack` resolves workspace:* from bun.lock, so this is the real
   // test of what would ship.
   const probeDir = nodePath.join(ROOT, 'packages/cli');
-  console.log('Verifying workspace consistency (@gesellschaft/cli pack)…');
+  console.log('Verifying workspace consistency (@gesetz/cli pack)…');
   const packOut = nodeChildProcess.execSync('bun pm pack', {
     cwd: probeDir,
     encoding: 'utf-8',
@@ -163,14 +163,14 @@ async function verifyWorkspaceConsistency(): Promise<void> {
     if (mismatches.length > 0) {
       console.error(
         '\n❌ Workspace dependency consistency check FAILED.\n' +
-          'The packed tarball resolves @gesellschaft/* deps to versions that do not match the package.json versions.\n' +
+          'The packed tarball resolves @gesetz/* deps to versions that do not match the package.json versions.\n' +
           'This is the known Bun bug (oven-sh/bun#18906, #20477) where bun.lock keeps stale workspace versions after a bump.\n' +
           'Fix: run `bun install --force` (or `bun run scripts/bump-version.ts <patch|minor|major>`) to refresh the lockfile, then re-run publish.\n\n' +
           mismatches.join('\n'),
       );
       process.exit(1);
     }
-    console.log('  ✓ all @gesellschaft/* deps resolve to expected versions\n');
+    console.log('  ✓ all @gesetz/* deps resolve to expected versions\n');
   } finally {
     // Clean up the probe tarball.
     if (nodeFs.existsSync(tgzPath)) {

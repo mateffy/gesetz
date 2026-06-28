@@ -10,7 +10,7 @@
  *
  * `ts-morph` is NOT used here. No check in this package needs the TypeScript
  * type checker. For type-checked rules like `no-floating-promises`, use
- * `@gesellschaft/eslint` or `@gesellschaft/oxlint` with `--type-aware`.
+ * `@gesetz/eslint` or `@gesetz/oxlint` with `--type-aware`.
  */
 import type {
   SyntaxBackend,

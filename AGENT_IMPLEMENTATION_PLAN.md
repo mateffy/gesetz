@@ -24,7 +24,7 @@ The original plan kept `ts-morph` + the `TsAdapter` service tag in core "for dee
    docs (`requiresTypeChecking: true`) and the ast-grep catalog (no such rule exists).
 3. **`noFloatingPromises` is already available, type-checked and battle-tested, via two adapters this project ships:**
    - `@gesetz/eslint` → `@typescript-eslint/no-floating-promises`
-   - `@gesellschaft/oxlint` → `typescript/no-floating-promises` (oxlint v1.11.0+ with `--type-aware` + `tsgolint`)
+   - `@gesetz/oxlint` → `typescript/no-floating-promises` (oxlint v1.11.0+ with `--type-aware` + `tsgolint`)
    Reimplementing it here would be a strictly-worse third copy.
 
 **Therefore the following overrides apply throughout the rest of this plan:"
@@ -2327,9 +2327,9 @@ after a context reset. Be specific about what was done and what is next.
     [X] 7.3 — Kept TsAdapterError/PhpAdapterError in errors.ts? NO — overridden: deleted both, deleted ts-adapter.ts/php-adapter.ts, removed all exports
     [X] 7.4 — Fixed all 11 out-of-scope adapter test files (eslint/oxlint/oxfmt/phpstan/phpunit/pest/vitest/prettier/storybook/bun-test) to use SyntaxTreeStub + ImportResolverDefault instead of TsAdapterStub/PhpAdapterStub
     [X] 7.5 — Fixed all core test files (select/architecture/fs/runner/structure) to use SyntaxTreeStub + ImportResolverDefault; removed moved-check test blocks (noConsoleLog/noEmptyCatch/noMagicNumbers/noTrivialComment/relativeImports) from core tests
-    [X] 7.6 — Migrated @gesellschaft/effect-ts tests from fake TsAdapter+ts-morph to direct Effect.runPromise (checks now use ast-grep via Effect.sync)
-    [X] 7.7 — Removed @gesellschaft/typescript + ts-morph deps from @gesellschaft/effect-ts/package.json
-    [X] 7.8 — Updated dogfooding gesetz.config.ts: import moved checks from @gesellschaft/typescript, add adapters:[typescriptSyntaxBackend]
+    [X] 7.6 — Migrated @gesetz/effect-ts tests from fake TsAdapter+ts-morph to direct Effect.runPromise (checks now use ast-grep via Effect.sync)
+    [X] 7.7 — Removed @gesetz/typescript + ts-morph deps from @gesetz/effect-ts/package.json
+    [X] 7.8 — Updated dogfooding gesetz.config.ts: import moved checks from @gesetz/typescript, add adapters:[typescriptSyntaxBackend]
     [X] 7.9 — Updated packages/cli build script: removed --external dependency-cruiser/ts-morph/tree-sitter/tree-sitter-php; added --external oxc-parser/@ast-grep/napi/@ast-grep/lang-php
     [X] 7.10 — Verify: bun run typecheck across all 18 packages = 0 errors
 
@@ -2348,7 +2348,7 @@ after a context reset. Be specific about what was done and what is next.
     [X] 8.3 — Test helpers for SyntaxTree-backed checks (packages/core/tests/helpers/syntax-tree.ts: makeSyntaxTreeLayer + SyntaxTreeUnavailable) + tests for noDirectCalls, requireNamingConvention, noForbiddenNames, requireDocstrings, requireExportsMatching, requireRelatedExports, requireMinStructureCount
     [X] 8.4 — Integration tests for typescriptSyntaxBackend (packages/typescript/tests/syntax-backend.test.ts — 16 tests: extractImports specifiers/names/lines/default-imports, extractExports excludes default, extractCalls member-access + .tsx, extractStructure fn/class/method nesting/docstrings)
     [X] 8.5 — Tests for phpSyntaxBackend (packages/php/tests/syntax-backend.test.ts — 14 tests: grouped use {A,B}, aliased `as`, var_dump/dumpx calls, class+method structure, docstrings; skipped if @ast-grep/lang-php absent)
-    [X] 8.6 — Tests for moved-from-core checks in @gesellschaft/typescript (packages/typescript/tests/moved-checks.test.ts — 13 tests: noConsoleLog, noEmptyCatch, noMagicNumbers, noTrivialComment, relativeImports)
+    [X] 8.6 — Tests for moved-from-core checks in @gesetz/typescript (packages/typescript/tests/moved-checks.test.ts — 13 tests: noConsoleLog, noEmptyCatch, noMagicNumbers, noTrivialComment, relativeImports)
     [X] 8.7 — Fixed CLI mojibake test (bundle-mojibake.test.ts): scoped `gesetz check` to `--category organization` (passing) so execFileSync doesn't throw on quality-gate failure; test verifies mojibake detection (its actual intent)
     [X] 8.8 — Final verification: 314 tests passing across 15 packages, 0 failing suites, 18/18 packages typecheck clean (0 errors), `gesetz check` runs in 86MB (guarded watchdog confirmed)
 
@@ -2358,12 +2358,12 @@ All 8 phases done. Final state:
 - Core is parser-free (zero parser deps); TsAdapter/PhpAdapter fully deleted (no shims)
 - ts-morph removed from typescript + effect-ts; all checks migrated to SyntaxBackend (ast-grep/oxc-parser)
 - tree-sitter/tree-sitter-php/dependency-cruiser removed
-- noFloatingPromises dropped (delegated to @gesellschaft/eslint/@gesellschaft/oxlint type-aware)
+- noFloatingPromises dropped (delegated to @gesetz/eslint/@gesetz/oxlint type-aware)
 - SyntaxBackend routing pattern (SyntaxTreeLive) + ImportResolver in core
 - defineArchitecture uses SyntaxTree (one Rule, not O(n^2))
 - noCycles rewritten with DFS (no dependency-cruiser)
 - All renames applied (requireRelatedExports/requireExportsMatching/requireOptionsObject)
-- noConsoleLog/noEmptyCatch/noMagicNumbers/noTrivialComment/relativeImports moved to @gesellschaft/typescript
+- noConsoleLog/noEmptyCatch/noMagicNumbers/noTrivialComment/relativeImports moved to @gesetz/typescript
 - PHP/Laravel properly separated; new PHP checks + Laravel noDd/noFacades
 - Memory-bounded FileSystemLive.glob (lazy content + default ignores)
 - 314 tests green; 18 packages typecheck clean; gesetz check peaks at 86MB
