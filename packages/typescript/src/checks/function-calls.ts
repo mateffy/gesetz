@@ -1,4 +1,3 @@
-import { Effect } from 'effect';
 import type { Check, Violation } from '@gesetz/core';
 import { parseFile, findByKind, startLine } from './shared';
 
@@ -19,28 +18,26 @@ export function noFunctionCalls(
 ): Check {
   const nameSet = new Set(callNames);
 
-  return (file) =>
-    Effect.sync(() => {
-      const root = parseFile(file.content, file.path);
-      if (root === null) return [];
+  return async (file) => {
+    const root = parseFile(file.content, file.path);
+    if (root === null) return [];
 
-      const violations: Violation[] = [];
-      const calls = findByKind(root, 'call_expression');
+    const violations: Violation[] = [];
+    const calls = findByKind(root, 'call_expression');
 
-      for (const call of calls) {
-        const callName = call.child(0)?.text() ?? '';
-        if (nameSet.has(callName)) {
-          violations.push({
-            rule: '',
-            severity: 'error',
-            source: 'core',
-            message: opts.message?.(callName) ?? `Forbidden function call: ${callName}()`,
-            path: file.path,
-            line: startLine(call),
-          });
-        }
+    for (const call of calls) {
+      const callName = call.child(0)?.text() ?? '';
+      if (nameSet.has(callName)) {
+        violations.push({
+          severity: 'error',
+          source: 'core',
+          message: opts.message?.(callName) ?? `Forbidden function call: ${callName}()`,
+          path: file.path,
+          line: startLine(call),
+        });
       }
+    }
 
-      return violations;
-    });
+    return violations;
+  };
 }

@@ -1,5 +1,3 @@
-import { Effect } from 'effect';
-import { SyntaxTree } from '../../services/syntax-tree';
 import type { Check, Violation } from '../../engine/rule';
 
 /**
@@ -45,19 +43,15 @@ export function noImportFrom(
 
   const label = typeof module === 'string' ? module : module.source;
 
-  return (file) =>
-    Effect.gen(function* () {
-      const st = yield* SyntaxTree;
-      const violations: Violation[] = [];
+  return async (file, { syntaxTree: st }) => {
+    const violations: Violation[] = [];
 
-      if (st.canProcess(file)) {
-        const result = yield* st.process(file, { imports: true }).pipe(
-          Effect.catchAll(() => Effect.succeed({ imports: [], calls: [], exports: [], structure: [] })),
-        );
+    if (st.canProcess(file)) {
+      try {
+        const result = await st.process(file, { imports: true });
         for (const imp of result.imports) {
           if (matcher(imp.specifier)) {
             violations.push({
-              rule: '',
               severity: opts.severity ?? 'error',
               source: 'core',
               message: opts.message ?? `Forbidden import from '${label}'`,
@@ -67,22 +61,24 @@ export function noImportFrom(
           }
         }
         return violations;
+      } catch {
+        // fall through to regex fallback
       }
+    }
 
-      // Regex fallback for unregistered extensions
-      for (const specifier of regexExtractImports(file.content)) {
-        if (matcher(specifier)) {
-          violations.push({
-            rule: '',
-            severity: opts.severity ?? 'error',
-            source: 'core',
-            message: opts.message ?? `Forbidden import from '${label}'`,
-            path: file.path,
-          });
-        }
+    // Regex fallback for unregistered extensions
+    for (const specifier of regexExtractImports(file.content)) {
+      if (matcher(specifier)) {
+        violations.push({
+          severity: opts.severity ?? 'error',
+          source: 'core',
+          message: opts.message ?? `Forbidden import from '${label}'`,
+          path: file.path,
+        });
       }
-      return violations;
-    });
+    }
+    return violations;
+  };
 }
 
 /**
@@ -103,30 +99,28 @@ export function requireImportFrom(
 
   const label = typeof module === 'string' ? module : module.source;
 
-  return (file) =>
-    Effect.gen(function* () {
-      const st = yield* SyntaxTree;
-
-      let specifiers: string[];
-      if (st.canProcess(file)) {
-        const result = yield* st.process(file, { imports: true }).pipe(
-          Effect.catchAll(() => Effect.succeed({ imports: [], calls: [], exports: [], structure: [] })),
-        );
+  return async (file, { syntaxTree: st }) => {
+    let specifiers: string[];
+    if (st.canProcess(file)) {
+      try {
+        const result = await st.process(file, { imports: true });
         specifiers = result.imports.map((i) => i.specifier);
-      } else {
+      } catch {
         specifiers = regexExtractImports(file.content);
       }
+    } else {
+      specifiers = regexExtractImports(file.content);
+    }
 
-      if (specifiers.some(matcher)) return [];
+    if (specifiers.some(matcher)) return [];
 
-      return [
-        {
-          rule: '',
-          severity: opts.severity ?? 'error',
-          source: 'core' as const,
-          message: opts.message ?? `Missing required import from '${label}'`,
-          path: file.path,
-        },
-      ];
-    });
+    return [
+      {
+        severity: opts.severity ?? 'error',
+        source: 'core',
+        message: opts.message ?? `Missing required import from '${label}'`,
+        path: file.path,
+      },
+    ];
+  };
 }

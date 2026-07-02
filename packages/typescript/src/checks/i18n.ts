@@ -1,4 +1,3 @@
-import { Effect } from 'effect';
 import type { Check, Severity, Violation } from '@gesetz/core';
 import { parseFile, findByKind, startLine } from './shared';
 import type { SgNode } from '@ast-grep/napi';
@@ -98,61 +97,58 @@ export function noHardcodedStrings(opts: NoHardcodedStringsOptions = {}): Check 
   const textSeverity: Severity = opts.textSeverity ?? 'error';
   const hasLetter = opts.hasLetterRegex ?? /[A-Za-zÄÖÜäöüßÀ-ÿ]/;
 
-  return (file) =>
-    Effect.sync(() => {
-      const root = parseFile(file.content, file.path);
-      if (root === null) return [];
+  return async (file) => {
+    const root = parseFile(file.content, file.path);
+    if (root === null) return [];
 
-      const violations: Violation[] = [];
+    const violations: Violation[] = [];
 
-      // ── Case 1: Raw JSX text children ──
-      // <div>Hello world</div>  →  "Hello world" is a jsx_text node.
-      // Only flagged when it contains a letter, so whitespace-only and
-      // punctuation-only text nodes (commonly used for JSX formatting) are
-      // ignored.
-      for (const node of findByKind(root, 'jsx_text')) {
-        const text = node.text();
-        if (hasLetter.test(text)) {
-          violations.push({
-            rule: '',
-            severity: textSeverity,
-            source: 'core',
-            message: `JSX text "${text.trim().slice(0, 40)}" must use a translation API`,
-            path: file.path,
-            line: startLine(node),
-            context: `JSX text: ${JSON.stringify(text.trim().slice(0, 60))}`,
-          });
-        }
+    // ── Case 1: Raw JSX text children ──
+    // <div>Hello world</div>  →  "Hello world" is a jsx_text node.
+    // Only flagged when it contains a letter, so whitespace-only and
+    // punctuation-only text nodes (commonly used for JSX formatting) are
+    // ignored.
+    for (const node of findByKind(root, 'jsx_text')) {
+      const text = node.text();
+      if (hasLetter.test(text)) {
+        violations.push({
+          severity: textSeverity,
+          source: 'core',
+          message: `JSX text "${text.trim().slice(0, 40)}" must use a translation API`,
+          path: file.path,
+          line: startLine(node),
+          context: `JSX text: ${JSON.stringify(text.trim().slice(0, 60))}`,
+        });
       }
+    }
 
-      // ── Case 2: Known text-bearing attributes with string-literal values ──
-      // <input placeholder="Search" />  →  placeholder is in the allowlist and
-      // its value is a raw string literal. Props not in the allowlist
-      // (className, href, to, variant, size, value, src, ...) are skipped.
-      // Expression-container values ({m.foo()}) are skipped — only raw string
-      // literals are flagged.
-      for (const attr of findByKind(root, 'jsx_attribute')) {
-        const name = attr.child(0)?.text() ?? '';
-        if (!textAttributes.has(name)) continue;
+    // ── Case 2: Known text-bearing attributes with string-literal values ──
+    // <input placeholder="Search" />  →  placeholder is in the allowlist and
+    // its value is a raw string literal. Props not in the allowlist
+    // (className, href, to, variant, size, value, src, ...) are skipped.
+    // Expression-container values ({m.foo()}) are skipped — only raw string
+    // literals are flagged.
+    for (const attr of findByKind(root, 'jsx_attribute')) {
+      const name = attr.child(0)?.text() ?? '';
+      if (!textAttributes.has(name)) continue;
 
-        // Only flag raw string literals, not expression containers like {m.foo()}
-        const valueNode = attr.children().find((c) => c.kind() === 'string');
-        if (!valueNode) continue;
+      // Only flag raw string literals, not expression containers like {m.foo()}
+      const valueNode = attr.children().find((c) => c.kind() === 'string');
+      if (!valueNode) continue;
 
-        const value = stringLiteralValue(valueNode) ?? '';
-        if (hasLetter.test(value)) {
-          violations.push({
-            rule: '',
-            severity: attributeSeverity,
-            source: 'core',
-            message: `Prop '${name}'="${value.slice(0, 40)}" should use a translation API`,
-            path: file.path,
-            line: startLine(attr),
-            context: `prop ${name}=${JSON.stringify(value.slice(0, 60))}`,
-          });
-        }
+      const value = stringLiteralValue(valueNode) ?? '';
+      if (hasLetter.test(value)) {
+        violations.push({
+          severity: attributeSeverity,
+          source: 'core',
+          message: `Prop '${name}'="${value.slice(0, 40)}" should use a translation API`,
+          path: file.path,
+          line: startLine(attr),
+          context: `prop ${name}=${JSON.stringify(value.slice(0, 60))}`,
+        });
       }
+    }
 
-      return violations;
-    });
+    return violations;
+  };
 }

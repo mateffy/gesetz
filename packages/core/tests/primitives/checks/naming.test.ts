@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { Effect } from 'effect';
 import { requireNamingConvention, noForbiddenNames } from '../../../src/primitives/checks/naming';
 import { makeSyntaxTreeLayer, SyntaxTreeUnavailable } from '../../helpers/syntax-tree';
+import { buildCheckServices } from '../../helpers/services';
+import { ProjectRootLive } from '../../../src/services/fs';
+import { ImportResolverDefault } from '../../../src/services/import-resolver';
 import type { File } from '../../../src/engine/rule';
 
 function makeFile(name = 'foo.ts'): File {
@@ -18,9 +20,18 @@ function makeFile(name = 'foo.ts'): File {
   };
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const run = (effect: Effect.Effect<any, any, any>, layer: any): Promise<any> =>
-  Effect.provide(effect, layer).pipe(Effect.runPromise as any);
+async function runCheck(
+  check: (file: File, services: any) => Promise<any>,
+  file: File,
+  layer: any,
+) {
+  const services = await buildCheckServices(
+    layer,
+    ProjectRootLive('/abs'),
+    ImportResolverDefault,
+  );
+  return check(file, services);
+}
 
 describe('requireNamingConvention', () => {
   it('flags items whose name does not match the pattern', async () => {
@@ -31,8 +42,9 @@ describe('requireNamingConvention', () => {
         { kind: 'function', name: 'also_bad', startLine: 5, endLine: 6, docstring: null, children: [] },
       ],
     });
-    const violations = await run(
-      requireNamingConvention({ kinds: ['function'], pattern: /^[a-z][a-zA-Z0-9]*$/ })(makeFile()),
+    const violations = await runCheck(
+      requireNamingConvention({ kinds: ['function'], pattern: /^[a-z][a-zA-Z0-9]*$/ }),
+      makeFile(),
       layer,
     );
     expect(violations).toHaveLength(2);
@@ -47,8 +59,9 @@ describe('requireNamingConvention', () => {
         { kind: 'class', name: 'BadClass', startLine: 3, endLine: 4, docstring: null, children: [] },
       ],
     });
-    const violations = await run(
-      requireNamingConvention({ pattern: /^[A-Z]/ })(makeFile()),
+    const violations = await runCheck(
+      requireNamingConvention({ pattern: /^[A-Z]/ }),
+      makeFile(),
       layer,
     );
     expect(violations).toHaveLength(1);
@@ -70,8 +83,9 @@ describe('requireNamingConvention', () => {
         },
       ],
     });
-    const violations = await run(
-      requireNamingConvention({ kinds: ['method'], pattern: /^[a-z][a-zA-Z0-9]*$/ })(makeFile()),
+    const violations = await runCheck(
+      requireNamingConvention({ kinds: ['method'], pattern: /^[a-z][a-zA-Z0-9]*$/ }),
+      makeFile(),
       layer,
     );
     expect(violations).toHaveLength(1);
@@ -79,8 +93,9 @@ describe('requireNamingConvention', () => {
   });
 
   it('returns [] when canProcess is false', async () => {
-    const violations = await run(
-      requireNamingConvention({ pattern: /x/ })(makeFile()),
+    const violations = await runCheck(
+      requireNamingConvention({ pattern: /x/ }),
+      makeFile(),
       SyntaxTreeUnavailable,
     );
     expect(violations).toHaveLength(0);
@@ -96,7 +111,7 @@ describe('noForbiddenNames', () => {
         { kind: 'function', name: 'safe', startLine: 5, endLine: 6, docstring: null, children: [] },
       ],
     });
-    const violations = await run(noForbiddenNames(['foo', 'bar'])(makeFile()), layer);
+    const violations = await runCheck(noForbiddenNames(['foo', 'bar']), makeFile(), layer);
     expect(violations).toHaveLength(2);
   });
 
@@ -108,7 +123,7 @@ describe('noForbiddenNames', () => {
         { kind: 'function', name: 'real', startLine: 5, endLine: 6, docstring: null, children: [] },
       ],
     });
-    const violations = await run(noForbiddenNames(/^tmp_/)(makeFile()), layer);
+    const violations = await runCheck(noForbiddenNames(/^tmp_/), makeFile(), layer);
     expect(violations).toHaveLength(2);
   });
 
@@ -119,8 +134,9 @@ describe('noForbiddenNames', () => {
         { kind: 'class', name: 'foo', startLine: 3, endLine: 4, docstring: null, children: [] },
       ],
     });
-    const violations = await run(
-      noForbiddenNames(['foo'], { kinds: ['function'] })(makeFile()),
+    const violations = await runCheck(
+      noForbiddenNames(['foo'], { kinds: ['function'] }),
+      makeFile(),
       layer,
     );
     expect(violations).toHaveLength(1);
@@ -133,8 +149,9 @@ describe('noForbiddenNames', () => {
         { kind: 'function', name: 'foo', startLine: 1, endLine: 2, docstring: null, children: [] },
       ],
     });
-    const violations = await run(
-      noForbiddenNames(['foo'], { message: (n) => `banned: ${n}` })(makeFile()),
+    const violations = await runCheck(
+      noForbiddenNames(['foo'], { message: (n) => `banned: ${n}` }),
+      makeFile(),
       layer,
     );
     expect(violations[0]?.message).toBe('banned: foo');

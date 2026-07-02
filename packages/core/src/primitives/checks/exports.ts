@@ -1,5 +1,3 @@
-import { Effect } from 'effect';
-import { SyntaxTree } from '../../services/syntax-tree';
 import type { Check, Violation } from '../../engine/rule';
 
 export interface RequireExportsMatchingOptions {
@@ -20,20 +18,16 @@ export function requireExportsMatching(
   minCount: number = 1,
   opts: RequireExportsMatchingOptions = {},
 ): Check {
-  return (file) =>
-    Effect.gen(function* () {
-      const st = yield* SyntaxTree;
-      if (!st.canProcess(file)) return [];
+  return async (file, { syntaxTree: st }) => {
+    if (!st.canProcess(file)) return [];
 
-      const result = yield* st.process(file, { exports: true }).pipe(
-        Effect.catchAll(() => Effect.succeed({ imports: [], calls: [], exports: [], structure: [] })),
-      );
+    try {
+      const result = await st.process(file, { exports: true });
       const count = result.exports.filter((e) => pattern.test(e.name)).length;
       if (count >= minCount) return [];
 
       return [
         {
-          rule: '',
           severity: opts.severity ?? 'error',
           source: 'core',
           message:
@@ -42,7 +36,10 @@ export function requireExportsMatching(
           path: file.path,
         },
       ];
-    });
+    } catch {
+      return [];
+    }
+  };
 }
 
 export interface RequireRelatedExportsOptions {
@@ -67,14 +64,11 @@ export function requireRelatedExports(
   getRelated: (name: string) => string[] | null,
   opts: RequireRelatedExportsOptions = {},
 ): Check {
-  return (file) =>
-    Effect.gen(function* () {
-      const st = yield* SyntaxTree;
-      if (!st.canProcess(file)) return [];
+  return async (file, { syntaxTree: st }) => {
+    if (!st.canProcess(file)) return [];
 
-      const result = yield* st.process(file, { exports: true }).pipe(
-        Effect.catchAll(() => Effect.succeed({ imports: [], calls: [], exports: [], structure: [] })),
-      );
+    try {
+      const result = await st.process(file, { exports: true });
       const exportNames = new Set(result.exports.map((e) => e.name));
       const violations: Violation[] = [];
 
@@ -85,7 +79,6 @@ export function requireRelatedExports(
         const missing = required.filter((r) => !exportNames.has(r));
         if (missing.length > 0) {
           violations.push({
-            rule: '',
             severity: opts.severity ?? 'error',
             source: 'core',
             message:
@@ -97,5 +90,8 @@ export function requireRelatedExports(
       }
 
       return violations;
-    });
+    } catch {
+      return [];
+    }
+  };
 }

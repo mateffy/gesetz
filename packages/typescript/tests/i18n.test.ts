@@ -1,8 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import * as nodePath from 'node:path';
-import { Effect } from 'effect';
 import { noHardcodedStrings } from '../src';
-import type { Check, File, Violation } from '@gesetz/core';
+import type { File, Violation } from '@gesetz/core';
 
 const CWD = process.cwd();
 
@@ -21,28 +20,28 @@ function makeTsx(content: string, path = 'src/Comp.tsx', name = 'Comp.tsx'): Fil
   };
 }
 
-// noHardcodedStrings is Effect.sync but the Check signature carries service
-// requirements in R; cast like the other moved-checks tests.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const runCheck = (check: Check, file: File): Violation[] =>
-  Effect.runSync(check(file) as any);
+/** Stub services — noHardcodedStrings is a pure sync check. */
+const noServices = {} as any;
+
+const runCheck = async (check: (file: File, services: any) => Promise<Violation[]>, file: File): Promise<Violation[]> =>
+  check(file, noServices);
 
 describe('noHardcodedStrings', () => {
   describe('Case 1: raw JSX text children', () => {
-    it('flags raw JSX text with letters', () => {
-      const v = runCheck(noHardcodedStrings(), makeTsx(`const X = () => <div>Hello world</div>;`));
+    it('flags raw JSX text with letters', async () => {
+      const v = await runCheck(noHardcodedStrings(), makeTsx(`const X = () => <div>Hello world</div>;`));
       expect(v).toHaveLength(1);
       expect(v[0]?.message).toContain('Hello world');
       expect(v[0]?.severity).toBe('error');
     });
 
-    it('ignores whitespace/punctuation-only JSX text', () => {
-      const v = runCheck(noHardcodedStrings(), makeTsx(`const X = () => <div>   ... --- </div>;`));
+    it('ignores whitespace/punctuation-only JSX text', async () => {
+      const v = await runCheck(noHardcodedStrings(), makeTsx(`const X = () => <div>   ... --- </div>;`));
       expect(v).toHaveLength(0);
     });
 
-    it('flags JSX text nested inside elements', () => {
-      const v = runCheck(
+    it('flags JSX text nested inside elements', async () => {
+      const v = await runCheck(
         noHardcodedStrings(),
         makeTsx(`const X = () => <nav><a href="/">Home</a></nav>;`),
       );
@@ -52,8 +51,8 @@ describe('noHardcodedStrings', () => {
   });
 
   describe('Case 2: allowlisted translatable props', () => {
-    it('flags placeholder with a string literal', () => {
-      const v = runCheck(
+    it('flags placeholder with a string literal', async () => {
+      const v = await runCheck(
         noHardcodedStrings(),
         makeTsx(`const X = () => <input placeholder="Search" />;`),
       );
@@ -62,7 +61,7 @@ describe('noHardcodedStrings', () => {
       expect(v[0]?.severity).toBe('warn'); // attributeSeverity default
     });
 
-    it('flags label, title, aria-label, heading, description, helperText, hint', () => {
+    it('flags label, title, aria-label, heading, description, helperText, hint', async () => {
       const src = `
         const X = () => (
           <>
@@ -76,7 +75,7 @@ describe('noHardcodedStrings', () => {
           </>
         );
       `;
-      const v = runCheck(noHardcodedStrings(), makeTsx(src));
+      const v = await runCheck(noHardcodedStrings(), makeTsx(src));
       expect(v).toHaveLength(7);
       const props = v.map((x) => x.message).sort();
       expect(props).toEqual(
@@ -92,13 +91,13 @@ describe('noHardcodedStrings', () => {
       );
     });
 
-    it('ignores allowlisted props whose value has no letters', () => {
-      const v = runCheck(noHardcodedStrings(), makeTsx(`const X = () => <Box title="..." />;`));
+    it('ignores allowlisted props whose value has no letters', async () => {
+      const v = await runCheck(noHardcodedStrings(), makeTsx(`const X = () => <Box title="..." />;`));
       expect(v).toHaveLength(0);
     });
 
-    it('ignores allowlisted props with expression-container values', () => {
-      const v = runCheck(
+    it('ignores allowlisted props with expression-container values', async () => {
+      const v = await runCheck(
         noHardcodedStrings(),
         makeTsx(`const X = () => <input placeholder={m.search()} />;`),
       );
@@ -108,8 +107,8 @@ describe('noHardcodedStrings', () => {
 
   describe('MUST NOT flag (regression cases from immoui)', () => {
     // These are the exact false-positive patterns reported upstream.
-    it('does not flag Tailwind / cn() utility classes in JSX expressions', () => {
-      const v = runCheck(
+    it('does not flag Tailwind / cn() utility classes in JSX expressions', async () => {
+      const v = await runCheck(
         noHardcodedStrings(),
         makeTsx(
           `const X = () => <div className={cn("flex items-end gap-0 overflow-x-auto")}>Hi</div>;`,
@@ -120,16 +119,16 @@ describe('noHardcodedStrings', () => {
       expect(v[0]?.message).toContain('Hi');
     });
 
-    it('does not flag className with a raw string literal', () => {
-      const v = runCheck(
+    it('does not flag className with a raw string literal', async () => {
+      const v = await runCheck(
         noHardcodedStrings(),
         makeTsx(`const X = () => <img className="h-8 w-8" alt="avatar" />;`),
       );
       expect(v).toHaveLength(0);
     });
 
-    it('does not flag component enum-like props (sizes, variant, value)', () => {
-      const v = runCheck(
+    it('does not flag component enum-like props (sizes, variant, value)', async () => {
+      const v = await runCheck(
         noHardcodedStrings(),
         makeTsx(
           `const X = () => (
@@ -145,8 +144,8 @@ describe('noHardcodedStrings', () => {
       expect(v).toHaveLength(0);
     });
 
-    it('does not flag route paths / URLs in props (to, href)', () => {
-      const v = runCheck(
+    it('does not flag route paths / URLs in props (to, href)', async () => {
+      const v = await runCheck(
         noHardcodedStrings(),
         makeTsx(
           `const X = () => (
@@ -163,10 +162,10 @@ describe('noHardcodedStrings', () => {
       expect(v[0]?.message).toContain('Site');
     });
 
-    it('does not flag strings inside JSX expression containers at all', () => {
+    it('does not flag strings inside JSX expression containers at all', async () => {
       // Even bare string literals in {} are not flagged — expression
       // containers carry utility tokens, not natural language.
-      const v = runCheck(
+      const v = await runCheck(
         noHardcodedStrings(),
         makeTsx(`const X = () => <div data-key={"stacking"}>Hi</div>;`),
       );
@@ -174,8 +173,8 @@ describe('noHardcodedStrings', () => {
       expect(v[0]?.message).toContain('Hi');
     });
 
-    it('does not flag icon/image CSS classes on avatar components', () => {
-      const v = runCheck(
+    it('does not flag icon/image CSS classes on avatar components', async () => {
+      const v = await runCheck(
         noHardcodedStrings(),
         makeTsx(`const X = () => <img className="h-full w-full object-contain" />;`),
       );
@@ -184,8 +183,8 @@ describe('noHardcodedStrings', () => {
   });
 
   describe('options', () => {
-    it('respects a custom textAttributes allowlist', () => {
-      const v = runCheck(
+    it('respects a custom textAttributes allowlist', async () => {
+      const v = await runCheck(
         noHardcodedStrings({ textAttributes: ['placeholder'] }),
         makeTsx(
           `const X = () => (
@@ -200,8 +199,8 @@ describe('noHardcodedStrings', () => {
       expect(v[0]?.message).toContain('placeholder');
     });
 
-    it('respects attributeSeverity override', () => {
-      const v = runCheck(
+    it('respects attributeSeverity override', async () => {
+      const v = await runCheck(
         noHardcodedStrings({ attributeSeverity: 'error' }),
         makeTsx(`const X = () => <input placeholder="Search" />;`),
       );

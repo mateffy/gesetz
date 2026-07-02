@@ -1,5 +1,3 @@
-import { Effect } from 'effect';
-import { SyntaxTree } from '../../services/syntax-tree';
 import type { Check, Violation } from '../../engine/rule';
 
 export interface NoDirectCallsOptions {
@@ -22,20 +20,15 @@ export interface NoDirectCallsOptions {
 export function noDirectCalls(names: readonly string[], opts: NoDirectCallsOptions = {}): Check {
   const nameSet = new Set(names);
 
-  return (file) =>
-    Effect.gen(function* () {
-      const st = yield* SyntaxTree;
-      if (!st.canProcess(file)) return [];
+  return async (file, { syntaxTree: st }) => {
+    if (!st.canProcess(file)) return [];
 
-      const result = yield* st.process(file, { calls: true }).pipe(
-        Effect.catchAll(() => Effect.succeed({ imports: [], calls: [], exports: [], structure: [] })),
-      );
-
+    try {
+      const result = await st.process(file, { calls: true });
       return result.calls
         .filter((call) => nameSet.has(call.name))
         .map(
           (call): Violation => ({
-            rule: '',
             severity: opts.severity ?? 'error',
             source: 'core',
             message: opts.message?.(call.name) ?? `Forbidden call: ${call.name}()`,
@@ -43,5 +36,8 @@ export function noDirectCalls(names: readonly string[], opts: NoDirectCallsOptio
             line: call.line,
           }),
         );
-    });
+    } catch {
+      return [];
+    }
+  };
 }

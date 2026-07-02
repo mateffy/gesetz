@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { Effect } from 'effect';
 import { requireMinStructureCount } from '../../../src/primitives/checks/structure-count';
 import { makeSyntaxTreeLayer, SyntaxTreeUnavailable } from '../../helpers/syntax-tree';
+import { buildCheckServices } from '../../helpers/services';
+import { ProjectRootLive } from '../../../src/services/fs';
+import { ImportResolverDefault } from '../../../src/services/import-resolver';
 import type { File } from '../../../src/engine/rule';
 
 function makeFile(name = 'foo.ts'): File {
@@ -18,9 +20,18 @@ function makeFile(name = 'foo.ts'): File {
   };
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const run = (effect: Effect.Effect<any, any, any>, layer: any): Promise<any> =>
-  Effect.provide(effect, layer).pipe(Effect.runPromise as any);
+async function runCheck(
+  check: (file: File, services: any) => Promise<any>,
+  file: File,
+  layer: any,
+) {
+  const services = await buildCheckServices(
+    layer,
+    ProjectRootLive('/abs'),
+    ImportResolverDefault,
+  );
+  return check(file, services);
+}
 
 describe('requireMinStructureCount', () => {
   it('passes when count of kind >= minCount', async () => {
@@ -30,7 +41,7 @@ describe('requireMinStructureCount', () => {
         { kind: 'function', name: 'b', startLine: 3, endLine: 4, docstring: null, children: [] },
       ],
     });
-    const violations = await run(requireMinStructureCount('function', 2)(makeFile()), layer);
+    const violations = await runCheck(requireMinStructureCount('function', 2), makeFile(), layer);
     expect(violations).toHaveLength(0);
   });
 
@@ -40,7 +51,7 @@ describe('requireMinStructureCount', () => {
         { kind: 'function', name: 'a', startLine: 1, endLine: 2, docstring: null, children: [] },
       ],
     });
-    const violations = await run(requireMinStructureCount('function', 2)(makeFile()), layer);
+    const violations = await runCheck(requireMinStructureCount('function', 2), makeFile(), layer);
     expect(violations).toHaveLength(1);
     expect(violations[0]?.message).toContain('found 1');
   });
@@ -70,13 +81,14 @@ describe('requireMinStructureCount', () => {
         },
       ],
     });
-    const violations = await run(requireMinStructureCount('method', 3)(makeFile()), layer);
+    const violations = await runCheck(requireMinStructureCount('method', 3), makeFile(), layer);
     expect(violations).toHaveLength(0); // m1 + m2 + nested = 3
   });
 
   it('returns [] when canProcess is false', async () => {
-    const violations = await run(
-      requireMinStructureCount('function', 1)(makeFile()),
+    const violations = await runCheck(
+      requireMinStructureCount('function', 1),
+      makeFile(),
       SyntaxTreeUnavailable,
     );
     expect(violations).toHaveLength(0);

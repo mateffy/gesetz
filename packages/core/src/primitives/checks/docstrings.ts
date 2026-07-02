@@ -1,5 +1,3 @@
-import { Effect } from 'effect';
-import { SyntaxTree } from '../../services/syntax-tree';
 import type { StructureItem } from '../../services/syntax-tree';
 import type { Check, Violation } from '../../engine/rule';
 
@@ -21,21 +19,17 @@ export interface RequireDocstringsOptions {
 export function requireDocstrings(opts: RequireDocstringsOptions = {}): Check {
   const kinds = opts.kinds ?? ['function', 'class', 'method'];
 
-  return (file) =>
-    Effect.gen(function* () {
-      const st = yield* SyntaxTree;
-      if (!st.canProcess(file)) return [];
+  return async (file, { syntaxTree: st }) => {
+    if (!st.canProcess(file)) return [];
 
-      const result = yield* st.process(file, { structure: true, docstrings: true }).pipe(
-        Effect.catchAll(() => Effect.succeed({ imports: [], calls: [], exports: [], structure: [] })),
-      );
+    try {
+      const result = await st.process(file, { structure: true, docstrings: true });
       const violations: Violation[] = [];
 
       function checkItems(items: readonly StructureItem[]): void {
         for (const item of items) {
           if (kinds.includes(item.kind) && !item.docstring) {
             violations.push({
-              rule: '',
               severity: opts.severity ?? 'warn',
               source: 'core',
               message: opts.message ?? `'${item.name}' is missing a docstring`,
@@ -49,5 +43,8 @@ export function requireDocstrings(opts: RequireDocstringsOptions = {}): Check {
 
       checkItems(result.structure);
       return violations;
-    });
+    } catch {
+      return [];
+    }
+  };
 }

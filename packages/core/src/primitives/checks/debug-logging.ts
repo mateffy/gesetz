@@ -8,7 +8,6 @@
  * For precise call detection of user-specified names, use `noDirectCalls()`
  * (which requires a SyntaxBackend). These serve different purposes.
  */
-import { Effect } from 'effect';
 import type { Check, Violation } from '../../engine/rule';
 
 const DEBUG_CALLS_BY_EXT: Record<string, readonly string[]> = {
@@ -40,36 +39,34 @@ function escapeForRegex(name: string): string {
 export function noDebugLogging(opts: NoDebugLoggingOptions = {}): Check {
   const extraSet = new Set(opts.extraNames ?? []);
 
-  return (file) =>
-    Effect.sync(() => {
-      const knownForExt = DEBUG_CALLS_BY_EXT[file.ext];
-      if (knownForExt === undefined) return [];
+  return async (file) => {
+    const knownForExt = DEBUG_CALLS_BY_EXT[file.ext];
+    if (knownForExt === undefined) return [];
 
-      const knownSet = new Set(knownForExt);
-      const names = [...knownSet, ...extraSet];
-      const lines = file.content.split('\n');
-      const violations: Violation[] = [];
+    const knownSet = new Set(knownForExt);
+    const names = [...knownSet, ...extraSet];
+    const lines = file.content.split('\n');
+    const violations: Violation[] = [];
 
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i] ?? '';
-        for (const name of names) {
-          // Match the name followed by ( or ! — avoid matching partial names
-          // e.g. "console.log(" matches but "notconsole.log(" does not
-          const pattern = new RegExp(`(?<![\\w.])${escapeForRegex(name)}\\s*[(!]`);
-          if (pattern.test(line)) {
-            violations.push({
-              rule: '',
-              severity: opts.severity ?? 'warn',
-              source: 'core',
-              message: opts.message ?? `Remove debug logging: ${name}`,
-              path: file.path,
-              line: i + 1,
-            });
-            break; // one violation per line max
-          }
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i] ?? '';
+      for (const name of names) {
+        // Match the name followed by ( or ! — avoid matching partial names
+        // e.g. "console.log(" matches but "notconsole.log(" does not
+        const pattern = new RegExp(`(?<![\\w.])${escapeForRegex(name)}\\s*[(!]`);
+        if (pattern.test(line)) {
+          violations.push({
+            severity: opts.severity ?? 'warn',
+            source: 'core',
+            message: opts.message ?? `Remove debug logging: ${name}`,
+            path: file.path,
+            line: i + 1,
+          });
+          break; // one violation per line max
         }
       }
+    }
 
-      return violations;
-    });
+    return violations;
+  };
 }

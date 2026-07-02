@@ -1,5 +1,4 @@
-import { Effect } from 'effect';
-import type { Check } from '@gesetz/core';
+import type { Check, Violation } from '@gesetz/core';
 
 export interface TestScoring {
   /** Minimum score required. Files below this score get a violation. */
@@ -62,67 +61,65 @@ export function requireMinTestScore(scoring: TestScoring): Check {
     varietyBonus = 5,
   } = scoring;
 
-  return (file) =>
-    Effect.sync(() => {
-      const content = file.content;
+  return async (file) => {
+    const content = file.content;
 
-      const assertionCount = assertionNames.reduce(
-        (sum, name) => sum + (content.split(name).length - 1),
-        0,
-      );
+    const assertionCount = assertionNames.reduce(
+      (sum, name) => sum + (content.split(name).length - 1),
+      0,
+    );
 
-      const testCount =
-        (content.split('it(').length - 1) +
-        (content.split('test(').length - 1);
+    const testCount =
+      (content.split('it(').length - 1) +
+      (content.split('test(').length - 1);
 
-      const hasTrivial = trivialAssertions.some((t) => content.includes(t));
-      const hasAsync = asyncIndicators.some((a) => content.includes(a));
-      const hasInteraction = interactionMethods.some((m) => content.includes(m));
-      const hasErrors = errorIndicators.some((e) => content.includes(e));
+    const hasTrivial = trivialAssertions.some((t) => content.includes(t));
+    const hasAsync = asyncIndicators.some((a) => content.includes(a));
+    const hasInteraction = interactionMethods.some((m) => content.includes(m));
+    const hasErrors = errorIndicators.some((e) => content.includes(e));
 
-      // Collect all assertion types used
-      const assertionTypes = new Set<string>();
-      const assertionTypePattern = /\.(to[A-Z][a-zA-Z]+|not\.[a-zA-Z]+)\(/g;
-      for (const match of content.matchAll(assertionTypePattern)) {
-        assertionTypes.add(match[1] ?? '');
-      }
-      const hasVariety = assertionTypes.size >= 3;
+    // Collect all assertion types used
+    const assertionTypes = new Set<string>();
+    const assertionTypePattern = /\.(to[A-Z][a-zA-Z]+|not\.[a-zA-Z]+)\(/g;
+    for (const match of content.matchAll(assertionTypePattern)) {
+      assertionTypes.add(match[1] ?? '');
+    }
+    const hasVariety = assertionTypes.size >= 3;
 
-      let score = 40; // base score for having any tests
+    let score = 40; // base score for having any tests
 
-      // Assertion count bonuses
-      for (const threshold of assertionThresholds) {
-        if (assertionCount >= threshold) score += assertionBonus;
-      }
+    // Assertion count bonuses
+    for (const threshold of assertionThresholds) {
+      if (assertionCount >= threshold) score += assertionBonus;
+    }
 
-      // Test count bonuses
-      for (const threshold of testCountThresholds) {
-        if (testCount >= threshold) score += testCountBonus;
-      }
+    // Test count bonuses
+    for (const threshold of testCountThresholds) {
+      if (testCount >= threshold) score += testCountBonus;
+    }
 
-      // Quality bonuses
-      if (hasAsync) score += asyncBonus;
-      if (hasInteraction) score += interactionBonus;
-      if (hasErrors) score += errorBonus;
-      if (hasVariety) score += varietyBonus;
+    // Quality bonuses
+    if (hasAsync) score += asyncBonus;
+    if (hasInteraction) score += interactionBonus;
+    if (hasErrors) score += errorBonus;
+    if (hasVariety) score += varietyBonus;
 
-      // Trivial assertion penalty
-      if (hasTrivial && assertionCount > 0) {
-        const isTrivialOnly = !errorIndicators.some((e) => content.includes(e)) &&
-          !interactionMethods.some((m) => content.includes(m));
-        if (isTrivialOnly) score += trivialPenalty;
-      }
+    // Trivial assertion penalty
+    if (hasTrivial && assertionCount > 0) {
+      const isTrivialOnly = !errorIndicators.some((e) => content.includes(e)) &&
+        !interactionMethods.some((m) => content.includes(m));
+      if (isTrivialOnly) score += trivialPenalty;
+    }
 
-      if (score >= minScore) return [];
+    if (score >= minScore) return [];
 
-      return [
-        {
-          rule: '',
-          severity: 'warn' as const,
-          source: 'core' as const,
-          message: `Test quality score ${score} is below minimum ${minScore}. Add more assertions, async tests, or interaction coverage.`,
-          path: file.path,
-        },
-      ];
-    });
+    return [
+      {
+        severity: 'warn',
+        source: 'core',
+        message: `Test quality score ${score} is below minimum ${minScore}. Add more assertions, async tests, or interaction coverage.`,
+        path: file.path,
+      },
+    ];
+  };
 }

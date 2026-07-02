@@ -1,4 +1,3 @@
-import { Effect } from 'effect';
 import type { Check, Violation } from '@gesetz/core';
 import { parseFile, findByKind, startLine } from './shared';
 
@@ -13,29 +12,27 @@ export interface NoDefaultExportOptions {
  * Implemented with ast-grep (syntactic).
  *
  * @example
- * select('src/**\/*.{ts,tsx}').check(noDefaultExport())
+ * select('src/scripts/\*.{ts,tsx}').check(noDefaultExport())
  */
 export function noDefaultExport(opts: NoDefaultExportOptions = {}): Check {
-  return (file) =>
-    Effect.sync(() => {
-      const root = parseFile(file.content, file.path);
-      if (root === null) return [];
+  return async (file) => {
+    const root = parseFile(file.content, file.path);
+    if (root === null) return [];
 
-      const violations: Violation[] = [];
-      const exportStmts = findByKind(root, 'export_statement');
-      for (const node of exportStmts) {
-        const hasDefault = node.children().some((c) => c.kind() === 'default');
-        if (hasDefault) {
-          violations.push({
-            rule: '',
-            severity: 'warn',
-            source: 'core',
-            message: opts.message ?? 'Avoid `export default` — use a named export instead',
-            path: file.path,
-            line: startLine(node),
-          });
-        }
+    const violations: Violation[] = [];
+    const exportStmts = findByKind(root, 'export_statement');
+    for (const node of exportStmts) {
+      const hasDefault = node.children().some((c) => c.kind() === 'default');
+      if (hasDefault) {
+        violations.push({
+          severity: 'warn',
+          source: 'core',
+          message: opts.message ?? 'Avoid `export default` — use a named export instead',
+          path: file.path,
+          line: startLine(node),
+        });
       }
-      return violations;
-    });
+    }
+    return violations;
+  };
 }

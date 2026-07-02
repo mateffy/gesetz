@@ -1,7 +1,5 @@
 import * as nodePath from 'node:path';
-import { Effect } from 'effect';
-import { FileSystem } from '../../services/fs';
-import type { Check, File, Violation } from '../../engine/rule';
+import type { Check, Violation } from '../../engine/rule';
 
 /**
  * Checks that a sibling file with the given suffix exists.
@@ -14,29 +12,26 @@ export function requireSibling(
   suffix: string,
   opts: { message?: string; severity?: Violation['severity'] } = {},
 ): Check {
-  return (file) =>
-    Effect.gen(function* () {
-      const fs = yield* FileSystem;
-      const siblingPath = nodePath.join(
-        nodePath.dirname(file.absolutePath),
-        file.stem + suffix,
-      );
-      const exists = yield* fs.exists(siblingPath);
-      if (exists) {
-        return [];
-      }
-      return [
-        {
-          rule: '',
-          severity: opts.severity ?? 'error',
-          source: 'core' as const,
-          message:
-            opts.message ??
-            `Missing sibling file: ${file.stem}${suffix}`,
-          path: file.path,
-        },
-      ];
-    });
+  return async (file, { fs }) => {
+    const siblingPath = nodePath.join(
+      nodePath.dirname(file.absolutePath),
+      file.stem + suffix,
+    );
+    const exists = await fs.exists(siblingPath);
+    if (exists) {
+      return [];
+    }
+    return [
+      {
+        severity: opts.severity ?? 'error',
+        source: 'core',
+        message:
+          opts.message ??
+          `Missing sibling file: ${file.stem}${suffix}`,
+        path: file.path,
+      },
+    ];
+  };
 }
 
 /**
@@ -51,30 +46,27 @@ export function requireChildren(
   requiredPaths: string[],
   opts: { message?: (missing: string) => string } = {},
 ): Check {
-  return (file) =>
-    Effect.gen(function* () {
-      const fs = yield* FileSystem;
-      const dir = nodePath.dirname(file.absolutePath);
-      const violations: Violation[] = [];
+  return async (file, { fs }) => {
+    const dir = nodePath.dirname(file.absolutePath);
+    const violations: Violation[] = [];
 
-      for (const required of requiredPaths) {
-        const childPath = nodePath.join(dir, required);
-        const exists = yield* fs.exists(childPath);
-        if (!exists) {
-          violations.push({
-            rule: '',
-            severity: 'error',
-            source: 'core',
-            message:
-              opts.message?.(required) ??
-              `Missing required file: ${required}`,
-            path: file.path,
-          });
-        }
+    for (const required of requiredPaths) {
+      const childPath = nodePath.join(dir, required);
+      const exists = await fs.exists(childPath);
+      if (!exists) {
+        violations.push({
+          severity: 'error',
+          source: 'core',
+          message:
+            opts.message?.(required) ??
+            `Missing required file: ${required}`,
+          path: file.path,
+        });
       }
+    }
 
-      return violations;
-    });
+    return violations;
+  };
 }
 
 /**
@@ -82,21 +74,19 @@ export function requireChildren(
  * Useful for enforcing that certain files do not exist.
  *
  * @example
- * select('src/**\/node_modules/**').label('No node_modules in src').check(forbidFile())
+ * select('src/scripts/node_modules/**').label('No node_modules in src').check(forbidFile())
  */
 export function forbidFile(
   opts: { message?: string; severity?: Violation['severity'] } = {},
 ): Check {
-  return (file) =>
-    Effect.succeed([
-      {
-        rule: '',
-        severity: opts.severity ?? 'error',
-        source: 'core' as const,
-        message: opts.message ?? `File should not exist: ${file.path}`,
-        path: file.path,
-      },
-    ]);
+  return async (file) => [
+    {
+      severity: opts.severity ?? 'error',
+      source: 'core',
+      message: opts.message ?? `File should not exist: ${file.path}`,
+      path: file.path,
+    },
+  ];
 }
 
 /**
@@ -105,53 +95,50 @@ export function forbidFile(
  * Recognizes `.ts`, `.tsx`, `/index.ts`, and `/index.tsx` resolution.
  *
  * @example
- * select('src/**\/*.{ts,tsx}').label('Relative imports must resolve').check(relativeImports())
+ * select('src/scripts/\*.{ts,tsx}').label('Relative imports must resolve').check(relativeImports())
  */
 export function relativeImports(opts: { message?: (imp: string) => string } = {}): Check {
-  return (file) =>
-    Effect.gen(function* () {
-      const fs = yield* FileSystem;
-      // Match ES import/export from relative paths
-      const matches = [...file.content.matchAll(/from\s+['"](\.[./][^'"]*)['"]/g)];
-      const violations: Violation[] = [];
+  return async (file, { fs }) => {
+    // Match ES import/export from relative paths
+    const matches = [...file.content.matchAll(/from\s+['"](\.[./][^'"]*)['"]/g)];
+    const violations: Violation[] = [];
 
-      for (const match of matches) {
-        const imp = match[1];
-        if (imp === undefined) continue;
+    for (const match of matches) {
+      const imp = match[1];
+      if (imp === undefined) continue;
 
-        const base = nodePath.resolve(nodePath.dirname(file.absolutePath), imp);
-        const cleanBase = base.replace(/\.[jt]sx?$/, '');
+      const base = nodePath.resolve(nodePath.dirname(file.absolutePath), imp);
+      const cleanBase = base.replace(/\.[jt]sx?$/, '');
 
-        const candidates = [
-          cleanBase + '.ts',
-          cleanBase + '.tsx',
-          cleanBase + '/index.ts',
-          cleanBase + '/index.tsx',
-          base, // bare path (rare)
-        ];
+      const candidates = [
+        cleanBase + '.ts',
+        cleanBase + '.tsx',
+        cleanBase + '/index.ts',
+        cleanBase + '/index.tsx',
+        base, // bare path (rare)
+      ];
 
-        let found = false;
-        for (const candidate of candidates) {
-          const exists = yield* fs.exists(candidate);
-          if (exists) {
-            found = true;
-            break;
-          }
-        }
-
-        if (!found) {
-          violations.push({
-            rule: '',
-            severity: 'error',
-            source: 'core',
-            message:
-              opts.message?.(imp) ??
-              `Relative import '${imp}' does not resolve to an existing file`,
-            path: file.path,
-          });
+      let found = false;
+      for (const candidate of candidates) {
+        const exists = await fs.exists(candidate);
+        if (exists) {
+          found = true;
+          break;
         }
       }
 
-      return violations;
-    });
+      if (!found) {
+        violations.push({
+          severity: 'error',
+          source: 'core',
+          message:
+            opts.message?.(imp) ??
+            `Relative import '${imp}' does not resolve to an existing file`,
+          path: file.path,
+        });
+      }
+    }
+
+    return violations;
+  };
 }

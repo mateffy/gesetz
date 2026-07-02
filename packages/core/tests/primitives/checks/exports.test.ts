@@ -1,10 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { Effect } from 'effect';
 import {
   requireExportsMatching,
   requireRelatedExports,
 } from '../../../src/primitives/checks/exports';
 import { makeSyntaxTreeLayer, SyntaxTreeUnavailable } from '../../helpers/syntax-tree';
+import { buildCheckServices } from '../../helpers/services';
+import { ProjectRootLive } from '../../../src/services/fs';
+import { ImportResolverDefault } from '../../../src/services/import-resolver';
 import type { File } from '../../../src/engine/rule';
 
 function makeFile(name = 'foo.ts'): File {
@@ -21,9 +23,18 @@ function makeFile(name = 'foo.ts'): File {
   };
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const run = (effect: Effect.Effect<any, any, any>, layer: any): Promise<any> =>
-  Effect.provide(effect, layer).pipe(Effect.runPromise as any);
+async function runCheck(
+  check: (file: File, services: any) => Promise<any>,
+  file: File,
+  layer: any,
+) {
+  const services = await buildCheckServices(
+    layer,
+    ProjectRootLive('/abs'),
+    ImportResolverDefault,
+  );
+  return check(file, services);
+}
 
 describe('requireExportsMatching', () => {
   it('passes when at least minCount exports match the pattern', async () => {
@@ -34,7 +45,7 @@ describe('requireExportsMatching', () => {
         { name: 'unrelated', kind: 'function', line: 3 },
       ],
     });
-    const violations = await run(requireExportsMatching(/Keys$/, 1)(makeFile()), layer);
+    const violations = await runCheck(requireExportsMatching(/Keys$/, 1), makeFile(), layer);
     expect(violations).toHaveLength(0);
   });
 
@@ -42,14 +53,14 @@ describe('requireExportsMatching', () => {
     const layer = makeSyntaxTreeLayer({
       exports: [{ name: 'onlyOne', kind: 'function', line: 1 }],
     });
-    const violations = await run(requireExportsMatching(/Keys$/, 2)(makeFile()), layer);
+    const violations = await runCheck(requireExportsMatching(/Keys$/, 2), makeFile(), layer);
     expect(violations).toHaveLength(1);
     expect(violations[0]?.message).toContain('2');
     expect(violations[0]?.message).toContain('found 0');
   });
 
   it('returns [] when canProcess is false', async () => {
-    const violations = await run(requireExportsMatching(/x/)(makeFile()), SyntaxTreeUnavailable);
+    const violations = await runCheck(requireExportsMatching(/x/), makeFile(), SyntaxTreeUnavailable);
     expect(violations).toHaveLength(0);
   });
 });
@@ -62,11 +73,12 @@ describe('requireRelatedExports', () => {
         { name: 'useSuspenseFoo', kind: 'function', line: 2 },
       ],
     });
-    const violations = await run(
+    const violations = await runCheck(
       requireRelatedExports((name) => {
         if (name !== 'useFoo') return null;
         return ['useSuspenseFoo', 'useCachedFoo'];
-      })(makeFile()),
+      }),
+      makeFile(),
       layer,
     );
     expect(violations).toHaveLength(1);
@@ -82,10 +94,11 @@ describe('requireRelatedExports', () => {
         { name: 'useCachedFoo', kind: 'function', line: 3 },
       ],
     });
-    const violations = await run(
+    const violations = await runCheck(
       requireRelatedExports((name) =>
         name === 'useFoo' ? ['useSuspenseFoo', 'useCachedFoo'] : null,
-      )(makeFile()),
+      ),
+      makeFile(),
       layer,
     );
     expect(violations).toHaveLength(0);
@@ -98,8 +111,9 @@ describe('requireRelatedExports', () => {
         { name: 'useFoo', kind: 'function', line: 2 },
       ],
     });
-    const violations = await run(
-      requireRelatedExports((name) => (name.startsWith('use') ? ['useXyz'] : null))(makeFile()),
+    const violations = await runCheck(
+      requireRelatedExports((name) => (name.startsWith('use') ? ['useXyz'] : null)),
+      makeFile(),
       layer,
     );
     expect(violations).toHaveLength(1);
@@ -110,19 +124,21 @@ describe('requireRelatedExports', () => {
     const layer = makeSyntaxTreeLayer({
       exports: [{ name: 'useFoo', kind: 'function', line: 1 }],
     });
-    const violations = await run(
+    const violations = await runCheck(
       requireRelatedExports(
         (name) => (name === 'useFoo' ? ['useBar'] : null),
         { message: (name, missing) => `${name} needs ${missing.join(',')}` },
-      )(makeFile()),
+      ),
+      makeFile(),
       layer,
     );
     expect(violations[0]?.message).toBe('useFoo needs useBar');
   });
 
   it('returns [] when canProcess is false', async () => {
-    const violations = await run(
-      requireRelatedExports(() => null)(makeFile()),
+    const violations = await runCheck(
+      requireRelatedExports(() => null),
+      makeFile(),
       SyntaxTreeUnavailable,
     );
     expect(violations).toHaveLength(0);

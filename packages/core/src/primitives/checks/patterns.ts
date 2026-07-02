@@ -1,4 +1,3 @@
-import { Effect } from 'effect';
 import type { Check, Violation } from '../../engine/rule';
 
 /**
@@ -17,38 +16,35 @@ export function noPattern(
     fullFile?: boolean;
   } = {},
 ): Check {
-  return (file) =>
-    Effect.sync(() => {
-      const violations: Violation[] = [];
+  return async (file) => {
+    const violations: Violation[] = [];
 
-      if (opts.fullFile) {
-        if (regex.test(file.content)) {
-          violations.push({
-            rule: '',
-            severity: opts.severity ?? 'error',
-            source: 'core',
-            message: opts.message ?? `File matches forbidden pattern: ${regex.source}`,
-            path: file.path,
-          });
-        }
-      } else {
-        const lines = file.content.split('\n');
-        lines.forEach((line, index) => {
-          if (regex.test(line)) {
-            violations.push({
-              rule: '',
-              severity: opts.severity ?? 'error',
-              source: 'core',
-              message: opts.message ?? `Forbidden pattern: ${regex.source}`,
-              path: file.path,
-              line: index + 1,
-            });
-          }
+    if (opts.fullFile) {
+      if (regex.test(file.content)) {
+        violations.push({
+          severity: opts.severity ?? 'error',
+          source: 'core',
+          message: opts.message ?? `File matches forbidden pattern: ${regex.source}`,
+          path: file.path,
         });
       }
+    } else {
+      const lines = file.content.split('\n');
+      lines.forEach((line, index) => {
+        if (regex.test(line)) {
+          violations.push({
+            severity: opts.severity ?? 'error',
+            source: 'core',
+            message: opts.message ?? `Forbidden pattern: ${regex.source}`,
+            path: file.path,
+            line: index + 1,
+          });
+        }
+      });
+    }
 
-      return violations;
-    });
+    return violations;
+  };
 }
 
 /**
@@ -65,18 +61,16 @@ export function requirePattern(
     severity?: Violation['severity'];
   } = {},
 ): Check {
-  return (file) =>
-    Effect.sync(() => {
-      if (regex.test(file.content)) return [];
+  return async (file) => {
+    if (regex.test(file.content)) return [];
 
-      return [
-        {
-          rule: '',
-          severity: opts.severity ?? 'error',
-          source: 'core' as const,
-          message: opts.message ?? `File must match pattern: ${regex.source}`,
-          path: file.path,
-        },
-      ];
-    });
+    return [
+      {
+        severity: opts.severity ?? 'error',
+        source: 'core',
+        message: opts.message ?? `File must match pattern: ${regex.source}`,
+        path: file.path,
+      },
+    ];
+  };
 }

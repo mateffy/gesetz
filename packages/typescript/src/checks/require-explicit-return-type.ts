@@ -1,4 +1,3 @@
-import { Effect } from 'effect';
 import type { Check, Violation } from '@gesetz/core';
 import { parseFile, findByKind, findChildText, startLine } from './shared';
 
@@ -20,7 +19,7 @@ export interface RequireExplicitReturnTypeOptions {
  * Implemented with ast-grep (syntactic).
  *
  * @example
- * select('src/**\/*.{ts,tsx}').check(requireExplicitReturnType())
+ * select('src/scripts/\*.{ts,tsx}').check(requireExplicitReturnType())
  */
 export function requireExplicitReturnType(
   opts: RequireExplicitReturnTypeOptions = {},
@@ -28,44 +27,42 @@ export function requireExplicitReturnType(
   const kinds = new Set(opts.kinds ?? ['function', 'method']);
   const ignore = opts.ignore;
 
-  return (file) =>
-    Effect.sync(() => {
-      const root = parseFile(file.content, file.path);
-      if (root === null) return [];
+  return async (file) => {
+    const root = parseFile(file.content, file.path);
+    if (root === null) return [];
 
-      const violations: Violation[] = [];
+    const violations: Violation[] = [];
 
-      const hasReturnType = (node: import('@ast-grep/napi').SgNode): boolean =>
-        node.children().some((c) => c.kind() === 'type_annotation');
+    const hasReturnType = (node: import('@ast-grep/napi').SgNode): boolean =>
+      node.children().some((c) => c.kind() === 'type_annotation');
 
-      const checkDecl = (name: string, hasType: boolean, line: number): void => {
-        if (ignore && ignore.test(name)) return;
-        if (hasType) return;
-        violations.push({
-          rule: '',
-          severity: 'warn',
-          source: 'core',
-          message:
-            opts.message ?? `Function '${name}' must declare an explicit return type`,
-          path: file.path,
-          line,
-        });
-      };
+    const checkDecl = (name: string, hasType: boolean, line: number): void => {
+      if (ignore && ignore.test(name)) return;
+      if (hasType) return;
+      violations.push({
+        severity: 'warn',
+        source: 'core',
+        message:
+          opts.message ?? `Function '${name}' must declare an explicit return type`,
+        path: file.path,
+        line,
+      });
+    };
 
-      if (kinds.has('function')) {
-        for (const fn of findByKind(root, 'function_declaration')) {
-          const name = findChildText(fn, 'identifier') ?? '<anonymous>';
-          checkDecl(name, hasReturnType(fn), startLine(fn));
-        }
+    if (kinds.has('function')) {
+      for (const fn of findByKind(root, 'function_declaration')) {
+        const name = findChildText(fn, 'identifier') ?? '<anonymous>';
+        checkDecl(name, hasReturnType(fn), startLine(fn));
       }
+    }
 
-      if (kinds.has('method')) {
-        for (const m of findByKind(root, 'method_definition')) {
-          const name = findChildText(m, 'property_identifier') ?? '<anonymous>';
-          checkDecl(name, hasReturnType(m), startLine(m));
-        }
+    if (kinds.has('method')) {
+      for (const m of findByKind(root, 'method_definition')) {
+        const name = findChildText(m, 'property_identifier') ?? '<anonymous>';
+        checkDecl(name, hasReturnType(m), startLine(m));
       }
+    }
 
-      return violations;
-    });
+    return violations;
+  };
 }

@@ -1,5 +1,4 @@
 import { describe, it, expect } from 'vitest';
-import { Effect, Layer } from 'effect';
 import * as nodePath from 'node:path';
 import {
   noConsoleLog,
@@ -8,8 +7,7 @@ import {
   noTrivialComment,
   relativeImports,
 } from '../src';
-import { MemoryFileSystem } from '@gesetz/core';
-import type { File } from '@gesetz/core';
+import type { File, CheckServices } from '@gesetz/core';
 
 function makeFile(content: string, path = 'src/foo.ts', name = 'foo.ts'): File {
   const ext = nodePath.extname(name);
@@ -26,76 +24,80 @@ function makeFile(content: string, path = 'src/foo.ts', name = 'foo.ts'): File {
   };
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const run = (effect: Effect.Effect<any, any, any>): Promise<any> =>
-  Effect.runPromise(effect as any);
-
-// For checks that require services via a Layer.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const runWith = (effect: Effect.Effect<any, any, any>, layer: Layer.Layer<any>): Promise<any> =>
-  Effect.provide(effect as any, layer as any).pipe(Effect.runPromise as any);
+/** Stub services for pure sync checks. */
+const noServices = {} as any;
 
 describe('noConsoleLog (moved from core)', () => {
   it('flags console.log', async () => {
-    const v = await run(noConsoleLog()(makeFile('console.log("hello");')));
+    const v = await noConsoleLog()(makeFile('console.log("hello");'), noServices);
     expect(v).toHaveLength(1);
     expect(v[0]?.rule).toBe('no-console-log');
   });
 
   it('flags warn and error by default', async () => {
-    const v = await run(noConsoleLog()(makeFile('console.warn("w");\nconsole.error("e");')));
+    const v = await noConsoleLog()(makeFile('console.warn("w");\nconsole.error("e");'), noServices);
     expect(v).toHaveLength(2);
   });
 
   it('allows warn and error when allowWarnError is true', async () => {
-    const v = await run(
-      noConsoleLog({ allowWarnError: true })(makeFile('console.warn("w");\nconsole.error("e");')),
-    );
+    const v = await noConsoleLog({ allowWarnError: true })(makeFile('console.warn("w");\nconsole.error("e");'), noServices);
     expect(v).toHaveLength(0);
   });
 });
 
 describe('noEmptyCatch (moved from core)', () => {
   it('flags empty catch block', async () => {
-    const v = await run(noEmptyCatch()(makeFile('try { x(); } catch { \n }')));
+    const v = await noEmptyCatch()(makeFile('try { x(); } catch { \n }'), noServices);
     expect(v).toHaveLength(1);
     expect(v[0]?.rule).toBe('no-empty-catch');
   });
 
   it('passes when catch has a body', async () => {
-    const v = await run(
-      noEmptyCatch()(makeFile('try {\n  x();\n} catch (e) {\n  log(e);\n}')),
-    );
+    const v = await noEmptyCatch()(makeFile('try {\n  x();\n} catch (e) {\n  log(e);\n}'), noServices);
     expect(v).toHaveLength(0);
   });
 });
 
 describe('noMagicNumbers (moved from core)', () => {
   it('flags unexplained numeric literals', async () => {
-    const v = await run(noMagicNumbers()(makeFile('const r = value * 42;')));
+    const v = await noMagicNumbers()(makeFile('const r = value * 42;'), noServices);
     expect(v).toHaveLength(1);
     expect(v[0]?.message).toContain('42');
   });
 
   it('ignores named constants and the default ignore list', async () => {
-    const v = await run(
-      noMagicNumbers()(makeFile('const MAX_RETRIES = 3;\nreturn x === 0 || x === 1;')),
-    );
+    const v = await noMagicNumbers()(makeFile('const MAX_RETRIES = 3;\nreturn x === 0 || x === 1;'), noServices);
     expect(v).toHaveLength(0);
   });
 });
 
 describe('noTrivialComment (moved from core)', () => {
   it('flags narrative comments', async () => {
-    const v = await run(noTrivialComment()(makeFile('// Import the module\n// Define the component')));
+    const v = await noTrivialComment()(makeFile('// Import the module\n// Define the component'), noServices);
     expect(v).toHaveLength(2);
     expect(v[0]?.rule).toBe('no-trivial-comment');
   });
 
   it('ignores meaningful comments', async () => {
-    const v = await run(noTrivialComment()(makeFile('// This explains why we retry on ECONNRESET')));
+    const v = await noTrivialComment()(makeFile('// This explains why we retry on ECONNRESET'), noServices);
     expect(v).toHaveLength(0);
   });
+});
+
+/** Simple local mock for the fs.exists call that relativeImports needs. */
+function makeFs(existsSet: Set<string>): CheckServices['fs'] {
+  return {
+    glob: async () => [],
+    readFile: async () => '',
+    exists: async (path) => existsSet.has(path),
+  };
+}
+
+const makeServices = (existsSet: Set<string>): CheckServices => ({
+  fs: makeFs(existsSet),
+  syntaxTree: { canProcess: () => false, process: async () => ({ imports: [], calls: [], exports: [], structure: [] }) },
+  importResolver: { resolve: () => null },
+  projectRoot: process.cwd(),
 });
 
 describe('relativeImports (moved from core)', () => {
@@ -107,32 +109,32 @@ describe('relativeImports (moved from core)', () => {
       'src/foo.ts',
     );
     const barAbs = nodePath.resolve(CWD, 'src/bar.ts');
-    const bazAbs = nodePath.resolve(CWD, 'src/baz/index.ts');
-    const layer = Layer.mergeAll(MemoryFileSystem({ [barAbs]: '', [bazAbs]: '' }));
-    const v = await runWith(relativeImports()(file), layer);
+    const bazIndex = nodePath.resolve(CWD, 'src/baz/index.ts');
+    const services = makeServices(new Set([barAbs, bazIndex]));
+    const v = await relativeImports()(file, services);
     expect(v).toHaveLength(0);
   });
 
   it('fails when a relative import does not resolve', async () => {
     const file = makeFile(`import { x } from './missing';`, 'src/foo.ts');
-    const layer = Layer.mergeAll(MemoryFileSystem({}));
-    const v = await runWith(relativeImports()(file), layer);
+    const services = makeServices(new Set());
+    const v = await relativeImports()(file, services);
     expect(v).toHaveLength(1);
     expect(v[0]?.message).toContain('./missing');
   });
 
   it('ignores non-relative imports', async () => {
     const file = makeFile(`import React from 'react';\nimport { z } from 'zod';`, 'src/foo.ts');
-    const layer = Layer.mergeAll(MemoryFileSystem({}));
-    const v = await runWith(relativeImports()(file), layer);
+    const services = makeServices(new Set());
+    const v = await relativeImports()(file, services);
     expect(v).toHaveLength(0);
   });
 
   it('resolves .tsx extensions', async () => {
     const file = makeFile(`import { Comp } from './Comp';`, 'src/foo.ts');
-    const compAbs = nodePath.resolve(CWD, 'src/Comp.tsx');
-    const layer = Layer.mergeAll(MemoryFileSystem({ [compAbs]: '' }));
-    const v = await runWith(relativeImports()(file), layer);
+    const compTsx = nodePath.resolve(CWD, 'src/Comp.tsx');
+    const services = makeServices(new Set([compTsx]));
+    const v = await relativeImports()(file, services);
     expect(v).toHaveLength(0);
   });
 });

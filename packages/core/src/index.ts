@@ -57,6 +57,9 @@ export type { ImportResolverService } from './services/import-resolver';
 export { select, slugify } from './primitives/select';
 export type { Selector } from './primitives/select';
 
+// ─── Check types ─────────────────────────────────────────────────────────────
+export type { CheckServices } from './engine/rule';
+
 // ─── Primitive checks (language-agnostic) ─────────────────────────────────────
 export { requireSibling, requireChildren, forbidFile } from './primitives/checks/fs';
 export { noImportFrom, requireImportFrom } from './primitives/checks/imports';

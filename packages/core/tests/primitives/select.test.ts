@@ -13,7 +13,7 @@ const runWith = (effect: Effect.Effect<any, any, any>): Promise<any> =>
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   Effect.provide(effect, TestLayer as any).pipe(Effect.runPromise as any);
 
-const noop = (_file: File) => Effect.succeed<Violation[]>([]);
+const noop = async (_file: File, _services: any): Promise<Violation[]> => [];
 
 describe('slugify', () => {
   it('lowercases and replaces spaces with hyphens', () => {
@@ -80,10 +80,8 @@ describe('select', () => {
 
     it('stamps rule id on violations', async () => {
       const files = { 'src/foo.ts': 'export {}' };
-      const check = (file: File) =>
-        Effect.succeed<Violation[]>([
-          { rule: '', message: 'test', path: file.path, severity: 'error', source: 'core' },
-        ]);
+      const check = async (file: File) =>
+        [{ message: 'test', path: file.path, severity: 'error', source: 'core' }] as Violation[];
 
       const rule = select('src/**/*.ts').label('Stamp test').check(check);
 
@@ -103,9 +101,9 @@ describe('select', () => {
   describe('.exclude()', () => {
     it('excludes files matching the pattern', async () => {
       const touched: string[] = [];
-      const trackingCheck = (file: File) => {
+      const trackingCheck = async (file: File) => {
         touched.push(file.path);
-        return Effect.succeed<Violation[]>([]);
+        return [];
       };
 
       const rule = select('src/**/*.ts')
@@ -137,9 +135,9 @@ describe('select', () => {
   describe('.filter()', () => {
     it('applies predicate to files', async () => {
       const touched: string[] = [];
-      const trackingCheck = (file: File) => {
+      const trackingCheck = async (file: File) => {
         touched.push(file.path);
-        return Effect.succeed<Violation[]>([]);
+        return [];
       };
 
       const rule = select('src/**/*.ts')

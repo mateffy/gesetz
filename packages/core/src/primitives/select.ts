@@ -1,9 +1,9 @@
-import { Effect } from 'effect';
+import { Effect, Runtime } from 'effect';
 import micromatch from 'micromatch';
 import { FileSystem, ProjectRoot, FileFilter } from '../services/fs';
-import type { Check, File, Rule, RuleCategory, RuleGuidance, Violation } from '../engine/rule';
-import type { SyntaxTree } from '../services/syntax-tree';
-import type { ImportResolver } from '../services/import-resolver';
+import type { Check, CheckServices, File, Rule, RuleCategory, RuleGuidance, Violation } from '../engine/rule';
+import { SyntaxTree } from '../services/syntax-tree';
+import { ImportResolver } from '../services/import-resolver';
 
 /**
  * Converts a human-readable label into a stable kebab-case slug.
@@ -97,6 +97,32 @@ function buildRule(state: SelectorState, checks: Check[]): Rule {
   > = Effect.gen(function* () {
       const fs = yield* FileSystem;
       const root = yield* ProjectRoot;
+      const st = yield* SyntaxTree;
+      const ir = yield* ImportResolver;
+
+      // Capture the current runtime so service calls inside async checks
+      // still resolve against the injected layers.
+      const runtime = yield* Effect.runtime<
+        FileSystem | SyntaxTree | ImportResolver | ProjectRoot | FileFilter
+      >();
+
+      const services: CheckServices = {
+        fs: {
+          glob: async (pattern, options) =>
+            Runtime.runPromise(runtime)(fs.glob(pattern, options)),
+          readFile: async (path) => Runtime.runPromise(runtime)(fs.readFile(path)),
+          exists: async (path) => Runtime.runPromise(runtime)(fs.exists(path)),
+        },
+        syntaxTree: {
+          canProcess: (file) => st.canProcess(file),
+          process: async (file, options) =>
+            Runtime.runPromise(runtime)(st.process(file, options)),
+        },
+        importResolver: {
+          resolve: (fromFile, specifier) => ir.resolve(fromFile, specifier),
+        },
+        projectRoot: root,
+      };
 
       const files = yield* fs.glob(state.patterns, { cwd: root }).pipe(
         Effect.catchAll(() => Effect.succeed<File[]>([])),
@@ -121,8 +147,13 @@ function buildRule(state: SelectorState, checks: Check[]): Rule {
       const results = yield* Effect.all(
         matching.flatMap((file) =>
           checks.map((check) =>
-            check(file).pipe(
-              Effect.map((violations) => violations.map((v) => ({ ...v, rule: id }))),
+            Effect.tryPromise({
+              try: () => check(file, services),
+              catch: () => Effect.succeed([] as Violation[]),
+            }).pipe(
+              Effect.map((violations) =>
+                violations.map((v) => ({ ...v, rule: v.rule || id })),
+              ),
               Effect.catchAll(() => Effect.succeed<Violation[]>([])),
             ),
           ),

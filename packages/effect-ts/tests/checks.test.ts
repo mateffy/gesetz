@@ -1,5 +1,4 @@
 import { describe, it, expect } from 'vitest';
-import { Effect } from 'effect';
 import {
   noRunPromiseScattered,
   noThrowInEffectGen,
@@ -8,10 +7,8 @@ import {
 } from '../src/checks';
 import type { File } from '@gesetz/core';
 
-// The migrated checks use ast-grep via Effect.sync — no services required.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const run = (effect: Effect.Effect<any, never, any>): Promise<any> =>
-  Effect.runPromise(effect as any);
+/** Stub services — these checks are pure sync. */
+const noServices = {} as any;
 
 // Simple file object for the check functions
 function file(content: string, path = 'test.ts'): File {
@@ -34,7 +31,7 @@ describe('noRunPromiseScattered', () => {
       import { Effect } from 'effect';
       export const program = Effect.runPromise(Effect.succeed(1));
     `;
-    const violations = await run(noRunPromiseScattered()(file(content, 'src/lib.ts')));
+    const violations = await noRunPromiseScattered()(file(content, 'src/lib.ts'), noServices);
     expect(violations).toHaveLength(1);
     expect(violations[0]?.rule).toBe('no-run-promise-scattered');
     expect(violations[0]?.message).toContain('runPromise');
@@ -45,9 +42,7 @@ describe('noRunPromiseScattered', () => {
       import { Effect } from 'effect';
       Effect.runPromise(main);
     `;
-    const violations = await run(
-      noRunPromiseScattered({ entryPoints: ['src/main.ts'] })(file(content, 'src/main.ts')),
-    );
+    const violations = await noRunPromiseScattered({ entryPoints: ['src/main.ts'] })(file(content, 'src/main.ts'), noServices);
     expect(violations).toHaveLength(0);
   });
 
@@ -56,9 +51,7 @@ describe('noRunPromiseScattered', () => {
       import { Effect } from 'effect';
       Effect.runSync(main);
     `;
-    const violations = await run(
-      noRunPromiseScattered({ entryPoints: ['src/main.ts'] })(file(content, 'src/main.ts')),
-    );
+    const violations = await noRunPromiseScattered({ entryPoints: ['src/main.ts'] })(file(content, 'src/main.ts'), noServices);
     expect(violations).toHaveLength(0);
   });
 
@@ -67,7 +60,7 @@ describe('noRunPromiseScattered', () => {
       const runner = { runPromise: (x: number) => x };
       runner.runPromise(1);
     `;
-    const violations = await run(noRunPromiseScattered()(file(content, 'src/lib.ts')));
+    const violations = await noRunPromiseScattered()(file(content, 'src/lib.ts'), noServices);
     expect(violations).toHaveLength(0);
   });
 });
@@ -82,7 +75,7 @@ describe('noThrowInEffectGen', () => {
         return x;
       });
     `;
-    const violations = await run(noThrowInEffectGen()(file(content)));
+    const violations = await noThrowInEffectGen()(file(content), noServices);
     expect(violations).toHaveLength(1);
     expect(violations[0]?.rule).toBe('no-throw-in-effect-gen');
     expect(violations[0]?.message).toContain('throw');
@@ -94,7 +87,7 @@ describe('noThrowInEffectGen', () => {
         if (false) throw new Error('ok');
       }
     `;
-    const violations = await run(noThrowInEffectGen()(file(content)));
+    const violations = await noThrowInEffectGen()(file(content), noServices);
     expect(violations).toHaveLength(0);
   });
 
@@ -106,7 +99,7 @@ describe('noThrowInEffectGen', () => {
         return n;
       });
     `;
-    const violations = await run(noThrowInEffectGen()(file(content)));
+    const violations = await noThrowInEffectGen()(file(content), noServices);
     expect(violations).toHaveLength(1);
   });
 });
@@ -120,7 +113,7 @@ describe('noYieldWithoutStar', () => {
         return x;
       });
     `;
-    const violations = await run(noYieldWithoutStar()(file(content)));
+    const violations = await noYieldWithoutStar()(file(content), noServices);
     expect(violations).toHaveLength(1);
     expect(violations[0]?.rule).toBe('no-yield-without-star');
   });
@@ -133,7 +126,7 @@ describe('noYieldWithoutStar', () => {
         return x;
       });
     `;
-    const violations = await run(noYieldWithoutStar()(file(content)));
+    const violations = await noYieldWithoutStar()(file(content), noServices);
     expect(violations).toHaveLength(0);
   });
 
@@ -143,7 +136,7 @@ describe('noYieldWithoutStar', () => {
         yield 1;
       }
     `;
-    const violations = await run(noYieldWithoutStar()(file(content)));
+    const violations = await noYieldWithoutStar()(file(content), noServices);
     expect(violations).toHaveLength(0);
   });
 });
@@ -154,7 +147,7 @@ describe('noUnboundedEffectAll', () => {
       import { Effect } from 'effect';
       const program = Effect.all([Effect.succeed(1), Effect.succeed(2)]);
     `;
-    const violations = await run(noUnboundedEffectAll()(file(content)));
+    const violations = await noUnboundedEffectAll()(file(content), noServices);
     expect(violations).toHaveLength(1);
     expect(violations[0]?.rule).toBe('no-unbounded-effect-all');
     expect(violations[0]?.message).toContain('concurrency');
@@ -165,7 +158,7 @@ describe('noUnboundedEffectAll', () => {
       import { Effect } from 'effect';
       const program = Effect.all([Effect.succeed(1), Effect.succeed(2)], { concurrency: 2 });
     `;
-    const violations = await run(noUnboundedEffectAll()(file(content)));
+    const violations = await noUnboundedEffectAll()(file(content), noServices);
     expect(violations).toHaveLength(0);
   });
 
@@ -174,7 +167,7 @@ describe('noUnboundedEffectAll', () => {
       import { Effect } from 'effect';
       const x = Effect.succeed(1);
     `;
-    const violations = await run(noUnboundedEffectAll()(file(content)));
+    const violations = await noUnboundedEffectAll()(file(content), noServices);
     expect(violations).toHaveLength(0);
   });
 });

@@ -1,12 +1,15 @@
 import type { Effect } from 'effect';
-import type { FileSystem, ProjectRoot, FileFilter } from '../services/fs';
-import type { SyntaxTree } from '../services/syntax-tree';
+import type { FileSystem, ProjectRoot, FileFilter, GlobOptions } from '../services/fs';
+import type { SyntaxTree, SyntaxTreeProcessOptions } from '../services/syntax-tree';
+import type { SyntaxBackendProcessResult } from '../services/syntax-tree';
 import type { ImportResolver } from '../services/import-resolver';
+
 export type Severity = 'error' | 'warn' | 'info';
 export type ViolationSource = 'core' | 'eslint' | 'phpstan' | 'oxlint' | 'custom';
 
 export interface Violation {
-  readonly rule: string;
+  /** Rule ID — injected by the builder when absent. */
+  readonly rule?: string | undefined;
   readonly message: string;
   readonly path: string;
   readonly line?: number | undefined;
@@ -39,12 +42,35 @@ export interface File {
 }
 
 /**
- * A single-file analysis function. Returns violations for the given file.
- * Errors are absorbed into violations — never throw.
+ * Services bag passed to every check. Destructure what you need.
+ * These are bridged from the internal Effect service layer — you
+ * interact with them via plain async/await.
+ */
+export interface CheckServices {
+  fs: {
+    glob(pattern: string | string[], options?: GlobOptions): Promise<File[]>;
+    readFile(absolutePath: string): Promise<string>;
+    exists(absolutePath: string): Promise<boolean>;
+  };
+  syntaxTree: {
+    canProcess(file: File): boolean;
+    process(file: File, options: SyntaxTreeProcessOptions): Promise<SyntaxBackendProcessResult>;
+  };
+  importResolver: {
+    resolve(fromFile: File, specifier: string): string | null;
+  };
+  /** Absolute path to the project root directory. */
+  projectRoot: string;
+}
+
+/**
+ * A single-file analysis function. Returns a promise of violations.
+ * Errors are absorbed by the runner — never throw (return [] on failure).
  */
 export type Check = (
   file: File,
-) => Effect.Effect<Violation[], never, FileSystem | SyntaxTree | ImportResolver | ProjectRoot>;
+  services: CheckServices,
+) => Promise<Violation[]>;
 
 /**
  * A named rule that runs against the entire project context.

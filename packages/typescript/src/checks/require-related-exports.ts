@@ -1,5 +1,3 @@
-import { Effect } from 'effect';
-import { SyntaxTree } from '@gesetz/core';
 import type { Check, Violation } from '@gesetz/core';
 
 /**
@@ -23,14 +21,11 @@ export function requireRelatedExports(
   getRelated: (name: string) => string[] | null,
   opts: { message?: (name: string, missing: readonly string[]) => string } = {},
 ): Check {
-  return (file) =>
-    Effect.gen(function* () {
-      const st = yield* SyntaxTree;
-      if (!st.canProcess(file)) return [];
+  return async (file, { syntaxTree: st }) => {
+    if (!st.canProcess(file)) return [];
 
-      const result = yield* st.process(file, { exports: true }).pipe(
-        Effect.catchAll(() => Effect.succeed({ imports: [], calls: [], exports: [], structure: [] })),
-      );
+    try {
+      const result = await st.process(file, { exports: true });
       const exportNames = new Set(result.exports.map((e) => e.name));
       const violations: Violation[] = [];
 
@@ -40,7 +35,6 @@ export function requireRelatedExports(
         const missing = required.filter((r) => !exportNames.has(r));
         if (missing.length > 0) {
           violations.push({
-            rule: '',
             severity: 'error',
             source: 'core',
             message:
@@ -52,7 +46,10 @@ export function requireRelatedExports(
       }
 
       return violations;
-    });
+    } catch {
+      return [];
+    }
+  };
 }
 
 /**
@@ -73,27 +70,26 @@ export function requireExportsMatching(
   minCount: number = 1,
   opts: { message?: string } = {},
 ): Check {
-  return (file) =>
-    Effect.gen(function* () {
-      const st = yield* SyntaxTree;
-      if (!st.canProcess(file)) return [];
+  return async (file, { syntaxTree: st }) => {
+    if (!st.canProcess(file)) return [];
 
-      const result = yield* st.process(file, { exports: true }).pipe(
-        Effect.catchAll(() => Effect.succeed({ imports: [], calls: [], exports: [], structure: [] })),
-      );
+    try {
+      const result = await st.process(file, { exports: true });
       const count = result.exports.filter((e) => pattern.test(e.name)).length;
       if (count >= minCount) return [];
 
       return [
         {
-          rule: '',
-          severity: 'error' as const,
-          source: 'core' as const,
+          severity: 'error',
+          source: 'core',
           message:
             opts.message ??
             `Expected at least ${minCount} export(s) matching ${pattern.source}, found ${count}`,
           path: file.path,
         },
       ];
-    });
+    } catch {
+      return [];
+    }
+  };
 }

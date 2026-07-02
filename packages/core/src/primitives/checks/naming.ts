@@ -1,5 +1,3 @@
-import { Effect } from 'effect';
-import { SyntaxTree } from '../../services/syntax-tree';
 import type { StructureItem } from '../../services/syntax-tree';
 import type { Check, Violation } from '../../engine/rule';
 
@@ -20,14 +18,11 @@ export interface RequireNamingConventionOptions {
  * requireNamingConvention({ kinds: ['function', 'class'], pattern: /^[a-zA-Z][a-zA-Z0-9]*$/ })
  */
 export function requireNamingConvention(opts: RequireNamingConventionOptions): Check {
-  return (file) =>
-    Effect.gen(function* () {
-      const st = yield* SyntaxTree;
-      if (!st.canProcess(file)) return [];
+  return async (file, { syntaxTree: st }) => {
+    if (!st.canProcess(file)) return [];
 
-      const result = yield* st.process(file, { structure: true }).pipe(
-        Effect.catchAll(() => Effect.succeed({ imports: [], calls: [], exports: [], structure: [] })),
-      );
+    try {
+      const result = await st.process(file, { structure: true });
       const violations: Violation[] = [];
 
       function checkItems(items: readonly StructureItem[]): void {
@@ -35,7 +30,6 @@ export function requireNamingConvention(opts: RequireNamingConventionOptions): C
           const kindMatch = !opts.kinds || opts.kinds.includes(item.kind);
           if (kindMatch && !opts.pattern.test(item.name)) {
             violations.push({
-              rule: '',
               severity: opts.severity ?? 'warn',
               source: 'core',
               message:
@@ -50,7 +44,10 @@ export function requireNamingConvention(opts: RequireNamingConventionOptions): C
 
       checkItems(result.structure);
       return violations;
-    });
+    } catch {
+      return [];
+    }
+  };
 }
 
 export interface NoForbiddenNamesOptions {
@@ -75,14 +72,11 @@ export function noForbiddenNames(
     ? (n: string) => (names as readonly string[]).includes(n)
     : (n: string) => (names as RegExp).test(n);
 
-  return (file) =>
-    Effect.gen(function* () {
-      const st = yield* SyntaxTree;
-      if (!st.canProcess(file)) return [];
+  return async (file, { syntaxTree: st }) => {
+    if (!st.canProcess(file)) return [];
 
-      const result = yield* st.process(file, { structure: true }).pipe(
-        Effect.catchAll(() => Effect.succeed({ imports: [], calls: [], exports: [], structure: [] })),
-      );
+    try {
+      const result = await st.process(file, { structure: true });
       const violations: Violation[] = [];
 
       function checkItems(items: readonly StructureItem[]): void {
@@ -90,7 +84,6 @@ export function noForbiddenNames(
           const kindMatch = !opts.kinds || opts.kinds.includes(item.kind);
           if (kindMatch && matcher(item.name)) {
             violations.push({
-              rule: '',
               severity: opts.severity ?? 'error',
               source: 'core',
               message: opts.message?.(item.name) ?? `Forbidden name: '${item.name}'`,
@@ -104,5 +97,8 @@ export function noForbiddenNames(
 
       checkItems(result.structure);
       return violations;
-    });
+    } catch {
+      return [];
+    }
+  };
 }

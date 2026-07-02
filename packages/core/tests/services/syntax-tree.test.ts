@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { Effect, Exit, Cause, Layer } from 'effect';
 import { SyntaxTreeLive, SyntaxTreeError, SyntaxTree } from '../../src/services/syntax-tree';
-import type { File, SyntaxBackend } from '../../src/services/syntax-tree';
+import type { SyntaxBackend } from '../../src/services/syntax-tree';
+import type { File } from '../../src/engine/rule';
 
 function makeFile(ext: string): File {
   return {
@@ -44,8 +45,9 @@ describe('SyntaxTreeLive', () => {
     if (Exit.isFailure(exit)) {
       expect(Cause.isFailType(exit.cause)).toBe(true);
       if (Cause.isFailType(exit.cause)) {
-        expect(exit.cause.error).toBeInstanceOf(SyntaxTreeError);
-        expect(exit.cause.error.cause).toContain('.unknown');
+        const err = exit.cause.error as SyntaxTreeError;
+        expect(err).toBeInstanceOf(SyntaxTreeError);
+        expect(err.cause).toContain('.unknown');
       }
     }
   });

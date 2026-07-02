@@ -1,4 +1,3 @@
-import { Effect } from 'effect';
 import type { SgNode } from '@ast-grep/napi';
 import type { Check, Violation } from '@gesetz/core';
 import { parseFile, findByKind, getCallArgs, startLine } from './shared';
@@ -31,56 +30,53 @@ export function requireOptionsObject(
   const argIndex = opts.argIndex ?? 0;
   const requiredKeys = opts.requiredKeys;
 
-  return (file) =>
-    Effect.sync(() => {
-      const root = parseFile(file.content, file.path);
-      if (root === null) return [];
+  return async (file) => {
+    const root = parseFile(file.content, file.path);
+    if (root === null) return [];
 
-      const violations: Violation[] = [];
-      const calls = findByKind(root, 'call_expression');
+    const violations: Violation[] = [];
+    const calls = findByKind(root, 'call_expression');
 
-      for (const call of calls) {
-        const callName = call.child(0)?.text() ?? '';
-        if (callName !== fnName) continue;
+    for (const call of calls) {
+      const callName = call.child(0)?.text() ?? '';
+      if (callName !== fnName) continue;
 
-        const args = getCallArgs(call);
-        const arg = args[argIndex];
-        if (arg === undefined || arg.kind() !== 'object') {
-          violations.push({
-            rule: '',
-            severity: 'error',
-            source: 'core',
-            message: `${fnName}() must be called with an object literal as argument ${argIndex}`,
-            path: file.path,
-            line: startLine(call),
-          });
-          continue;
-        }
-
-        // Collect property keys from `pair` children of the object literal.
-        const presentKeys = new Set<string>();
-        for (const child of arg.children()) {
-          if (child.kind() === 'pair') {
-            const key = child.child(0)?.text();
-            if (key) presentKeys.add(key);
-          }
-        }
-        const missing = requiredKeys.filter((k) => !presentKeys.has(k));
-
-        if (missing.length > 0) {
-          violations.push({
-            rule: '',
-            severity: 'error',
-            source: 'core',
-            message:
-              opts.message?.(missing) ??
-              `${fnName}() is missing required properties: ${missing.join(', ')}`,
-            path: file.path,
-            line: startLine(call),
-          });
-        }
+      const args = getCallArgs(call);
+      const arg = args[argIndex];
+      if (arg === undefined || arg.kind() !== 'object') {
+        violations.push({
+          severity: 'error',
+          source: 'core',
+          message: `${fnName}() must be called with an object literal as argument ${argIndex}`,
+          path: file.path,
+          line: startLine(call),
+        });
+        continue;
       }
 
-      return violations;
-    });
+      // Collect property keys from `pair` children of the object literal.
+      const presentKeys = new Set<string>();
+      for (const child of arg.children()) {
+        if (child.kind() === 'pair') {
+          const key = child.child(0)?.text();
+          if (key) presentKeys.add(key);
+        }
+      }
+      const missing = requiredKeys.filter((k) => !presentKeys.has(k));
+
+      if (missing.length > 0) {
+        violations.push({
+          severity: 'error',
+          source: 'core',
+          message:
+            opts.message?.(missing) ??
+            `${fnName}() is missing required properties: ${missing.join(', ')}`,
+          path: file.path,
+          line: startLine(call),
+        });
+      }
+    }
+
+    return violations;
+  };
 }
