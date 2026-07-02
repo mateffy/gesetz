@@ -135,24 +135,25 @@ export function SyntaxTreeLive(backends: readonly SyntaxBackend[]): Layer.Layer<
 
   return Layer.succeed(SyntaxTree, {
     canProcess: (file) => byExt.has(file.ext),
-    process: (file, opts) =>
-      Effect.try({
-        try: () => {
-          const backend = byExt.get(file.ext);
-          if (!backend) {
-            return EMPTY_RESULT;
-          }
-          return {
-            imports: opts.imports ? backend.extractImports(file.content, file.path) : [],
-            calls: opts.calls ? backend.extractCalls(file.content, file.path) : [],
-            exports: opts.exports ? backend.extractExports(file.content, file.path) : [],
-            structure: opts.structure
-              ? backend.extractStructure(file.content, file.path, opts.docstrings ?? false)
-              : [],
-          };
-        },
+    process: (file, opts) => {
+      const backend = byExt.get(file.ext);
+      if (!backend) {
+        return Effect.fail(
+          new SyntaxTreeError({ cause: `No SyntaxBackend registered for extension "${file.ext}"` }),
+        );
+      }
+      return Effect.try({
+        try: () => ({
+          imports: opts.imports ? backend.extractImports(file.content, file.path) : [],
+          calls: opts.calls ? backend.extractCalls(file.content, file.path) : [],
+          exports: opts.exports ? backend.extractExports(file.content, file.path) : [],
+          structure: opts.structure
+            ? backend.extractStructure(file.content, file.path, opts.docstrings ?? false)
+            : [],
+        }),
         catch: (e) => new SyntaxTreeError({ cause: String(e) }),
-      }),
+      });
+    },
   });
 }
 
