@@ -80,4 +80,70 @@ describe('prettier adapter', () => {
       expect.any(Object),
     );
   });
+
+  describe('FileFilter integration', () => {
+    it('passes FileFilter patterns when --files is active', async () => {
+      const spy = childProcess.execFileSync as ReturnType<typeof vi.fn>;
+      spy.mockImplementation(() => '');
+
+      const rule = prettier({ cwd: '/project' });
+      await Effect.runPromise(Effect.provide(rule.run,
+        Layer.mergeAll(
+          MemoryFileSystem({}), SyntaxTreeStub, ImportResolverDefault,
+          ProjectRootLive('/project'), FileFilterLive(['src/app/**', 'src/lib/**']),
+        ),
+      ));
+
+      expect(spy).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.arrayContaining(['--list-different', 'src/app/**', 'src/lib/**']),
+        expect.any(Object),
+      );
+    });
+
+    it('uses adapter pattern when FileFilter is null', async () => {
+      const spy = childProcess.execFileSync as ReturnType<typeof vi.fn>;
+      spy.mockImplementation(() => '');
+
+      const rule = prettier({ cwd: '/project', pattern: 'src/custom' });
+      await Effect.runPromise(Effect.provide(rule.run, TestLayer));
+
+      expect(spy).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.arrayContaining(['src/custom']),
+        expect.any(Object),
+      );
+    });
+
+    it('defaults to [\".\"] when no pattern and no FileFilter', async () => {
+      const spy = childProcess.execFileSync as ReturnType<typeof vi.fn>;
+      spy.mockImplementation(() => '');
+
+      const rule = prettier({ cwd: '/project' });
+      await Effect.runPromise(Effect.provide(rule.run, TestLayer));
+
+      expect(spy).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.arrayContaining(['.']),
+        expect.any(Object),
+      );
+    });
+
+    it('FileFilter patterns override adapter pattern', async () => {
+      const spy = childProcess.execFileSync as ReturnType<typeof vi.fn>;
+      spy.mockImplementation(() => '');
+
+      const rule = prettier({ cwd: '/project', pattern: 'src/everything' });
+      await Effect.runPromise(Effect.provide(rule.run,
+        Layer.mergeAll(
+          MemoryFileSystem({}), SyntaxTreeStub, ImportResolverDefault,
+          ProjectRootLive('/project'), FileFilterLive(['src/subset/**']),
+        ),
+      ));
+
+      const callArgs = spy.mock.calls[spy.mock.calls.length - 1]?.[1] as string[];
+      expect(callArgs).toContain('src/subset/**');
+      expect(callArgs).not.toContain('src/everything');
+    });
+  });
 });

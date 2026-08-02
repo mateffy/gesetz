@@ -27,12 +27,12 @@ export async function buildCheckServices(
         readFile: async (path) => Runtime.runPromise(runtime)(fs.readFile(path)),
         exists: async (path) => Runtime.runPromise(runtime)(fs.exists(path)),
       },
-      syntaxTree: {
+      syntax: {
         canProcess: (file) => st.canProcess(file),
         process: async (file, options) =>
           Runtime.runPromise(runtime)(st.process(file, options)),
       },
-      importResolver: {
+      imports: {
         resolve: (fromFile, specifier) => ir.resolve(fromFile, specifier),
       },
       projectRoot: root,

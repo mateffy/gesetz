@@ -7,7 +7,7 @@
 import { select } from '@gesetz/core';
 import { strictTypes, psrNamespace, noInlineQueries } from '@gesetz/php';
 import type { Rule, Check, Violation } from '@gesetz/core';
-import { Effect } from 'effect';
+
 
 // ─── declare strict_types=1 ───────────────────────────────────────────────────
 
@@ -137,28 +137,26 @@ export interface NoDdOptions {
  */
 export function noDd(opts: NoDdOptions = {}): Check {
   const patterns = ['dd(', 'ddd(', 'dump(', 'debug('];
-  return (file) =>
-    Effect.sync(() => {
-      const violations: Violation[] = [];
-      const lines = file.content.split('\n');
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i] ?? '';
-        for (const p of patterns) {
-          if (line.includes(p)) {
-            violations.push({
-              rule: '',
-              severity: opts.severity ?? 'error',
-              source: 'core',
-              message: opts.message ?? `Remove Laravel debug helper: ${p})`,
-              path: file.path,
-              line: i + 1,
-            });
-            break;
-          }
+  return async (file) => {
+    const violations: Violation[] = [];
+    const lines = file.content.split('\n');
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i] ?? '';
+      for (const p of patterns) {
+        if (line.includes(p)) {
+          violations.push({
+            severity: opts.severity ?? 'error',
+            source: 'core',
+            message: opts.message ?? `Remove Laravel debug helper: ${p})`,
+            path: file.path,
+            line: i + 1,
+          });
+          break;
         }
       }
-      return violations;
-    });
+    }
+    return violations;
+  };
 }
 
 // ─── noFacades ───────────────────────────────────────────────────────────────
@@ -180,26 +178,24 @@ const DEFAULT_FACADES = [
  */
 export function noFacades(opts: NoFacadesOptions = {}): Check {
   const facades = opts.facades ?? DEFAULT_FACADES;
-  return (file) =>
-    Effect.sync(() => {
-      const violations: Violation[] = [];
-      const lines = file.content.split('\n');
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i] ?? '';
-        for (const f of facades) {
-          if (line.includes(f)) {
-            violations.push({
-              rule: '',
-              severity: opts.severity ?? 'warn',
-              source: 'core',
-              message: opts.message ?? `Avoid Laravel Facade '${f}' — use dependency injection instead`,
-              path: file.path,
-              line: i + 1,
-            });
-            break;
-          }
+  return async (file) => {
+    const violations: Violation[] = [];
+    const lines = file.content.split('\n');
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i] ?? '';
+      for (const f of facades) {
+        if (line.includes(f)) {
+          violations.push({
+            severity: opts.severity ?? 'warn',
+            source: 'core',
+            message: opts.message ?? `Avoid Laravel Facade '${f}' — use dependency injection instead`,
+            path: file.path,
+            line: i + 1,
+          });
+          break;
         }
       }
-      return violations;
-    });
+    }
+    return violations;
+  };
 }

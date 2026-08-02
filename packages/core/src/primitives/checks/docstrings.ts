@@ -19,11 +19,11 @@ export interface RequireDocstringsOptions {
 export function requireDocstrings(opts: RequireDocstringsOptions = {}): Check {
   const kinds = opts.kinds ?? ['function', 'class', 'method'];
 
-  return async (file, { syntaxTree: st }) => {
-    if (!st.canProcess(file)) return [];
+  return async (file, { syntax }) => {
+    if (!syntax.canProcess(file)) return [];
 
     try {
-      const result = await st.process(file, { structure: true, docstrings: true });
+      const result = await syntax.process(file, { structure: true, docstrings: true });
       const violations: Violation[] = [];
 
       function checkItems(items: readonly StructureItem[]): void {

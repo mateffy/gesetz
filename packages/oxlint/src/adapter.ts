@@ -1,7 +1,7 @@
 import * as nodePath from 'node:path';
 import { Effect } from 'effect';
 import type { Rule, Violation } from '@gesetz/core';
-import { execTool } from '@gesetz/core';
+import { execTool, FileFilter } from '@gesetz/core';
 
 export interface OxlintOptions {
   pattern?: string | string[];
@@ -48,11 +48,13 @@ export function oxlint(opts: OxlintOptions = {}): Rule {
   const cwd = nodePath.resolve(opts.cwd ?? process.cwd());
 
   const run: Rule['run'] = Effect.gen(function* () {
-    const patterns = opts.pattern
-      ? Array.isArray(opts.pattern)
-        ? opts.pattern
-        : [opts.pattern]
-      : ['.'];
+    const fileFilter = yield* FileFilter;
+
+    const patterns: string[] = fileFilter.patterns !== null && fileFilter.patterns.length > 0
+      ? [...fileFilter.patterns]
+      : opts.pattern
+        ? (Array.isArray(opts.pattern) ? opts.pattern : [opts.pattern])
+        : ['.'];
 
     const args = ['--format=json', ...patterns];
     if (opts.configFile) args.push('--config', opts.configFile);

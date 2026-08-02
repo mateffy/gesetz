@@ -1,6 +1,7 @@
 import * as nodePath from 'node:path';
 import { Effect } from 'effect';
 import type { Rule, Violation } from '@gesetz/core';
+import { FileFilter } from '@gesetz/core';
 
 export interface EslintOptions {
   pattern?: string | string[];
@@ -51,11 +52,13 @@ export function eslint(opts: EslintOptions = {}): Rule {
   const cwd = nodePath.resolve(opts.cwd ?? process.cwd());
 
   const run: Rule['run'] = Effect.gen(function* () {
-    const patterns = opts.pattern
-      ? Array.isArray(opts.pattern)
-        ? opts.pattern
-        : [opts.pattern]
-      : ['.'];
+    const fileFilter = yield* FileFilter;
+
+    const patterns: string[] = fileFilter.patterns !== null && fileFilter.patterns.length > 0
+      ? [...fileFilter.patterns]
+      : opts.pattern
+        ? (Array.isArray(opts.pattern) ? opts.pattern : [opts.pattern])
+        : ['.'];
 
     const results = yield* Effect.tryPromise({
       try: async () => {

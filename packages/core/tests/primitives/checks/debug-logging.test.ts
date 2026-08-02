@@ -1,123 +1,87 @@
 import { describe, it, expect } from 'vitest';
 import { noDebugLogging } from '../../../src/primitives/checks/debug-logging';
-import type { File } from '../../../src/engine/rule';
-
-function makeFile(content: string, name: string): File {
-  const ext = name.slice(name.lastIndexOf('.')) || name;
-  return {
-    path: `src/${name}`,
-    absolutePath: `/abs/src/${name}`,
-    name,
-    stem: name.replace(/\.[^.]+$/, ''),
-    ext,
-    dir: 'src',
-    content,
-    size: content.length,
-    mtimeMs: 0,
-  };
-}
-
-/** Stub services for checks that don't need them. */
-const noServices = {} as any;
+import { makeFile, makeCheckServices, runCheck } from '../../../src/test-helpers';
 
 describe('noDebugLogging', () => {
   it('flags console.log in .ts files', async () => {
-    const file = makeFile('console.log("hi");\nconst x = 1;', 'foo.ts');
-    const violations = await noDebugLogging()(file, noServices);
-    expect(violations).toHaveLength(1);
-    expect(violations[0]?.line).toBe(1);
-    expect(violations[0]?.message).toContain('console.log');
+    const v = await runCheck(noDebugLogging(), makeFile('src/foo.ts', 'console.log("hi");\nconst x = 1;'), makeCheckServices());
+    expect(v).toHaveLength(1);
+    expect(v[0]?.line).toBe(1);
+    expect(v[0]?.message).toContain('console.log');
   });
 
   it('flags console.warn and console.error in .ts files', async () => {
-    const file = makeFile('console.warn("w");\nconsole.error("e");', 'foo.ts');
-    const violations = await noDebugLogging()(file, noServices);
-    expect(violations).toHaveLength(2);
+    const v = await runCheck(noDebugLogging(), makeFile('src/foo.ts', 'console.warn("w");\nconsole.error("e");'), makeCheckServices());
+    expect(v).toHaveLength(2);
   });
 
   it('flags console.log in .tsx, .js, .jsx, .mjs, .cjs', async () => {
     for (const name of ['a.tsx', 'a.js', 'a.jsx', 'a.mjs', 'a.cjs']) {
-      const file = makeFile('console.log("x");', name);
-      const violations = await noDebugLogging()(file, noServices);
-      expect(violations).toHaveLength(1);
+      const v = await runCheck(noDebugLogging(), makeFile(`src/${name}`, 'console.log("x");'), makeCheckServices());
+      expect(v).toHaveLength(1);
     }
   });
 
   it('flags print() in .py files but NOT console.log', async () => {
-    const file = makeFile('print("hi")\n# console.log is not a python thing', 'foo.py');
-    const violations = await noDebugLogging()(file, noServices);
-    expect(violations).toHaveLength(1);
-    expect(violations[0]?.message).toContain('print');
+    const v = await runCheck(noDebugLogging(), makeFile('src/foo.py', 'print("hi")\n# console.log is not a python thing'), makeCheckServices());
+    expect(v).toHaveLength(1);
+    expect(v[0]?.message).toContain('print');
   });
 
   it('flags pprint and breakpoint in .py files', async () => {
-    const file = makeFile('pprint(x)\nbreakpoint()', 'foo.py');
-    const violations = await noDebugLogging()(file, noServices);
-    expect(violations).toHaveLength(2);
+    const v = await runCheck(noDebugLogging(), makeFile('src/foo.py', 'pprint(x)\nbreakpoint()'), makeCheckServices());
+    expect(v).toHaveLength(2);
   });
 
   it('flags var_dump and dd in .php files but NOT print()', async () => {
-    // print() is a PHP language construct, not a debug helper — not in the .php map.
-    const file = makeFile('var_dump($x);\ndd($y);\necho "ok";', 'foo.php');
-    const violations = await noDebugLogging()(file, noServices);
-    expect(violations).toHaveLength(2);
-    expect(violations.some((v: { message: string }) => v.message.includes('var_dump'))).toBe(true);
-    expect(violations.some((v: { message: string }) => v.message.includes('dd'))).toBe(true);
+    const v = await runCheck(noDebugLogging(), makeFile('src/foo.php', 'var_dump($x);\ndd($y);\necho "ok";'), makeCheckServices());
+    expect(v).toHaveLength(2);
+    expect(v.some((x) => x.message.includes('var_dump'))).toBe(true);
+    expect(v.some((x) => x.message.includes('dd'))).toBe(true);
   });
 
   it('flags fmt.Println in .go files', async () => {
-    const file = makeFile('fmt.Println("hi")\nlog.Printf("x")', 'foo.go');
-    const violations = await noDebugLogging()(file, noServices);
-    expect(violations).toHaveLength(2);
+    const v = await runCheck(noDebugLogging(), makeFile('src/foo.go', 'fmt.Println("hi")\nlog.Printf("x")'), makeCheckServices());
+    expect(v).toHaveLength(2);
   });
 
   it('flags println! and dbg! in .rs files', async () => {
-    const file = makeFile('println!("hi")\ndbg!(x)', 'foo.rs');
-    const violations = await noDebugLogging()(file, noServices);
-    expect(violations).toHaveLength(2);
+    const v = await runCheck(noDebugLogging(), makeFile('src/foo.rs', 'println!("hi")\ndbg!(x)'), makeCheckServices());
+    expect(v).toHaveLength(2);
   });
 
   it('flags puts and pp in .rb files', async () => {
-    const file = makeFile(`puts("hi")
-pp(obj)`, 'foo.rb');
-    const violations = await noDebugLogging()(file, noServices);
-    expect(violations).toHaveLength(2);
+    const v = await runCheck(noDebugLogging(), makeFile('src/foo.rb', 'puts("hi")\npp(obj)'), makeCheckServices());
+    expect(v).toHaveLength(2);
   });
 
   it('returns [] for unknown extensions', async () => {
-    const file = makeFile('console.log("x");\nprint("y");', 'foo.unknown');
-    const violations = await noDebugLogging()(file, noServices);
-    expect(violations).toHaveLength(0);
+    const v = await runCheck(noDebugLogging(), makeFile('src/foo.unknown', 'console.log("x");\nprint("y");'), makeCheckServices());
+    expect(v).toHaveLength(0);
   });
 
   it('does not flag partial-name matches (e.g. myconsole.log)', async () => {
-    // The lookbehind (?<![\w.]) prevents matching inside a longer identifier.
-    const file = makeFile('myconsole.log("x");\nnotconsole.log("y");', 'foo.ts');
-    const violations = await noDebugLogging()(file, noServices);
-    expect(violations).toHaveLength(0);
+    const v = await runCheck(noDebugLogging(), makeFile('src/foo.ts', 'myconsole.log("x");\nnotconsole.log("y");'), makeCheckServices());
+    expect(v).toHaveLength(0);
   });
 
   it('respects extraNames option (added to all extensions)', async () => {
-    const file = makeFile('myDebugFn(x);\nconsole.log("y");', 'foo.ts');
-    const violations = await noDebugLogging({ extraNames: ['myDebugFn'] })(file, noServices);
-    expect(violations).toHaveLength(2);
+    const v = await runCheck(noDebugLogging({ extraNames: ['myDebugFn'] }), makeFile('src/foo.ts', 'myDebugFn(x);\nconsole.log("y");'), makeCheckServices());
+    expect(v).toHaveLength(2);
   });
 
   it('respects custom severity', async () => {
-    const file = makeFile('console.log("x");', 'foo.ts');
-    const violations = await noDebugLogging({ severity: 'error' })(file, noServices);
-    expect(violations[0]?.severity).toBe('error');
+    const v = await runCheck(noDebugLogging({ severity: 'error' }), makeFile('src/foo.ts', 'console.log("x");'), makeCheckServices());
+    expect(v[0]?.severity).toBe('error');
   });
 
   it('respects custom message', async () => {
-    const file = makeFile('console.log("x");', 'foo.ts');
-    const violations = await noDebugLogging({ message: 'No logging!' })(file, noServices);
-    expect(violations[0]?.message).toBe('No logging!');
+    const v = await runCheck(noDebugLogging({ message: 'No logging!' }), makeFile('src/foo.ts', 'console.log("x");'), makeCheckServices());
+    expect(v[0]?.message).toBe('No logging!');
   });
 
   it('emits at most one violation per line', async () => {
-    const file = makeFile('console.log("a"); console.log("b");', 'foo.ts');
-    const violations = await noDebugLogging()(file, noServices);
-    expect(violations).toHaveLength(1);
+    const v = await runCheck(noDebugLogging(), makeFile('src/foo.ts', 'console.log("a"); console.log("b");'), makeCheckServices());
+    expect(v).toHaveLength(1);
   });
 });

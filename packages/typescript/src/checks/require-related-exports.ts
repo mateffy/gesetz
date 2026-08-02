@@ -21,11 +21,11 @@ export function requireRelatedExports(
   getRelated: (name: string) => string[] | null,
   opts: { message?: (name: string, missing: readonly string[]) => string } = {},
 ): Check {
-  return async (file, { syntaxTree: st }) => {
-    if (!st.canProcess(file)) return [];
+  return async (file, { syntax }) => {
+    if (!syntax.canProcess(file)) return [];
 
     try {
-      const result = await st.process(file, { exports: true });
+      const result = await syntax.process(file, { exports: true });
       const exportNames = new Set(result.exports.map((e) => e.name));
       const violations: Violation[] = [];
 
@@ -70,11 +70,11 @@ export function requireExportsMatching(
   minCount: number = 1,
   opts: { message?: string } = {},
 ): Check {
-  return async (file, { syntaxTree: st }) => {
-    if (!st.canProcess(file)) return [];
+  return async (file, { syntax }) => {
+    if (!syntax.canProcess(file)) return [];
 
     try {
-      const result = await st.process(file, { exports: true });
+      const result = await syntax.process(file, { exports: true });
       const count = result.exports.filter((e) => pattern.test(e.name)).length;
       if (count >= minCount) return [];
 

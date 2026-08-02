@@ -123,4 +123,75 @@ describe('vitest adapter', () => {
     const violations = await Effect.runPromise(Effect.provide(rule.run, TestLayer));
     expect(violations).toEqual([]);
   });
+
+  describe('FileFilter integration', () => {
+    it('passes FileFilter patterns to vitest when --files is active', async () => {
+      const spy = childProcess.execFileSync as ReturnType<typeof vi.fn>;
+      spy.mockImplementation(() => JSON.stringify({ numFailedTests: 0, testResults: [] }));
+
+      const rule = vitest({ cwd: '/project' });
+      await Effect.runPromise(Effect.provide(rule.run,
+        Layer.mergeAll(
+          MemoryFileSystem({}), SyntaxTreeStub, ImportResolverDefault,
+          ProjectRootLive('/project'), FileFilterLive(['src/app/**', 'src/lib/**']),
+        ),
+      ));
+
+      expect(spy).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.arrayContaining(['src/app/**', 'src/lib/**']),
+        expect.any(Object),
+      );
+    });
+
+    it('uses adapter pattern when FileFilter is null', async () => {
+      const spy = childProcess.execFileSync as ReturnType<typeof vi.fn>;
+      spy.mockImplementation(() => JSON.stringify({ numFailedTests: 0, testResults: [] }));
+
+      const rule = vitest({ cwd: '/project', pattern: 'src/custom.test.ts' });
+      await Effect.runPromise(Effect.provide(rule.run, TestLayer));
+
+      expect(spy).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.arrayContaining(['src/custom.test.ts']),
+        expect.any(Object),
+      );
+    });
+
+    it('runs full suite when no pattern and no FileFilter', async () => {
+      const spy = childProcess.execFileSync as ReturnType<typeof vi.fn>;
+      spy.mockImplementation(() => JSON.stringify({ numFailedTests: 0, testResults: [] }));
+
+      const rule = vitest({ cwd: '/project' });
+      await Effect.runPromise(Effect.provide(rule.run, TestLayer));
+
+      // No positional args → vitest runs its configured suite
+      const callArgs = spy.mock.calls[spy.mock.calls.length - 1]?.[1] as string[];
+      expect(callArgs).toContain('run');
+      expect(callArgs).toContain('--reporter=json');
+      // Verify no extra positional args beyond options
+      const positionalAfterOpts = callArgs.indexOf('--reporter=json') + 1;
+      // All remaining args should be config options or project flags, not file patterns
+      const remaining = callArgs.slice(positionalAfterOpts);
+      const hasNonOptPattern = remaining.some((a) => !a.startsWith('--') && a !== '--project' && a !== 'unit' && a !== 'component');
+      expect(hasNonOptPattern).toBe(false);
+    });
+
+    it('FileFilter patterns override adapter pattern', async () => {
+      const spy = childProcess.execFileSync as ReturnType<typeof vi.fn>;
+      spy.mockImplementation(() => JSON.stringify({ numFailedTests: 0, testResults: [] }));
+
+      const rule = vitest({ cwd: '/project', pattern: 'src/everything.test.ts' });
+      await Effect.runPromise(Effect.provide(rule.run,
+        Layer.mergeAll(
+          MemoryFileSystem({}), SyntaxTreeStub, ImportResolverDefault,
+          ProjectRootLive('/project'), FileFilterLive(['src/subset.test.ts']),
+        ),
+      ));
+
+      const callArgs = spy.mock.calls[spy.mock.calls.length - 1]?.[1] as string[];
+      expect(callArgs).toContain('src/subset.test.ts');
+      expect(callArgs).not.toContain('src/everything.test.ts');
+    });
+  });
 });

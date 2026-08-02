@@ -126,12 +126,6 @@ const checkCommand = Command.make(
 
       const result = yield* runAll({ ...filteredConfig, thresholds }).pipe(
         Effect.provide(makeServicesLayer(root, config.adapters, Option.getOrUndefined(filesGlobs))),
-        Effect.catchAllCause((cause) =>
-          Effect.gen(function* () {
-            yield* Console.error(`gesetz check failed: ${String(cause)}`);
-            return yield* Effect.fail(new Error(String(cause)));
-          }),
-        ),
       );
 
       const format = detectFormat(Option.getOrUndefined(opts.format) as OutputFormat | undefined);
@@ -153,7 +147,9 @@ const checkCommand = Command.make(
       }
 
       if (!result.passing) {
-        yield* Effect.fail(new Error('One or more categories below threshold'));
+        yield* Effect.sync(() => {
+          process.exitCode = 1;
+        });
       }
     }),
 ).pipe(Command.withDescription('Run all quality rules and show category scores'));

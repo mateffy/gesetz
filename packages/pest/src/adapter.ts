@@ -2,7 +2,7 @@ import * as nodePath from 'node:path';
 import * as nodeFs from 'node:fs';
 import { Effect } from 'effect';
 import type { Rule, Violation } from '@gesetz/core';
-import { execTool, runWithTempFile } from '@gesetz/core';
+import { execTool, runWithTempFile, FileFilter } from '@gesetz/core';
 import { parseJUnitXml, junitToViolations } from '@gesetz/junit';
 
 export interface PestOptions {
@@ -48,10 +48,14 @@ export function pest(opts: PestOptions = {}): Rule {
   const run: Rule['run'] = Effect.gen(function* () {
     const baseArgs = ['--log-junit', '__TMP__', '--no-progress'];
     if (opts.extraArgs) baseArgs.push(...opts.extraArgs);
-    if (opts.pattern) {
-      const patterns = Array.isArray(opts.pattern) ? opts.pattern : [opts.pattern];
-      baseArgs.push(...patterns);
-    }
+
+    const fileFilter = yield* FileFilter;
+    const patterns = fileFilter.patterns !== null && fileFilter.patterns.length > 0
+      ? [...fileFilter.patterns]
+      : opts.pattern
+        ? (Array.isArray(opts.pattern) ? opts.pattern : [opts.pattern])
+        : null;
+    if (patterns) baseArgs.push(...patterns);
 
     return yield* runWithTempFile('gesetz-pest-', 'junit.xml', (tmpFile) =>
       Effect.gen(function* () {

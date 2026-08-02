@@ -1091,6 +1091,177 @@ gesetz check --project-root apps/api
 
 ---
 
+## Testing custom checks
+
+Gesetz ships built-in testing helpers so you can test your custom checks without importing Effect, wiring service layers, or casting `{} as any`.
+
+All helpers are exported from `@gesetz/core`. They are **plain functions** — no Effect, no runtime, no dependency injection.
+
+### The three helpers
+
+**`makeFile(path, content?)`** — creates a `File` object from a repository-relative path. The absolute path is resolved against `process.cwd()`. All metadata (`stem`, `ext`, `dir`, `size`, `mtimeMs`) is derived automatically.
+
+```ts
+import { makeFile } from '@gesetz/core';
+
+const file = makeFile('src/Button.tsx', 'export function Button() { return <div />; }');
+// → { path: 'src/Button.tsx', absolutePath: '/Users/…/src/Button.tsx', name: 'Button.tsx', stem: 'Button', ext: '.tsx', … }
+```
+
+**`makeCheckServices(options?)`** — builds a fully-typed `CheckServices` bag with safe, no-op defaults for every method. You only override what your check actually needs.
+
+**`runCheck(check, file, services)`** — runs a check and returns its violations. A one-liner that reads as a test operation.
+
+```ts
+import { makeCheckServices, runCheck } from '@gesetz/core';
+
+const services = makeCheckServices();
+const violations = await runCheck(myCheck, file, services);
+```
+
+### Patterns
+
+#### Pattern 1 — Pure sync checks (regex, text scanning)
+
+Checks that only read `file.content` or `file.path`. No services needed.
+
+```ts
+import { describe, it, expect } from 'vitest';
+import { makeFile, makeCheckServices, runCheck } from '@gesetz/core';
+
+describe('noDebugLogging', () => {
+  it('flags console.log in TypeScript files', async () => {
+    const v = await runCheck(
+      noDebugLogging(),
+      makeFile('src/foo.ts', 'console.log("hi");'),
+      makeCheckServices(),  // all safe defaults
+    );
+    expect(v).toHaveLength(1);
+    expect(v[0]?.line).toBe(1);
+  });
+});
+```
+
+**What to provide:** nothing. `makeCheckServices()` with no options gives you a complete, valid `CheckServices` where every method returns a safe default (`fs.exists` returns `false`, `syntax.process` returns empty arrays, etc.).
+
+#### Pattern 2 — File system checks (`requireSibling`, `requireChildren`)
+
+Checks that call `fs.exists` or `fs.readFile`.
+
+```ts
+import * as nodePath from 'node:path';
+import { makeCheckServices } from '@gesetz/core';
+
+const CWD = process.cwd();
+
+describe('requireSibling', () => {
+  it('passes when the sibling file exists', async () => {
+    const services = makeCheckServices({
+      projectRoot: CWD,
+      files: {
+        [nodePath.resolve(CWD, 'src/Button.stories.tsx')]: '',
+      },
+    });
+    const v = await runCheck(
+      requireSibling('.stories.tsx'),
+      makeFile('src/Button.tsx'),
+      services,
+    );
+    expect(v).toHaveLength(0);
+  });
+
+  it('fails when the sibling is missing', async () => {
+    const services = makeCheckServices({ projectRoot: CWD });
+    const v = await runCheck(
+      requireSibling('.stories.tsx'),
+      makeFile('src/Button.tsx'),
+      services,
+    );
+    expect(v).toHaveLength(1);
+  });
+});
+```
+
+**What to provide:** `files` — a map of absolute path → content. `fs.exists` returns `true` for keys in this map, `false` for everything else. `fs.readFile` returns the value (content) for matching keys.
+
+#### Pattern 3 — Syntax tree checks (`noDirectCalls`, `requireNamingConvention`, `noImportFrom`)
+
+Checks that call `syntax.process` and `syntax.canProcess`.
+
+```ts
+describe('noDirectCalls', () => {
+  it('flags calls whose name is in the banned set', async () => {
+    const services = makeCheckServices({
+      syntax: {
+        calls: [
+          { name: 'eval', line: 3 },
+          { name: 'fetch', line: 7 },
+        ],
+      },
+    });
+    const v = await runCheck(noDirectCalls(['eval']), makeFile('src/foo.ts'), services);
+    expect(v).toHaveLength(1);
+    expect(v[0]?.line).toBe(3);
+  });
+
+  it('returns no violations when canProcess is false', async () => {
+    const services = makeCheckServices({
+      overrides: { syntax: { canProcess: () => false } },
+    });
+    const v = await runCheck(noDirectCalls(['eval']), makeFile('src/foo.rb'), services);
+    expect(v).toHaveLength(0);
+  });
+});
+```
+
+**What to provide:** `syntax` — a `Partial<SyntaxBackendProcessResult>` with `{ calls, imports, exports, structure }`. These values are merged into the default empty arrays. `canProcess` defaults to `true` for `.ts`, `.tsx`, `.js`, `.jsx`, `.mjs`, `.cjs`, `.php`.
+
+#### Pattern 4 — The escape hatch for dynamic mocks
+
+When you need custom mock logic that the declarative options can't express — e.g. `process()` that throws for specific files — use `overrides`.
+
+```ts
+describe('error handling', () => {
+  it('returns empty array when syntax processing throws', async () => {
+    const services = makeCheckServices({
+      overrides: {
+        syntax: {
+          process: async (file) => {
+            if (file.name === 'evil.ts') throw new Error('parse error');
+            return { imports: [], calls: [], exports: [], structure: [] };
+          },
+        },
+      },
+    });
+    const v = await runCheck(requireDocstrings(), makeFile('src/evil.ts'), services);
+    expect(v).toHaveLength(0);
+  });
+});
+```
+
+**What `overrides` does:** takes precedence over all other options. `overrides.syntax.process` replaces the static `syntax` option entirely. `overrides.fs`, `overrides.syntax`, `overrides.imports`, and `overrides.projectRoot` are all partially typed — you only override the methods you need.
+
+### Full options reference
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `files` | `Record<string, string>` | `{}` | Absolute path → file content. `fs.exists` returns true for keys; `fs.readFile` returns the value. |
+| `glob` | `readonly File[]` | `[]` | Override `fs.glob` result. |
+| `syntax` | `Partial<SyntaxBackendProcessResult>` | all empty arrays | Static data merged into `syntax.process()` return value. |
+| `imports` | `Record<string, string \| null>` | `{}` | Specifier → resolved absolute path (or `null`). |
+| `projectRoot` | `string` | `process.cwd()` | Absolute project root path. |
+| `overrides` | nested partials | — | Escape hatch: override individual `CheckServices` methods. Takes precedence. |
+
+### Principles
+
+1. **One `makeCheckServices` call per test** — build the exact state inline; don't share mutable services objects across tests.
+2. **Use `overrides` sparingly** — the declarative options (`files`, `syntax`, `imports`) cover 95% of cases, are more readable, and are statically checked.
+3. **Always use absolute paths in `files`** — `fs.exists` receives absolute paths from checks. Build keys with `nodePath.resolve(projectRoot, relativePath)` or use `makeFile().absolutePath`.
+4. **`syntax.canProcess` defaults to true for common code extensions** — if your check uses `.ts` files, you don't even need to set it. Only override when testing the "no backend registered" path or using non-standard extensions.
+5. **Errors become empty arrays** — the runner catches check errors and returns `[]`. In tests, verify this behaviour explicitly by checking for `toHaveLength(0)`, not by calling a check that throws.
+
+---
+
 ## License
 
 MIT

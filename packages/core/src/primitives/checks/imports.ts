@@ -43,12 +43,12 @@ export function noImportFrom(
 
   const label = typeof module === 'string' ? module : module.source;
 
-  return async (file, { syntaxTree: st }) => {
+  return async (file, { syntax }) => {
     const violations: Violation[] = [];
 
-    if (st.canProcess(file)) {
+    if (syntax.canProcess(file)) {
       try {
-        const result = await st.process(file, { imports: true });
+        const result = await syntax.process(file, { imports: true });
         for (const imp of result.imports) {
           if (matcher(imp.specifier)) {
             violations.push({
@@ -99,11 +99,11 @@ export function requireImportFrom(
 
   const label = typeof module === 'string' ? module : module.source;
 
-  return async (file, { syntaxTree: st }) => {
+  return async (file, { syntax }) => {
     let specifiers: string[];
-    if (st.canProcess(file)) {
+    if (syntax.canProcess(file)) {
       try {
-        const result = await st.process(file, { imports: true });
+        const result = await syntax.process(file, { imports: true });
         specifiers = result.imports.map((i) => i.specifier);
       } catch {
         specifiers = regexExtractImports(file.content);

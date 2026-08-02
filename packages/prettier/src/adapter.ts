@@ -1,7 +1,7 @@
 import * as nodePath from 'node:path';
 import { Effect } from 'effect';
 import type { Rule, Violation } from '@gesetz/core';
-import { execTool } from '@gesetz/core';
+import { execTool, FileFilter } from '@gesetz/core';
 
 export interface PrettierOptions {
   /**
@@ -43,11 +43,13 @@ export function prettier(opts: PrettierOptions = {}): Rule {
   const bin = opts.bin ?? nodePath.join('node_modules', '.bin', 'prettier');
 
   const run: Rule['run'] = Effect.gen(function* () {
-    const patterns = opts.pattern
-      ? Array.isArray(opts.pattern)
-        ? opts.pattern
-        : [opts.pattern]
-      : ['.'];
+    const fileFilter = yield* FileFilter;
+
+    const patterns: string[] = fileFilter.patterns !== null && fileFilter.patterns.length > 0
+      ? [...fileFilter.patterns]
+      : opts.pattern
+        ? (Array.isArray(opts.pattern) ? opts.pattern : [opts.pattern])
+        : ['.'];
 
     const args = ['--list-different', ...patterns];
     if (opts.configFile) args.push('--config', opts.configFile);

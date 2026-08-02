@@ -1,125 +1,124 @@
 import { describe, it, expect } from 'vitest';
+import { makeFile, makeCheckServices, runCheck } from '@gesetz/core';
 import { strictTypes, psrNamespace, noInlineQueries } from '../src/checks';
-import type { File } from '@gesetz/core';
-
-function makeFile(content: string, path = 'app/User.php', name = 'User.php'): File {
-  return {
-    path,
-    absolutePath: `/project/${path}`,
-    name,
-    stem: name.replace(/\.php$/, ''),
-    ext: '.php',
-    dir: path.split('/').slice(0, -1).join('/') || '.',
-    content,
-    size: content.length,
-    mtimeMs: 0,
-  };
-}
-
-/** Stub services — these checks are pure sync. */
-const noServices = {} as any;
 
 describe('strictTypes', () => {
   it('passes when declare(strict_types=1) is present', async () => {
-    const file = makeFile('<?php\ndeclare(strict_types=1);\nclass User {}');
-    const violations = await strictTypes()(file, noServices);
-    expect(violations).toHaveLength(0);
+    const v = await runCheck(
+      strictTypes(),
+      makeFile('app/User.php', '<?php\ndeclare(strict_types=1);\nclass User {}'),
+      makeCheckServices(),
+    );
+    expect(v).toHaveLength(0);
   });
 
   it('fails when strict_types declaration is missing', async () => {
-    const file = makeFile('<?php\nclass User {}');
-    const violations = await strictTypes()(file, noServices);
-    expect(violations).toHaveLength(1);
-    expect(violations[0]?.severity).toBe('error');
-    expect(violations[0]?.message).toContain('declare(strict_types=1)');
+    const v = await runCheck(
+      strictTypes(),
+      makeFile('app/User.php', '<?php\nclass User {}'),
+      makeCheckServices(),
+    );
+    expect(v).toHaveLength(1);
+    expect(v[0]?.severity).toBe('error');
+    expect(v[0]?.message).toContain('declare(strict_types=1)');
   });
 
   it('uses custom message', async () => {
-    const file = makeFile('<?php\nclass User {}');
-    const violations = await strictTypes({ message: 'Strict types required' })(file, noServices);
-    expect(violations[0]?.message).toBe('Strict types required');
+    const v = await runCheck(
+      strictTypes({ message: 'Strict types required' }),
+      makeFile('app/User.php', '<?php\nclass User {}'),
+      makeCheckServices(),
+    );
+    expect(v[0]?.message).toBe('Strict types required');
   });
 });
 
 describe('psrNamespace', () => {
   it('passes when namespace matches directory structure', async () => {
-    const file = makeFile(
-      '<?php\nnamespace App\\Models;\nclass User {}',
-      'app/Models/User.php',
-      'User.php',
+    const v = await runCheck(
+      psrNamespace({ baseNamespace: 'App', basePath: 'app' }),
+      makeFile('app/Models/User.php', '<?php\nnamespace App\\Models;\nclass User {}'),
+      makeCheckServices(),
     );
-    const violations = await psrNamespace({ baseNamespace: 'App', basePath: 'app' })(file, noServices);
-    expect(violations).toHaveLength(0);
+    expect(v).toHaveLength(0);
   });
 
   it('fails when namespace does not match directory', async () => {
-    const file = makeFile(
-      '<?php\nnamespace App\\Controllers;\nclass User {}',
-      'app/Models/User.php',
-      'User.php',
+    const v = await runCheck(
+      psrNamespace({ baseNamespace: 'App', basePath: 'app' }),
+      makeFile('app/Models/User.php', '<?php\nnamespace App\\Controllers;\nclass User {}'),
+      makeCheckServices(),
     );
-    const violations = await psrNamespace({ baseNamespace: 'App', basePath: 'app' })(file, noServices);
-    expect(violations).toHaveLength(1);
-    expect(violations[0]?.message).toContain('App\\Controllers');
-    expect(violations[0]?.message).toContain('App\\Models');
+    expect(v).toHaveLength(1);
+    expect(v[0]?.message).toContain('App\\Controllers');
+    expect(v[0]?.message).toContain('App\\Models');
   });
 
   it('skips files outside base path', async () => {
-    const file = makeFile(
-      '<?php\nnamespace Vendor;\nclass Tool {}',
-      'vendor/Tool.php',
-      'Tool.php',
+    const v = await runCheck(
+      psrNamespace({ baseNamespace: 'App', basePath: 'app' }),
+      makeFile('vendor/Tool.php', '<?php\nnamespace Vendor;\nclass Tool {}'),
+      makeCheckServices(),
     );
-    const violations = await psrNamespace({ baseNamespace: 'App', basePath: 'app' })(file, noServices);
-    expect(violations).toHaveLength(0);
+    expect(v).toHaveLength(0);
   });
 
   it('handles root-level files', async () => {
-    const file = makeFile(
-      '<?php\nnamespace App;\nclass Kernel {}',
-      'app/Kernel.php',
-      'Kernel.php',
+    const v = await runCheck(
+      psrNamespace({ baseNamespace: 'App', basePath: 'app' }),
+      makeFile('app/Kernel.php', '<?php\nnamespace App;\nclass Kernel {}'),
+      makeCheckServices(),
     );
-    const violations = await psrNamespace({ baseNamespace: 'App', basePath: 'app' })(file, noServices);
-    expect(violations).toHaveLength(0);
+    expect(v).toHaveLength(0);
   });
 
   it('uses custom message', async () => {
-    const file = makeFile(
-      '<?php\nnamespace Wrong;\nclass User {}',
-      'app/Models/User.php',
-      'User.php',
+    const v = await runCheck(
+      psrNamespace({ baseNamespace: 'App', basePath: 'app', message: 'Namespace mismatch' }),
+      makeFile('app/Models/User.php', '<?php\nnamespace Wrong;\nclass User {}'),
+      makeCheckServices(),
     );
-    const violations = await psrNamespace({ baseNamespace: 'App', basePath: 'app', message: 'Namespace mismatch' })(file, noServices);
-    expect(violations[0]?.message).toBe('Namespace mismatch');
+    expect(v[0]?.message).toBe('Namespace mismatch');
   });
 });
 
 describe('noInlineQueries', () => {
   it('passes when no forbidden patterns exist', async () => {
-    const file = makeFile('<?php\nUser::all();');
-    const violations = await noInlineQueries(['DB::raw', 'DB::statement'])(file, noServices);
-    expect(violations).toHaveLength(0);
+    const v = await runCheck(
+      noInlineQueries(['DB::raw', 'DB::statement']),
+      makeFile('app/User.php', '<?php\nUser::all();'),
+      makeCheckServices(),
+    );
+    expect(v).toHaveLength(0);
   });
 
   it('flags forbidden call patterns line by line', async () => {
-    const file = makeFile('<?php\nDB::raw("SELECT * FROM users");\nDB::table("users");');
-    const violations = await noInlineQueries(['DB::raw', 'DB::statement'])(file, noServices);
-    expect(violations).toHaveLength(1);
-    expect(violations[0]?.message).toContain('DB::raw');
-    expect(violations[0]?.line).toBe(2);
+    const v = await runCheck(
+      noInlineQueries(['DB::raw', 'DB::statement']),
+      makeFile('app/User.php', '<?php\nDB::raw("SELECT * FROM users");\nDB::table("users");'),
+      makeCheckServices(),
+    );
+    expect(v).toHaveLength(1);
+    expect(v[0]?.message).toContain('DB::raw');
+    expect(v[0]?.line).toBe(2);
   });
 
   it('flags multiple matching patterns', async () => {
-    const file = makeFile('<?php\nDB::raw("SELECT 1");\nDB::statement("UPDATE");');
-    const violations = await noInlineQueries(['DB::raw', 'DB::statement'])(file, noServices);
-    expect(violations).toHaveLength(2);
+    const v = await runCheck(
+      noInlineQueries(['DB::raw', 'DB::statement']),
+      makeFile('app/User.php', '<?php\nDB::raw("SELECT 1");\nDB::statement("UPDATE");'),
+      makeCheckServices(),
+    );
+    expect(v).toHaveLength(2);
   });
 
   it('uses custom message and severity', async () => {
-    const file = makeFile('<?php\nPDO::query("SELECT 1");');
-    const violations = await noInlineQueries(['PDO::query'], { message: 'Use Eloquent instead', severity: 'warn' })(file, noServices);
-    expect(violations[0]?.message).toBe('Use Eloquent instead');
-    expect(violations[0]?.severity).toBe('warn');
+    const v = await runCheck(
+      noInlineQueries(['PDO::query'], { message: 'Use Eloquent instead', severity: 'warn' }),
+      makeFile('app/User.php', '<?php\nPDO::query("SELECT 1");'),
+      makeCheckServices(),
+    );
+    expect(v[0]?.message).toBe('Use Eloquent instead');
+    expect(v[0]?.severity).toBe('warn');
   });
 });

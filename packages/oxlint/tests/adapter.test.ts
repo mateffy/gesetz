@@ -110,4 +110,75 @@ describe('oxlint', () => {
     const violations = await Effect.runPromise(Effect.provide(rule.run, TestLayer));
     expect(violations).toEqual([]);
   });
+
+  describe('FileFilter integration', () => {
+    it('passes FileFilter patterns to oxlint when --files is active', async () => {
+      const spy = childProcess.execFileSync as ReturnType<typeof vi.fn>;
+      spy.mockImplementation(() => JSON.stringify({ diagnostics: [] }));
+
+      const rule = oxlint({ cwd: '/project' });
+      await Effect.runPromise(Effect.provide(rule.run,
+        Layer.mergeAll(
+          MemoryFileSystem({}), SyntaxTreeStub, ImportResolverDefault,
+          ProjectRootLive('/project'), FileFilterLive(['src/app/**', 'src/lib/**']),
+        ),
+      ));
+
+      expect(spy).toHaveBeenCalledWith(
+        'oxlint',
+        expect.arrayContaining(['src/app/**', 'src/lib/**']),
+        expect.any(Object),
+      );
+    });
+
+    it('uses adapter pattern when FileFilter is null', async () => {
+      const spy = childProcess.execFileSync as ReturnType<typeof vi.fn>;
+      spy.mockImplementation(() => JSON.stringify({ diagnostics: [] }));
+
+      const rule = oxlint({ cwd: '/project', pattern: 'src/custom/**' });
+      await Effect.runPromise(Effect.provide(rule.run, TestLayer));
+
+      expect(spy).toHaveBeenCalledWith(
+        'oxlint',
+        expect.arrayContaining(['src/custom/**']),
+        expect.any(Object),
+      );
+    });
+
+    it('defaults to [\".\"] when no pattern and no FileFilter', async () => {
+      const spy = childProcess.execFileSync as ReturnType<typeof vi.fn>;
+      spy.mockImplementation(() => JSON.stringify({ diagnostics: [] }));
+
+      const rule = oxlint({ cwd: '/project' });
+      await Effect.runPromise(Effect.provide(rule.run, TestLayer));
+
+      expect(spy).toHaveBeenCalledWith(
+        'oxlint',
+        expect.arrayContaining(['.']),
+        expect.any(Object),
+      );
+    });
+
+    it('FileFilter patterns override adapter pattern', async () => {
+      const spy = childProcess.execFileSync as ReturnType<typeof vi.fn>;
+      spy.mockImplementation(() => JSON.stringify({ diagnostics: [] }));
+
+      const rule = oxlint({ cwd: '/project', pattern: 'src/everything/**' });
+      await Effect.runPromise(Effect.provide(rule.run,
+        Layer.mergeAll(
+          MemoryFileSystem({}), SyntaxTreeStub, ImportResolverDefault,
+          ProjectRootLive('/project'), FileFilterLive(['src/subset/**']),
+        ),
+      ));
+
+      expect(spy).toHaveBeenCalledWith(
+        'oxlint',
+        expect.arrayContaining(['src/subset/**']),
+        expect.any(Object),
+      );
+      // Should NOT contain the adapter pattern
+      const callArgs = spy.mock.calls[spy.mock.calls.length - 1]?.[1] as string[];
+      expect(callArgs).not.toContain('src/everything/**');
+    });
+  });
 });

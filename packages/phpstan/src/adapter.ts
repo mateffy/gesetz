@@ -1,7 +1,7 @@
 import * as nodePath from 'node:path';
 import { Effect } from 'effect';
 import type { Rule, Violation } from '@gesetz/core';
-import { execTool } from '@gesetz/core';
+import { execTool, FileFilter } from '@gesetz/core';
 
 export interface PhpstanOptions {
   /** Glob pattern(s) to analyse. If omitted, phpstan analyses the configured paths. */
@@ -92,10 +92,14 @@ export function phpstan(opts: PhpstanOptions = {}): Rule {
     ];
 
     if (opts.configFile) args.push(`--configuration=${opts.configFile}`);
-    if (opts.pattern) {
-      const patterns = Array.isArray(opts.pattern) ? opts.pattern : [opts.pattern];
-      args.push(...patterns);
-    }
+
+    const fileFilter = yield* FileFilter;
+    const patterns = fileFilter.patterns !== null && fileFilter.patterns.length > 0
+      ? [...fileFilter.patterns]
+      : opts.pattern
+        ? (Array.isArray(opts.pattern) ? opts.pattern : [opts.pattern])
+        : null;
+    if (patterns) args.push(...patterns);
 
     const stdout = yield* execTool(bin, args, cwd, 'phpstan');
 

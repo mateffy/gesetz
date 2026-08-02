@@ -1,7 +1,7 @@
 import * as nodePath from 'node:path';
 import { Effect } from 'effect';
 import type { Rule, Violation } from '@gesetz/core';
-import { execTool, extractLocation } from '@gesetz/core';
+import { execTool, extractLocation, FileFilter } from '@gesetz/core';
 
 export interface VitestOptions {
   /**
@@ -94,17 +94,21 @@ export function vitest(opts: VitestOptions = {}): Rule {
   const bin = opts.bin ?? nodePath.join('node_modules', '.bin', 'vitest');
 
   const run: Rule['run'] = Effect.gen(function* () {
-    const args = ['run', '--reporter=json'];
+    const fileFilter = yield* FileFilter;
+    const args: string[] = ['run', '--reporter=json'];
 
     if (opts.configFile) args.push('--config', opts.configFile);
     if (opts.project) {
       const projects = Array.isArray(opts.project) ? opts.project : [opts.project];
       for (const p of projects) args.push('--project', p);
     }
-    if (opts.pattern) {
-      const patterns = Array.isArray(opts.pattern) ? opts.pattern : [opts.pattern];
-      args.push(...patterns);
-    }
+
+    const patterns = fileFilter.patterns !== null && fileFilter.patterns.length > 0
+      ? [...fileFilter.patterns]
+      : opts.pattern
+        ? (Array.isArray(opts.pattern) ? opts.pattern : [opts.pattern])
+        : null;
+    if (patterns) args.push(...patterns);
 
     const stdout = yield* execTool(bin, args, cwd, 'vitest');
 

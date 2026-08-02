@@ -19,15 +19,15 @@ export function noLocalFunctionComponents(
     readonly excludeExportedNames?: boolean;
   } = {},
 ): Check {
-  return async (file, { syntaxTree: st }) => {
+  return async (file, { syntax }) => {
     const root = parseFile(file.content, file.path);
     if (root === null) return [];
 
     // Build the set of exported names via the SyntaxTree service (oxc-parser).
     let exportedNames = new Set<string>();
-    if (st.canProcess(file)) {
+    if (syntax.canProcess(file)) {
       try {
-        const result = await st.process(file, { exports: true });
+        const result = await syntax.process(file, { exports: true });
         exportedNames = new Set(result.exports.map((e) => e.name));
       } catch {
         // ignore parse errors

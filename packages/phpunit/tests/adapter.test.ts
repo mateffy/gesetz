@@ -116,4 +116,86 @@ describe('phpunit', () => {
       expect.any(Object),
     );
   });
+
+  describe('FileFilter integration', () => {
+    it('passes FileFilter patterns to phpunit when --files is active', async () => {
+      const tmpDir = '/tmp/gesetz-phpunit-filefilter-1';
+      (nodeFs.mkdtempSync as ReturnType<typeof vi.fn>).mockReturnValue(tmpDir);
+      (nodeFs.readFileSync as ReturnType<typeof vi.fn>).mockReturnValue(
+        '<?xml version="1.0"?><testsuites><testsuite tests="0" failures="0"/></testsuites>',
+      );
+      const spy = childProcess.execFileSync as ReturnType<typeof vi.fn>;
+      spy.mockImplementation(() => '');
+
+      const rule = phpunit({ cwd: '/project' });
+      await Effect.runPromise(Effect.provide(rule.run,
+        Layer.mergeAll(
+          MemoryFileSystem({}), SyntaxTreeStub, ImportResolverDefault,
+          ProjectRootLive('/project'), FileFilterLive(['tests/Unit/**']),
+        ),
+      ));
+
+      expect(spy).toHaveBeenCalledWith(
+        'vendor/bin/phpunit',
+        expect.arrayContaining(['tests/Unit/**']),
+        expect.any(Object),
+      );
+    });
+
+    it('uses adapter pattern when FileFilter is null', async () => {
+      const tmpDir = '/tmp/gesetz-phpunit-filefilter-2';
+      (nodeFs.mkdtempSync as ReturnType<typeof vi.fn>).mockReturnValue(tmpDir);
+      (nodeFs.readFileSync as ReturnType<typeof vi.fn>).mockReturnValue('');
+      const spy = childProcess.execFileSync as ReturnType<typeof vi.fn>;
+      spy.mockImplementation(() => '');
+
+      const rule = phpunit({ cwd: '/project', pattern: 'tests/Custom' });
+      await Effect.runPromise(Effect.provide(rule.run, TestLayer));
+
+      expect(spy).toHaveBeenCalledWith(
+        'vendor/bin/phpunit',
+        expect.arrayContaining(['tests/Custom']),
+        expect.any(Object),
+      );
+    });
+
+    it('FileFilter patterns override adapter pattern', async () => {
+      const tmpDir = '/tmp/gesetz-phpunit-filefilter-3';
+      (nodeFs.mkdtempSync as ReturnType<typeof vi.fn>).mockReturnValue(tmpDir);
+      (nodeFs.readFileSync as ReturnType<typeof vi.fn>).mockReturnValue('');
+      const spy = childProcess.execFileSync as ReturnType<typeof vi.fn>;
+      spy.mockImplementation(() => '');
+
+      const rule = phpunit({ cwd: '/project', pattern: 'tests/Everything' });
+      await Effect.runPromise(Effect.provide(rule.run,
+        Layer.mergeAll(
+          MemoryFileSystem({}), SyntaxTreeStub, ImportResolverDefault,
+          ProjectRootLive('/project'), FileFilterLive(['tests/Subset']),
+        ),
+      ));
+
+      const callArgs = spy.mock.calls[spy.mock.calls.length - 1]?.[1] as string[];
+      expect(callArgs).toContain('tests/Subset');
+      expect(callArgs).not.toContain('tests/Everything');
+    });
+
+    it('runs full suite when no pattern and no FileFilter', async () => {
+      const tmpDir = '/tmp/gesetz-phpunit-filefilter-4';
+      (nodeFs.mkdtempSync as ReturnType<typeof vi.fn>).mockReturnValue(tmpDir);
+      (nodeFs.readFileSync as ReturnType<typeof vi.fn>).mockReturnValue('');
+      const spy = childProcess.execFileSync as ReturnType<typeof vi.fn>;
+      spy.mockImplementation(() => '');
+
+      const rule = phpunit({ cwd: '/project' });
+      await Effect.runPromise(Effect.provide(rule.run, TestLayer));
+
+      // Without patterns, phpunit runs its configured suite
+      const callArgs = spy.mock.calls[spy.mock.calls.length - 1]?.[1] as string[];
+      const positionalAfterOpts = callArgs.indexOf('--no-progress') + 1;
+      const remaining = callArgs.slice(positionalAfterOpts);
+      // All remaining args should be config options, not file patterns
+      const nonOptArgs = remaining.filter((a) => !a.startsWith('--') && !a.includes('junit.xml'));
+      expect(nonOptArgs.length).toBe(0);
+    });
+  });
 });

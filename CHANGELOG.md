@@ -5,6 +5,136 @@ All notable changes to **Gesetz** and the `@gesetz/*` packages are documented he
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] — 2026-07-05
+
+### Breaking: Check type migrated from Effect to async/await
+
+The `Check` type is now `(file: File, services: CheckServices) => Promise<Violation[]>`
+ instead of `Effect.Effect<Violation[], never, FileSystem | SyntaxTree | ...>`.
+ This is the **largest breaking change in v2.0.0** — every custom check, every
+ adapter check, and every test must be rewritten.
+
+**Effect stays internal.** The runner, services, and `Rule.run` remain
+ Effect-based. Only per-file check functions become plain async. Checks
+ receive `FileSystem`, `SyntaxTree`, `ImportResolver`, and `projectRoot` via
+ a `CheckServices` bag as the second argument — no more `Effect.gen` or `yield*`.
+
+#### Before (1.x)
+
+```ts
+import { Effect } from 'effect';
+import { FileSystem } from '@gesetz/core';
+import type { Check } from '@gesetz/core';
+
+export function requireSibling(suffix: string): Check {
+  return (file) =>
+    Effect.gen(function* () {
+      const fs = yield* FileSystem;
+      const siblingPath = file.dir + '/' + file.stem + suffix;
+      const exists = yield* fs.exists(file.absolutePath.replace(file.name, file.stem + suffix));
+      if (exists) return [];
+      return [{
+        severity: 'error',
+        source: 'core',
+        message: `Missing sibling file: ${file.stem}${suffix}`,
+        path: file.path,
+      }];
+    });
+}
+```
+
+#### After (2.0)
+
+```ts
+import type { Check } from '@gesetz/core';
+
+export function requireSibling(suffix: string): Check {
+  return async (file, { fs }) => {
+    const siblingPath = file.dir + '/' + file.stem + suffix;
+    const exists = await fs.exists(file.absolutePath.replace(file.name, file.stem + suffix));
+    if (exists) return [];
+    return [{
+      severity: 'error',
+      source: 'core',
+      message: `Missing sibling file: ${file.stem}${suffix}`,
+      path: file.path,
+    }];
+  };
+}
+```
+
+#### Key differences
+
+1. **No Effect imports needed** — checks are plain `async` functions.
+2. **Services come from the second argument** — destructure `{ fs, syntax, imports, projectRoot }` instead of `yield* FileSystem`.
+3. **No `Effect.gen` / `yield*` / `Effect.sync`** — use `await` and `return` directly.
+4. **No error channel** — return `[]` on failure; never throw.
+5. **`rule` field is optional** — the builder auto-injects the rule ID. Omit it from violations.
+6. **`.check()` in `select` is unchanged** — still chain `.check(myCheckFn)` as before.
+7. **External tool adapters** (eslint, oxlint, …) — their run Effects are unchanged. Only per-file checks are affected.
+
+#### Services available via `CheckServices`
+
+```ts
+interface CheckServices {
+  fs: {
+    glob(pattern: string | string[], options?: GlobOptions): Promise<File[]>;
+    readFile(absolutePath: string): Promise<string>;
+    exists(absolutePath: string): Promise<boolean>;
+  };
+  syntax: {
+    canProcess(file: File): boolean;
+    process(file: File, options: SyntaxTreeProcessOptions): Promise<SyntaxBackendProcessResult>;
+  };
+  imports: {
+    resolve(fromFile: File, specifier: string): string | null;
+  };
+  projectRoot: string;
+}
+```
+
+### Breaking: `--files` filtering now happens before execution
+
+Previously, `--files <globs>` only filtered output — all checks and external
+ tools ran on the full codebase, and violations from non-matching files were
+ suppressed post-hoc. Now the filter is applied proactively:
+
+- **`select()` rules** — `--files` patterns are used for `fast-glob` scanning
+  instead of the rule's own patterns. The rule's `select()` patterns are
+  applied as a post-glob micromatch filter. Fewer files are glob-scanned.
+- **External tool adapters** — each adapter now yields `FileFilter` and passes
+  its patterns as file arguments to the external tool (eslint, oxlint,
+  prettier, oxfmt, vitest, phpstan, pest, phpunit, bun-test). The tool only
+  processes the `--files` subset. The adapter's own `pattern` option is
+  overridden by `--files` when both are present.
+- **storybook** is not affected — its `--stories` flag filters story names,
+  not file paths. The post-hoc runner filter handles it.
+- The post-hoc runner filter **remains** as a safety net for any violations
+  produced outside the `--files` scope.
+
+### Migration notes (from 1.x)
+
+1. **Rewrite all custom `Check` functions** from `Effect.gen(function* () { ... })` to `async (file, services) => { ... }`. See the before/after example above.
+2. **Remove `import { Effect } from 'effect'`** from check files — it's no longer needed.
+3. **Remove `import { FileSystem, SyntaxTree, ImportResolver } from '@gesetz/core'`** from check files — services come from the second argument now.
+4. **Tests for checks** — replace `Effect.runPromise(Effect.provide(check(file), layer))`
+   with `await check(file, makeCheckServices({ ... }))`. Use the `makeCheckServices`
+   helper from `@gesetz/core`.
+5. **`Rule.run` and `defineConfig` are unchanged** — only the `Check` type changed.
+6. **`DefineArchitecture` is unchanged** — it constructs rules internally; no public API change.
+7. **Adapter `pattern` option** — when using `--files`, the adapter's own `pattern`
+   is overridden. If you need both, pass combined patterns via `--files`.
+
+### Affected packages
+
+All 18 packages (`@gesetz/bun-test`, `@gesetz/cli`, `@gesetz/core`,
+ `@gesetz/effect-ts`, `@gesetz/eslint`, `gesetz`, `@gesetz/junit`,
+ `@gesetz/laravel`, `@gesetz/oxfmt`, `@gesetz/oxlint`, `@gesetz/pest`,
+ `@gesetz/php`, `@gesetz/phpstan`, `@gesetz/phpunit`, `@gesetz/prettier`,
+ `@gesetz/storybook`, `@gesetz/typescript`, `@gesetz/vitest`).
+
+---
+
 ## [1.3.3] — 2026-06-28
 
 ### Fixed

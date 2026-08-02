@@ -113,27 +113,31 @@ function buildRule(state: SelectorState, checks: Check[]): Rule {
           readFile: async (path) => Runtime.runPromise(runtime)(fs.readFile(path)),
           exists: async (path) => Runtime.runPromise(runtime)(fs.exists(path)),
         },
-        syntaxTree: {
+        syntax: {
           canProcess: (file) => st.canProcess(file),
           process: async (file, options) =>
             Runtime.runPromise(runtime)(st.process(file, options)),
         },
-        importResolver: {
+        imports: {
           resolve: (fromFile, specifier) => ir.resolve(fromFile, specifier),
         },
         projectRoot: root,
       };
 
-      const files = yield* fs.glob(state.patterns, { cwd: root }).pipe(
+      const fileFilter = yield* FileFilter;
+
+      // When --files is active, narrow the glob to only scan those files
+      // instead of the full codebase. The rule's own patterns are applied
+      // as a post-glob micromatch filter.
+      const globPatterns = fileFilter.patterns !== null && fileFilter.patterns.length > 0
+        ? [...fileFilter.patterns]
+        : state.patterns;
+
+      const files = yield* fs.glob(globPatterns, { cwd: root }).pipe(
         Effect.catchAll(() => Effect.succeed<File[]>([])),
       );
 
-      // Apply the optional --files filter (from CLI). When present, only files
-      // matching the filter are scanned. When absent (FileFilterLive(null)),
-      // matches() returns true for everything.
-      const fileFilter = yield* FileFilter;
-
-      // Apply exclusions, predicates, and the file filter
+      // Apply exclusions, predicates, and --files-narrowed rule patterns
       const matching = files
         .filter((f) =>
           state.exclusions.length === 0
@@ -141,7 +145,14 @@ function buildRule(state: SelectorState, checks: Check[]): Rule {
             : !micromatch.isMatch(f.path, state.exclusions),
         )
         .filter((f) => state.predicates.every((pred) => pred(f)))
-        .filter((f) => fileFilter.matches(f.path));
+        .filter((f) => {
+          // When we used --files patterns for globbing, also filter by the
+          // rule's own select() patterns to exclude non-matching files.
+          if (globPatterns !== state.patterns) {
+            return micromatch.isMatch(f.path, state.patterns);
+          }
+          return true;
+        });
 
       // Run all checks on all files with bounded concurrency
       const results = yield* Effect.all(

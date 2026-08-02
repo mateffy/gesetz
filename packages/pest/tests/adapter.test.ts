@@ -115,4 +115,90 @@ describe('pest adapter', () => {
     const violations = await Effect.runPromise(Effect.provide(rule.run, TestLayer));
     expect(violations).toEqual([]);
   });
+
+  describe('FileFilter integration', () => {
+    it('passes FileFilter patterns to pest when --files is active', async () => {
+      const tmpDir = '/tmp/gesetz-pest-filefilter-1';
+      (nodeFs.mkdtempSync as ReturnType<typeof vi.fn>).mockReturnValue(tmpDir);
+      (nodeFs.readFileSync as ReturnType<typeof vi.fn>).mockReturnValue(
+        '<?xml version="1.0"?><testsuites><testsuite tests="0" failures="0"/></testsuites>',
+      );
+      const spy = childProcess.execFileSync as ReturnType<typeof vi.fn>;
+      spy.mockImplementation(() => '');
+
+      const rule = pest({ cwd: '/project' });
+      await Effect.runPromise(Effect.provide(rule.run,
+        Layer.mergeAll(
+          MemoryFileSystem({}), SyntaxTreeStub, ImportResolverDefault,
+          ProjectRootLive('/project'), FileFilterLive(['tests/Unit/**']),
+        ),
+      ));
+
+      expect(spy).toHaveBeenCalledWith(
+        'vendor/bin/pest',
+        expect.arrayContaining(['tests/Unit/**']),
+        expect.any(Object),
+      );
+    });
+
+    it('uses adapter pattern when FileFilter is null', async () => {
+      const tmpDir = '/tmp/gesetz-pest-filefilter-2';
+      (nodeFs.mkdtempSync as ReturnType<typeof vi.fn>).mockReturnValue(tmpDir);
+      (nodeFs.readFileSync as ReturnType<typeof vi.fn>).mockReturnValue(
+        '<?xml version="1.0"?><testsuites><testsuite tests="0" failures="0"/></testsuites>',
+      );
+      const spy = childProcess.execFileSync as ReturnType<typeof vi.fn>;
+      spy.mockImplementation(() => '');
+
+      const rule = pest({ cwd: '/project', pattern: 'tests/Custom' });
+      await Effect.runPromise(Effect.provide(rule.run, TestLayer));
+
+      expect(spy).toHaveBeenCalledWith(
+        'vendor/bin/pest',
+        expect.arrayContaining(['tests/Custom']),
+        expect.any(Object),
+      );
+    });
+
+    it('runs full suite when no pattern and no FileFilter', async () => {
+      const tmpDir = '/tmp/gesetz-pest-filefilter-3';
+      (nodeFs.mkdtempSync as ReturnType<typeof vi.fn>).mockReturnValue(tmpDir);
+      (nodeFs.readFileSync as ReturnType<typeof vi.fn>).mockReturnValue(
+        '<?xml version="1.0"?><testsuites><testsuite tests="0" failures="0"/></testsuites>',
+      );
+      const spy = childProcess.execFileSync as ReturnType<typeof vi.fn>;
+      spy.mockImplementation(() => '');
+
+      const rule = pest({ cwd: '/project' });
+      await Effect.runPromise(Effect.provide(rule.run, TestLayer));
+
+      // Without patterns, pest runs its configured suite — no extra positional args
+      const callArgs = spy.mock.calls[spy.mock.calls.length - 1]?.[1] as string[];
+      const positionalArgs = callArgs.filter((a) => !a.startsWith('--') && !a.startsWith('=') && a !== 'vendor/bin/pest' && !a.startsWith('/tmp/') && !a.includes('junit.xml'));
+      // Only --log-junit, --no-progress and the temp file path
+      expect(positionalArgs.length).toBe(0);
+    });
+
+    it('FileFilter patterns override adapter pattern', async () => {
+      const tmpDir = '/tmp/gesetz-pest-filefilter-4';
+      (nodeFs.mkdtempSync as ReturnType<typeof vi.fn>).mockReturnValue(tmpDir);
+      (nodeFs.readFileSync as ReturnType<typeof vi.fn>).mockReturnValue(
+        '<?xml version="1.0"?><testsuites><testsuite tests="0" failures="0"/></testsuites>',
+      );
+      const spy = childProcess.execFileSync as ReturnType<typeof vi.fn>;
+      spy.mockImplementation(() => '');
+
+      const rule = pest({ cwd: '/project', pattern: 'tests/Everything' });
+      await Effect.runPromise(Effect.provide(rule.run,
+        Layer.mergeAll(
+          MemoryFileSystem({}), SyntaxTreeStub, ImportResolverDefault,
+          ProjectRootLive('/project'), FileFilterLive(['tests/Subset']),
+        ),
+      ));
+
+      const callArgs = spy.mock.calls[spy.mock.calls.length - 1]?.[1] as string[];
+      expect(callArgs).toContain('tests/Subset');
+      expect(callArgs).not.toContain('tests/Everything');
+    });
+  });
 });

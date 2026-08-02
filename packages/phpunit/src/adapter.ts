@@ -2,7 +2,7 @@ import * as nodePath from 'node:path';
 import * as nodeFs from 'node:fs';
 import { Effect } from 'effect';
 import type { Rule, Violation } from '@gesetz/core';
-import { execTool, runWithTempFile } from '@gesetz/core';
+import { execTool, runWithTempFile, FileFilter } from '@gesetz/core';
 import { parseJUnitXml, junitToViolations } from '@gesetz/junit';
 
 export interface PhpunitOptions {
@@ -54,10 +54,14 @@ export function phpunit(opts: PhpunitOptions = {}): Rule {
     if (opts.configFile) baseArgs.push('--configuration', opts.configFile);
     if (opts.filter) baseArgs.push('--filter', opts.filter);
     if (opts.extraArgs) baseArgs.push(...opts.extraArgs);
-    if (opts.pattern) {
-      const patterns = Array.isArray(opts.pattern) ? opts.pattern : [opts.pattern];
-      baseArgs.push(...patterns);
-    }
+
+    const fileFilter = yield* FileFilter;
+    const patterns = fileFilter.patterns !== null && fileFilter.patterns.length > 0
+      ? [...fileFilter.patterns]
+      : opts.pattern
+        ? (Array.isArray(opts.pattern) ? opts.pattern : [opts.pattern])
+        : null;
+    if (patterns) baseArgs.push(...patterns);
 
     return yield* runWithTempFile('gesetz-phpunit-', 'junit.xml', (tmpFile) =>
       Effect.gen(function* () {

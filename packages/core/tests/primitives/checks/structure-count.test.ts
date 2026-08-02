@@ -1,96 +1,48 @@
 import { describe, it, expect } from 'vitest';
 import { requireMinStructureCount } from '../../../src/primitives/checks/structure-count';
-import { makeSyntaxTreeLayer, SyntaxTreeUnavailable } from '../../helpers/syntax-tree';
-import { buildCheckServices } from '../../helpers/services';
-import { ProjectRootLive } from '../../../src/services/fs';
-import { ImportResolverDefault } from '../../../src/services/import-resolver';
-import type { File } from '../../../src/engine/rule';
+import { makeFile, makeCheckServices, runCheck } from '../../../src/test-helpers';
+import type { StructureItem } from '../../../src/services/syntax-tree';
 
-function makeFile(name = 'foo.ts'): File {
-  return {
-    path: `src/${name}`,
-    absolutePath: `/abs/src/${name}`,
-    name,
-    stem: name.replace(/\.[^.]+$/, ''),
-    ext: '.' + name.split('.').pop()!,
-    dir: 'src',
-    content: '',
-    size: 0,
-    mtimeMs: 0,
-  };
-}
-
-async function runCheck(
-  check: (file: File, services: any) => Promise<any>,
-  file: File,
-  layer: any,
-) {
-  const services = await buildCheckServices(
-    layer,
-    ProjectRootLive('/abs'),
-    ImportResolverDefault,
-  );
-  return check(file, services);
+function svcs(structure: StructureItem[]) {
+  return makeCheckServices({ syntax: { structure } });
 }
 
 describe('requireMinStructureCount', () => {
   it('passes when count of kind >= minCount', async () => {
-    const layer = makeSyntaxTreeLayer({
-      structure: [
-        { kind: 'function', name: 'a', startLine: 1, endLine: 2, docstring: null, children: [] },
-        { kind: 'function', name: 'b', startLine: 3, endLine: 4, docstring: null, children: [] },
-      ],
-    });
-    const violations = await runCheck(requireMinStructureCount('function', 2), makeFile(), layer);
-    expect(violations).toHaveLength(0);
+    const v = await runCheck(requireMinStructureCount('function', 2), makeFile('src/foo.ts'), svcs([
+      { kind: 'function', name: 'a', startLine: 1, endLine: 2, docstring: null, children: [] },
+      { kind: 'function', name: 'b', startLine: 3, endLine: 4, docstring: null, children: [] },
+    ]));
+    expect(v).toHaveLength(0);
   });
 
   it('fails when count of kind < minCount', async () => {
-    const layer = makeSyntaxTreeLayer({
-      structure: [
-        { kind: 'function', name: 'a', startLine: 1, endLine: 2, docstring: null, children: [] },
-      ],
-    });
-    const violations = await runCheck(requireMinStructureCount('function', 2), makeFile(), layer);
-    expect(violations).toHaveLength(1);
-    expect(violations[0]?.message).toContain('found 1');
+    const v = await runCheck(requireMinStructureCount('function', 2), makeFile('src/foo.ts'), svcs([
+      { kind: 'function', name: 'a', startLine: 1, endLine: 2, docstring: null, children: [] },
+    ]));
+    expect(v).toHaveLength(1);
+    expect(v[0]?.message).toContain('found 1');
   });
 
   it('counts nested children recursively', async () => {
-    const layer = makeSyntaxTreeLayer({
-      structure: [
-        {
-          kind: 'class',
-          name: 'C',
-          startLine: 1,
-          endLine: 10,
-          docstring: null,
-          children: [
-            { kind: 'method', name: 'm1', startLine: 2, endLine: 3, docstring: null, children: [] },
-            {
-              kind: 'method',
-              name: 'm2',
-              startLine: 4,
-              endLine: 9,
-              docstring: null,
-              children: [
-                { kind: 'method', name: 'nested', startLine: 5, endLine: 6, docstring: null, children: [] },
-              ],
-            },
-          ],
-        },
-      ],
-    });
-    const violations = await runCheck(requireMinStructureCount('method', 3), makeFile(), layer);
-    expect(violations).toHaveLength(0); // m1 + m2 + nested = 3
+    const v = await runCheck(requireMinStructureCount('method', 3), makeFile('src/foo.ts'), svcs([
+      {
+        kind: 'class', name: 'C', startLine: 1, endLine: 10, docstring: null,
+        children: [
+          { kind: 'method', name: 'm1', startLine: 2, endLine: 3, docstring: null, children: [] },
+          {
+            kind: 'method', name: 'm2', startLine: 4, endLine: 9, docstring: null,
+            children: [{ kind: 'method', name: 'nested', startLine: 5, endLine: 6, docstring: null, children: [] }],
+          },
+        ],
+      },
+    ]));
+    expect(v).toHaveLength(0); // m1 + m2 + nested = 3
   });
 
   it('returns [] when canProcess is false', async () => {
-    const violations = await runCheck(
-      requireMinStructureCount('function', 1),
-      makeFile(),
-      SyntaxTreeUnavailable,
-    );
-    expect(violations).toHaveLength(0);
+    const services = makeCheckServices({ overrides: { syntax: { canProcess: () => false } } });
+    const v = await runCheck(requireMinStructureCount('function', 1), makeFile('src/foo.ts'), services);
+    expect(v).toHaveLength(0);
   });
 });

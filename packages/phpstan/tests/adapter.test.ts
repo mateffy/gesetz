@@ -130,4 +130,70 @@ describe('phpstan adapter', () => {
       expect.any(Object),
     );
   });
+
+  describe('FileFilter integration', () => {
+    it('passes FileFilter patterns to phpstan when --files is active', async () => {
+      const spy = childProcess.execFileSync as ReturnType<typeof vi.fn>;
+      spy.mockImplementation(() => JSON.stringify({ totals: { errors: 0, file_errors: 0 }, files: {}, errors: [] }));
+
+      const rule = phpstan({ cwd: '/project' });
+      await Effect.runPromise(Effect.provide(rule.run,
+        Layer.mergeAll(
+          MemoryFileSystem({}), SyntaxTreeStub, ImportResolverDefault,
+          ProjectRootLive('/project'), FileFilterLive(['src/app/**', 'src/lib/**']),
+        ),
+      ));
+
+      expect(spy).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.arrayContaining(['src/app/**', 'src/lib/**']),
+        expect.any(Object),
+      );
+    });
+
+    it('uses adapter pattern when FileFilter is null', async () => {
+      const spy = childProcess.execFileSync as ReturnType<typeof vi.fn>;
+      spy.mockImplementation(() => JSON.stringify({ totals: { errors: 0, file_errors: 0 }, files: {}, errors: [] }));
+
+      const rule = phpstan({ cwd: '/project', pattern: 'src/custom' });
+      await Effect.runPromise(Effect.provide(rule.run, TestLayer));
+
+      expect(spy).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.arrayContaining(['src/custom']),
+        expect.any(Object),
+      );
+    });
+
+    it('runs configured paths when no pattern and no FileFilter', async () => {
+      const spy = childProcess.execFileSync as ReturnType<typeof vi.fn>;
+      spy.mockImplementation(() => JSON.stringify({ totals: { errors: 0, file_errors: 0 }, files: {}, errors: [] }));
+
+      const rule = phpstan({ cwd: '/project' });
+      await Effect.runPromise(Effect.provide(rule.run, TestLayer));
+
+      // Without patterns, phpstan uses its configured paths — no extra positional args
+      const callArgs = spy.mock.calls[spy.mock.calls.length - 1]?.[1] as string[];
+      const positionalAfterOpts = callArgs.indexOf('--no-interaction') + 1;
+      const remaining = callArgs.slice(positionalAfterOpts);
+      expect(remaining.every((a) => a.startsWith('--'))).toBe(true);
+    });
+
+    it('FileFilter patterns override adapter pattern', async () => {
+      const spy = childProcess.execFileSync as ReturnType<typeof vi.fn>;
+      spy.mockImplementation(() => JSON.stringify({ totals: { errors: 0, file_errors: 0 }, files: {}, errors: [] }));
+
+      const rule = phpstan({ cwd: '/project', pattern: 'src/everything' });
+      await Effect.runPromise(Effect.provide(rule.run,
+        Layer.mergeAll(
+          MemoryFileSystem({}), SyntaxTreeStub, ImportResolverDefault,
+          ProjectRootLive('/project'), FileFilterLive(['src/subset/**']),
+        ),
+      ));
+
+      const callArgs = spy.mock.calls[spy.mock.calls.length - 1]?.[1] as string[];
+      expect(callArgs).toContain('src/subset/**');
+      expect(callArgs).not.toContain('src/everything');
+    });
+  });
 });

@@ -20,11 +20,11 @@ export function requireMinStructureCount(
   minCount: number,
   opts: RequireMinStructureCountOptions = {},
 ): Check {
-  return async (file, { syntaxTree: st }) => {
-    if (!st.canProcess(file)) return [];
+  return async (file, { syntax }) => {
+    if (!syntax.canProcess(file)) return [];
 
     try {
-      const result = await st.process(file, { structure: true });
+      const result = await syntax.process(file, { structure: true });
 
       function countKind(items: readonly StructureItem[]): number {
         return items.reduce((sum, item) => {

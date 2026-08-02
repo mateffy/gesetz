@@ -60,6 +60,10 @@ export type { Selector } from './primitives/select';
 // ─── Check types ─────────────────────────────────────────────────────────────
 export type { CheckServices } from './engine/rule';
 
+// ─── Test helpers ─────────────────────────────────────────────────────────────
+export { makeFile, makeCheckServices, runCheck } from './test-helpers';
+export type { MakeCheckServicesOptions } from './test-helpers';
+
 // ─── Primitive checks (language-agnostic) ─────────────────────────────────────
 export { requireSibling, requireChildren, forbidFile } from './primitives/checks/fs';
 export { noImportFrom, requireImportFrom } from './primitives/checks/imports';

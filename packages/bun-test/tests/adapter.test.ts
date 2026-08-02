@@ -111,4 +111,91 @@ describe('bun-test adapter', () => {
     const violations = await Effect.runPromise(Effect.provide(rule.run, TestLayer));
     expect(violations).toEqual([]);
   });
+
+  describe('FileFilter integration', () => {
+    it('passes FileFilter patterns to bun when --files is active', async () => {
+      const tmpDir = '/tmp/gesetz-bun-filefilter-1';
+      (nodeFs.mkdtempSync as ReturnType<typeof vi.fn>).mockReturnValue(tmpDir);
+      (nodeFs.readFileSync as ReturnType<typeof vi.fn>).mockReturnValue(
+        '<?xml version="1.0"?><testsuites><testsuite tests="0" failures="0"/></testsuites>',
+      );
+      const spy = childProcess.execFileSync as ReturnType<typeof vi.fn>;
+      spy.mockImplementation(() => '');
+
+      const rule = bunTest({ cwd: '/project' });
+      await Effect.runPromise(Effect.provide(rule.run,
+        Layer.mergeAll(
+          MemoryFileSystem({}), SyntaxTreeStub, ImportResolverDefault,
+          ProjectRootLive('/project'), FileFilterLive(['src/app/**', 'src/lib/**']),
+        ),
+      ));
+
+      expect(spy).toHaveBeenCalledWith(
+        'bun',
+        expect.arrayContaining(['src/app/**', 'src/lib/**']),
+        expect.any(Object),
+      );
+    });
+
+    it('uses adapter pattern when FileFilter is null', async () => {
+      const tmpDir = '/tmp/gesetz-bun-filefilter-2';
+      (nodeFs.mkdtempSync as ReturnType<typeof vi.fn>).mockReturnValue(tmpDir);
+      (nodeFs.readFileSync as ReturnType<typeof vi.fn>).mockReturnValue(
+        '<?xml version="1.0"?><testsuites><testsuite tests="0" failures="0"/></testsuites>',
+      );
+      const spy = childProcess.execFileSync as ReturnType<typeof vi.fn>;
+      spy.mockImplementation(() => '');
+
+      const rule = bunTest({ cwd: '/project', pattern: 'src/custom' });
+      await Effect.runPromise(Effect.provide(rule.run, TestLayer));
+
+      expect(spy).toHaveBeenCalledWith(
+        'bun',
+        expect.arrayContaining(['src/custom']),
+        expect.any(Object),
+      );
+    });
+
+    it('runs default matching when no pattern and no FileFilter', async () => {
+      const tmpDir = '/tmp/gesetz-bun-filefilter-3';
+      (nodeFs.mkdtempSync as ReturnType<typeof vi.fn>).mockReturnValue(tmpDir);
+      (nodeFs.readFileSync as ReturnType<typeof vi.fn>).mockReturnValue(
+        '<?xml version="1.0"?><testsuites><testsuite tests="0" failures="0"/></testsuites>',
+      );
+      const spy = childProcess.execFileSync as ReturnType<typeof vi.fn>;
+      spy.mockImplementation(() => '');
+
+      const rule = bunTest({ cwd: '/project' });
+      await Effect.runPromise(Effect.provide(rule.run, TestLayer));
+
+      // Without patterns, bun test runs its default matching
+      const callArgs = spy.mock.calls[spy.mock.calls.length - 1]?.[1] as string[];
+      const positionalArgs = callArgs.filter(
+        (a) => !a.startsWith('--') && a !== 'bun' && a !== 'test' && !a.includes('junit.xml')
+      );
+      expect(positionalArgs.length).toBe(0);
+    });
+
+    it('FileFilter patterns override adapter pattern', async () => {
+      const tmpDir = '/tmp/gesetz-bun-filefilter-4';
+      (nodeFs.mkdtempSync as ReturnType<typeof vi.fn>).mockReturnValue(tmpDir);
+      (nodeFs.readFileSync as ReturnType<typeof vi.fn>).mockReturnValue(
+        '<?xml version="1.0"?><testsuites><testsuite tests="0" failures="0"/></testsuites>',
+      );
+      const spy = childProcess.execFileSync as ReturnType<typeof vi.fn>;
+      spy.mockImplementation(() => '');
+
+      const rule = bunTest({ cwd: '/project', pattern: 'src/everything' });
+      await Effect.runPromise(Effect.provide(rule.run,
+        Layer.mergeAll(
+          MemoryFileSystem({}), SyntaxTreeStub, ImportResolverDefault,
+          ProjectRootLive('/project'), FileFilterLive(['src/subset/**']),
+        ),
+      ));
+
+      const callArgs = spy.mock.calls[spy.mock.calls.length - 1]?.[1] as string[];
+      expect(callArgs).toContain('src/subset/**');
+      expect(callArgs).not.toContain('src/everything');
+    });
+  });
 });

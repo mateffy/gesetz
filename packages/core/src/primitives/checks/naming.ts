@@ -18,11 +18,11 @@ export interface RequireNamingConventionOptions {
  * requireNamingConvention({ kinds: ['function', 'class'], pattern: /^[a-zA-Z][a-zA-Z0-9]*$/ })
  */
 export function requireNamingConvention(opts: RequireNamingConventionOptions): Check {
-  return async (file, { syntaxTree: st }) => {
-    if (!st.canProcess(file)) return [];
+  return async (file, { syntax }) => {
+    if (!syntax.canProcess(file)) return [];
 
     try {
-      const result = await st.process(file, { structure: true });
+      const result = await syntax.process(file, { structure: true });
       const violations: Violation[] = [];
 
       function checkItems(items: readonly StructureItem[]): void {
@@ -72,11 +72,11 @@ export function noForbiddenNames(
     ? (n: string) => (names as readonly string[]).includes(n)
     : (n: string) => (names as RegExp).test(n);
 
-  return async (file, { syntaxTree: st }) => {
-    if (!st.canProcess(file)) return [];
+  return async (file, { syntax }) => {
+    if (!syntax.canProcess(file)) return [];
 
     try {
-      const result = await st.process(file, { structure: true });
+      const result = await syntax.process(file, { structure: true });
       const violations: Violation[] = [];
 
       function checkItems(items: readonly StructureItem[]): void {

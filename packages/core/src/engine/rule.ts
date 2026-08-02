@@ -52,11 +52,11 @@ export interface CheckServices {
     readFile(absolutePath: string): Promise<string>;
     exists(absolutePath: string): Promise<boolean>;
   };
-  syntaxTree: {
+  syntax: {
     canProcess(file: File): boolean;
     process(file: File, options: SyntaxTreeProcessOptions): Promise<SyntaxBackendProcessResult>;
   };
-  importResolver: {
+  imports: {
     resolve(fromFile: File, specifier: string): string | null;
   };
   /** Absolute path to the project root directory. */

@@ -20,11 +20,11 @@ export interface NoDirectCallsOptions {
 export function noDirectCalls(names: readonly string[], opts: NoDirectCallsOptions = {}): Check {
   const nameSet = new Set(names);
 
-  return async (file, { syntaxTree: st }) => {
-    if (!st.canProcess(file)) return [];
+  return async (file, { syntax }) => {
+    if (!syntax.canProcess(file)) return [];
 
     try {
-      const result = await st.process(file, { calls: true });
+      const result = await syntax.process(file, { calls: true });
       return result.calls
         .filter((call) => nameSet.has(call.name))
         .map(
