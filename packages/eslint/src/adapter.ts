@@ -46,21 +46,14 @@ interface EslintModule {
  * @example
  * eslint({ pattern: 'src/**\/*.{ts,tsx}', label: 'ESLint' })
  */
-export function eslint(opts: EslintOptions = {}): Rule {
-  const id = opts.id ?? 'eslint';
-  const description = opts.label ?? 'ESLint';
-  const cwd = nodePath.resolve(opts.cwd ?? process.cwd());
-
-  const run: Rule['run'] = Effect.gen(function* () {
-    const fileFilter = yield* FileFilter;
-
-    const patterns: string[] = fileFilter.patterns !== null && fileFilter.patterns.length > 0
-      ? [...fileFilter.patterns]
-      : opts.pattern
-        ? (Array.isArray(opts.pattern) ? opts.pattern : [opts.pattern])
-        : ['.'];
-
-    const results = yield* Effect.tryPromise({
+async function executeEslint(
+  opts: EslintOptions,
+  id: string,
+  cwd: string,
+  patterns: readonly string[],
+): Promise<Violation[]> {
+  const results = await Effect.runPromise(
+    Effect.tryPromise({
       try: async () => {
         // @ts-ignore — eslint is an optional peer dep; present in some
         // workspaces, absent in others. Cast to EslintModule for a typed surface.
@@ -73,7 +66,7 @@ export function eslint(opts: EslintOptions = {}): Rule {
           cwd,
           ...(opts.overrideConfigFile ? { overrideConfigFile: opts.overrideConfigFile } : {}),
         });
-        return linter.lintFiles(patterns);
+        return linter.lintFiles([...patterns]);
       },
       catch: (cause) => cause,
     }).pipe(
@@ -85,25 +78,57 @@ export function eslint(opts: EslintOptions = {}): Rule {
           return [] as EslintResult[];
         }),
       ),
-    );
+    ),
+  );
 
-    const violations: Violation[] = [];
-    for (const result of results) {
-      for (const msg of result.messages) {
-        violations.push({
-          rule: id,
-          message: `[${msg.ruleId ?? 'unknown'}] ${msg.message}`,
-          path: result.filePath,
-          line: msg.line,
-          column: msg.column,
-          severity: msg.severity === 2 ? 'error' : 'warn',
-          source: 'eslint',
-        });
-      }
+  const violations: Violation[] = [];
+  for (const result of results) {
+    for (const msg of result.messages) {
+      violations.push({
+        rule: id,
+        message: `[${msg.ruleId ?? 'unknown'}] ${msg.message}`,
+        path: result.filePath,
+        line: msg.line,
+        column: msg.column,
+        severity: msg.severity === 2 ? 'error' : 'warn',
+        source: 'eslint',
+      });
     }
+  }
 
-    return violations;
+  return violations;
+}
+
+export function eslint(opts: EslintOptions = {}): Rule {
+  const id = opts.id ?? 'eslint';
+  const description = opts.label ?? 'ESLint';
+  const cwd = nodePath.resolve(opts.cwd ?? process.cwd());
+  const defaultPatterns: string[] = opts.pattern
+    ? Array.isArray(opts.pattern)
+      ? [...opts.pattern]
+      : [opts.pattern]
+    : ['.'];
+
+  const run: Rule['run'] = Effect.gen(function* () {
+    const fileFilter = yield* FileFilter;
+
+    const patterns: string[] = fileFilter.patterns !== null && fileFilter.patterns.length > 0
+      ? [...fileFilter.patterns]
+      : defaultPatterns;
+
+    return yield* Effect.promise(() => executeEslint(opts, id, cwd, patterns));
   });
 
-  return { id, description, run, category: opts.category };
+  return {
+    id,
+    description,
+    run,
+    category: opts.category,
+    project: {
+      patterns: opts.pattern !== undefined
+        ? defaultPatterns
+        : ['**/*.{js,jsx,ts,tsx,mjs,cjs,mts,cts}', 'eslint.config.*', '.eslintrc', '.eslintrc.*'],
+      run: () => executeEslint(opts, id, cwd, defaultPatterns),
+    },
+  };
 }

@@ -125,6 +125,50 @@ export interface Rule {
     never,
     FileSystem | SyntaxTree | ImportResolver | ProjectRoot | FileFilter
   >;
+  /**
+   * Internal: present for per-file rules built by select(). The runner
+   * compiles this descriptor into a netzwerk extension instead of
+   * executing `run` directly.
+   */
+  readonly perFile?: {
+    readonly patterns: readonly string[];
+    readonly exclusions: readonly string[];
+    readonly predicates: ReadonlyArray<(file: File) => boolean>;
+    readonly checks: readonly Check[];
+  } | undefined;
+  /**
+   * Internal: present for project-level rules (architecture, cycle
+   * detection, external-tool adapters). Runs once per scan against the
+   * network; re-runs only when a file matching `patterns` changed.
+   */
+  readonly project?: {
+    readonly patterns: readonly string[];
+    readonly run: (ctx: ProjectRuleContext) => Promise<Violation[]>;
+  } | undefined;
+}
+
+/**
+ * One scanned file as seen by project rules. Structurally matches
+ * netzwerk's NetworkFile, declared locally so the public d.ts has no
+ * netzwerk references.
+ */
+export interface NetworkFileLike {
+  readonly path: string;
+  readonly markers: readonly { readonly type: string; readonly data: unknown; readonly lines?: readonly number[] | undefined }[];
+  hasMarker(type: string): boolean;
+  markersOf<D = unknown>(type: string): readonly { readonly type: string; readonly data: D; readonly lines?: readonly number[] | undefined }[];
+  content(): Promise<string>;
+}
+
+/** Minimal network surface project rules are allowed to see. */
+export interface ProjectRuleContext {
+  readonly network: {
+    glob(pattern: string): Promise<readonly NetworkFileLike[]>;
+    file(path: string): Promise<NetworkFileLike | null>;
+  };
+  /** Repo-relative paths reprocessed by this scan (added + changed). */
+  readonly changedFiles: readonly string[];
+  readonly rootDir: string;
 }
 
 export interface Exemption {

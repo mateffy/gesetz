@@ -95,23 +95,23 @@ function parseJestJson(stdout: string, cwd: string, ruleId: string): Violation[]
  * @example
  * storybook({ url: 'http://localhost:6006', pattern: 'components/ui/**' })
  */
-export function storybook(opts: StorybookOptions = {}): Rule {
-  const id = opts.id ?? 'storybook';
-  const description = opts.label ?? 'Storybook test runner';
-  const cwd = nodePath.resolve(opts.cwd ?? process.cwd());
-  const bin = opts.bin ?? nodePath.join('node_modules', '.bin', 'test-storybook');
-  const url = opts.url ?? 'http://localhost:6006';
+async function executeStorybook(
+  opts: StorybookOptions,
+  id: string,
+  bin: string,
+  cwd: string,
+  url: string,
+): Promise<Violation[]> {
+  const baseArgs = ['--url', url, '--json', '--outputFile', '__TMP__', '--ci'];
+  if (opts.configFile) baseArgs.push('--config', opts.configFile);
+  if (opts.pattern) {
+    const patterns = Array.isArray(opts.pattern) ? opts.pattern : [opts.pattern];
+    baseArgs.push('--stories', patterns.join(','));
+  }
+  if (opts.extraArgs) baseArgs.push(...opts.extraArgs);
 
-  const run: Rule['run'] = Effect.gen(function* () {
-    const baseArgs = ['--url', url, '--json', '--outputFile', '__TMP__', '--ci'];
-    if (opts.configFile) baseArgs.push('--config', opts.configFile);
-    if (opts.pattern) {
-      const patterns = Array.isArray(opts.pattern) ? opts.pattern : [opts.pattern];
-      baseArgs.push('--stories', patterns.join(','));
-    }
-    if (opts.extraArgs) baseArgs.push(...opts.extraArgs);
-
-    return yield* runWithTempFile('gesetz-storybook-', 'results.json', (tmpFile) =>
+  return Effect.runPromise(
+    runWithTempFile('gesetz-storybook-', 'results.json', (tmpFile) =>
       Effect.gen(function* () {
         const args = baseArgs.map((a) => (a === '__TMP__' ? tmpFile : a));
 
@@ -121,14 +121,36 @@ export function storybook(opts: StorybookOptions = {}): Rule {
         try {
           stdout = nodeFs.readFileSync(tmpFile, 'utf-8');
         } catch {
-          return [];
+          return [] as Violation[];
         }
 
-        if (!stdout.trim()) return [];
+        if (!stdout.trim()) return [] as Violation[];
         return parseJestJson(stdout, cwd, id);
       }),
-    );
+    ),
+  );
+}
+
+export function storybook(opts: StorybookOptions = {}): Rule {
+  const id = opts.id ?? 'storybook';
+  const description = opts.label ?? 'Storybook test runner';
+  const cwd = nodePath.resolve(opts.cwd ?? process.cwd());
+  const bin = opts.bin ?? nodePath.join('node_modules', '.bin', 'test-storybook');
+  const url = opts.url ?? 'http://localhost:6006';
+
+  const run: Rule['run'] = Effect.gen(function* () {
+    return yield* Effect.promise(() => executeStorybook(opts, id, bin, cwd, url));
   });
 
-  return { id, description, run, category: opts.category };
+  return {
+    id,
+    description,
+    run,
+    category: opts.category,
+    project: {
+      // Story outcomes depend on any source change — conservative.
+      patterns: ['**/*'],
+      run: () => executeStorybook(opts, id, bin, cwd, url),
+    },
+  };
 }

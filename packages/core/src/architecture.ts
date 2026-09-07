@@ -29,11 +29,13 @@
 import * as nodePath from 'node:path';
 import { Effect } from 'effect';
 import micromatch from 'micromatch';
+import { resolveImportEdges } from 'netzwerk';
 import { FileSystem, ProjectRoot } from './services/fs';
 import { SyntaxTree } from './services/syntax-tree';
 import type { ParsedImport } from './services/syntax-tree';
 import { ImportResolver } from './services/import-resolver';
-import type { Rule, Violation } from './engine/rule';
+import type { NetworkFileLike, Rule, Violation } from './engine/rule';
+import { SYNTAX_EXTENSION } from './backend/syntax-extension';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -297,6 +299,113 @@ function bannedForForLayer(banned: string[], importPath: string): boolean {
  * });
  * ```
  */
+/**
+ * Project-rule implementation: reads resolved import edges and import
+ * specifiers from netzwerk markers — no re-parsing, no candidate probing.
+ */
+function buildLayerProject(config: ArchitectureConfig): NonNullable<Rule['project']> {
+  const allPatterns = config.layers.flatMap((l) =>
+    Array.isArray(l.pattern) ? [...l.pattern] : [l.pattern],
+  );
+
+  return {
+    patterns: allPatterns,
+    run: async (ctx) => {
+      const byPath = new Map<string, NetworkFileLike>();
+      for (const pattern of allPatterns) {
+        for (const file of await ctx.network.glob(pattern)) byPath.set(file.path, file);
+      }
+      const files = [...byPath.values()];
+      if (files.length === 0) return [];
+
+      const fileToLayer = new Map<string, string>();
+      for (const file of files) {
+        for (const layer of config.layers) {
+          const patterns = Array.isArray(layer.pattern) ? layer.pattern : [layer.pattern];
+          if (micromatch.isMatch(file.path, patterns)) {
+            fileToLayer.set(file.path, layer.name);
+            break;
+          }
+        }
+      }
+
+      const allowedImports = new Map<string, Set<string>>();
+      for (const layer of config.layers) {
+        if (layer.canImportFrom !== undefined) {
+          allowedImports.set(layer.name, new Set(layer.canImportFrom));
+        }
+      }
+      const forbiddenPairs = new Map<string, Set<string>>();
+      for (const forbidden of config.forbidden ?? []) {
+        const set = forbiddenPairs.get(forbidden.from) ?? new Set();
+        set.add(forbidden.to);
+        forbiddenPairs.set(forbidden.from, set);
+      }
+      const bannedExternals = config.bannedExternals ?? {};
+
+      const id = 'architecture-layer-violations';
+      const violations: Violation[] = [];
+
+      // Banned external packages — from raw import specifiers.
+      for (const file of files) {
+        const fromLayer = fileToLayer.get(file.path);
+        if (!fromLayer) continue;
+        const banned = bannedExternals[fromLayer] ?? [];
+        if (banned.length === 0) continue;
+        for (const marker of file.markersOf<{ specifier: string }>(`${SYNTAX_EXTENSION}.import`)) {
+          const specifier = marker.data.specifier;
+          if (!isExternalPackage(specifier)) continue;
+          const pkg = specifier.startsWith('@')
+            ? specifier.split('/').slice(0, 2).join('/')
+            : (specifier.split('/')[0] ?? specifier);
+          if (banned.includes(pkg) || banned.includes(specifier)) {
+            violations.push({
+              rule: id,
+              message: `Layer '${fromLayer}' must not import external package '${pkg}'.`,
+              path: file.path,
+              severity: 'error',
+              source: 'core',
+            });
+          }
+        }
+      }
+
+      // Layer-to-layer constraints — from resolved import edges.
+      for (const edge of resolveImportEdges(files as never)) {
+        const fromLayer = fileToLayer.get(edge.from);
+        const toLayer = fileToLayer.get(edge.to);
+        if (!fromLayer || !toLayer || toLayer === fromLayer) continue;
+
+        const allowedForFrom = allowedImports.get(fromLayer);
+        if (allowedForFrom !== undefined && !allowedForFrom.has(toLayer)) {
+          violations.push({
+            rule: id,
+            message: `Layer '${fromLayer}' must not import from layer '${toLayer}'. Allowed: [${[...allowedForFrom].join(', ')}].`,
+            path: edge.from,
+            severity: 'error',
+            source: 'core',
+          });
+          continue;
+        }
+
+        if (forbiddenPairs.get(fromLayer)?.has(toLayer)) {
+          const pair = config.forbidden?.find((f) => f.from === fromLayer && f.to === toLayer);
+          violations.push({
+            rule: id,
+            message: pair?.message ?? `Layer '${fromLayer}' must not import from layer '${toLayer}'.`,
+            path: edge.from,
+            severity: 'error',
+            source: 'core',
+          });
+        }
+      }
+
+      return violations;
+    },
+  };
+}
+
 export function defineArchitecture(config: ArchitectureConfig): Rule[] {
-  return [buildLayerRule(config)];
+  const [rule] = [buildLayerRule(config)];
+  return [{ ...rule, project: buildLayerProject(config) }];
 }

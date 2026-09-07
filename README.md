@@ -92,6 +92,28 @@ gesetz check --format=ci
 gesetz check --since main
 ```
 
+### 5. Caching & watch mode
+
+Gesetz stores every detected violation as a marker in a local cache
+(backed by [netzwerk](../netzwerk), SQLite at `.gesetz/cache.db`). Files are
+fingerprinted by content hash, so repeat runs only re-check the files you
+actually edited — unchanged files are served from the cache:
+
+```bash
+gesetz check          # first run: full scan
+gesetz check          # second run: near-instant, only changed files re-checked
+gesetz check --full   # bypass the cache (no persistence)
+gesetz check --watch  # re-run incrementally on every file change
+```
+
+- Add `.gesetz/` to your `.gitignore`.
+- `GESETZ_DB` overrides the cache location.
+- Editing `gesetz.config.ts` invalidates the cache automatically (rule
+  fingerprints); exemptions, thresholds, `--files`, and `--since` are
+  aggregation-time filters and never trigger a rescan.
+- Under **Bun**, the cache is disabled automatically (better-sqlite3 is not
+  supported there) and every run is a full run.
+
 ---
 
 ## Write your own project rules in 5 lines

@@ -35,24 +35,17 @@ export interface BunTestOptions {
  * @example
  * bunTest({ pattern: 'src', label: 'bun:test' })
  */
-export function bunTest(opts: BunTestOptions = {}): Rule {
-  const id = opts.id ?? 'bun-test';
-  const description = opts.label ?? 'bun:test suite';
-  const cwd = nodePath.resolve(opts.cwd ?? process.cwd());
-  const bin = opts.bin ?? 'bun';
+async function executeBunTest(
+  id: string,
+  bin: string,
+  cwd: string,
+  patterns: readonly string[] | null,
+): Promise<Violation[]> {
+  const baseArgs = ['test', '--reporter=junit'];
+  if (patterns) baseArgs.push(...patterns);
 
-  const run: Rule['run'] = Effect.gen(function* () {
-    const baseArgs = ['test', '--reporter=junit'];
-
-    const fileFilter = yield* FileFilter;
-    const patterns = fileFilter.patterns !== null && fileFilter.patterns.length > 0
-      ? [...fileFilter.patterns]
-      : opts.pattern
-        ? (Array.isArray(opts.pattern) ? opts.pattern : [opts.pattern])
-        : null;
-    if (patterns) baseArgs.push(...patterns);
-
-    return yield* runWithTempFile('gesetz-bun-', 'junit.xml', (tmpFile) =>
+  return Effect.runPromise(
+    runWithTempFile('gesetz-bun-', 'junit.xml', (tmpFile) =>
       Effect.gen(function* () {
         const args = [...baseArgs, `--reporter-outfile=${tmpFile}`];
 
@@ -68,8 +61,39 @@ export function bunTest(opts: BunTestOptions = {}): Rule {
         const cases = parseJUnitXml(xml, cwd);
         return junitToViolations(cases, id);
       }),
-    );
+    ),
+  );
+}
+
+export function bunTest(opts: BunTestOptions = {}): Rule {
+  const id = opts.id ?? 'bun-test';
+  const description = opts.label ?? 'bun:test suite';
+  const cwd = nodePath.resolve(opts.cwd ?? process.cwd());
+  const bin = opts.bin ?? 'bun';
+  const defaultPatterns: string[] | null = opts.pattern
+    ? Array.isArray(opts.pattern)
+      ? [...opts.pattern]
+      : [opts.pattern]
+    : null;
+
+  const run: Rule['run'] = Effect.gen(function* () {
+    const fileFilter = yield* FileFilter;
+    const patterns = fileFilter.patterns !== null && fileFilter.patterns.length > 0
+      ? [...fileFilter.patterns]
+      : defaultPatterns;
+
+    return yield* Effect.promise(() => executeBunTest(id, bin, cwd, patterns));
   });
 
-  return { id, description, run, category: opts.category };
+  return {
+    id,
+    description,
+    run,
+    category: opts.category,
+    project: {
+      // Test outcomes depend on any source change — conservative.
+      patterns: defaultPatterns ?? ['**/*'],
+      run: () => executeBunTest(id, bin, cwd, defaultPatterns),
+    },
+  };
 }

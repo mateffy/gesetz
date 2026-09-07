@@ -75,37 +75,60 @@ function parsePhpstanOutput(stdout: string, cwd: string): Violation[] {
  * @example
  * phpstan({ memoryLimit: '1G', label: 'phpstan' })
  */
+async function executePhpstan(
+  opts: PhpstanOptions,
+  id: string,
+  bin: string,
+  cwd: string,
+  memoryLimit: string,
+  patterns: readonly string[] | null,
+): Promise<Violation[]> {
+  const args = [
+    'analyse',
+    '--error-format=json',
+    '--no-progress',
+    '--no-interaction',
+    `--memory-limit=${memoryLimit}`,
+  ];
+
+  if (opts.configFile) args.push(`--configuration=${opts.configFile}`);
+  if (patterns) args.push(...patterns);
+
+  const stdout = await Effect.runPromise(execTool(bin, args, cwd, 'phpstan'));
+
+  const violations = parsePhpstanOutput(stdout, cwd);
+  return violations.map((v) => ({ ...v, rule: id }));
+}
+
 export function phpstan(opts: PhpstanOptions = {}): Rule {
   const bin = opts.bin ?? 'vendor/bin/phpstan';
   const cwd = nodePath.resolve(opts.cwd ?? process.cwd());
   const memoryLimit = opts.memoryLimit ?? '512M';
   const id = opts.id ?? 'phpstan';
   const description = opts.label ?? 'PHPStan static analysis';
+  const defaultPatterns: string[] | null = opts.pattern
+    ? Array.isArray(opts.pattern)
+      ? [...opts.pattern]
+      : [opts.pattern]
+    : null;
 
   const run: Rule['run'] = Effect.gen(function* () {
-    const args = [
-      'analyse',
-      '--error-format=json',
-      '--no-progress',
-      '--no-interaction',
-      `--memory-limit=${memoryLimit}`,
-    ];
-
-    if (opts.configFile) args.push(`--configuration=${opts.configFile}`);
-
     const fileFilter = yield* FileFilter;
     const patterns = fileFilter.patterns !== null && fileFilter.patterns.length > 0
       ? [...fileFilter.patterns]
-      : opts.pattern
-        ? (Array.isArray(opts.pattern) ? opts.pattern : [opts.pattern])
-        : null;
-    if (patterns) args.push(...patterns);
+      : defaultPatterns;
 
-    const stdout = yield* execTool(bin, args, cwd, 'phpstan');
-
-    const violations = parsePhpstanOutput(stdout, cwd);
-    return violations.map((v) => ({ ...v, rule: id }));
+    return yield* Effect.promise(() => executePhpstan(opts, id, bin, cwd, memoryLimit, patterns));
   });
 
-  return { id, description, run, category: opts.category };
+  return {
+    id,
+    description,
+    run,
+    category: opts.category,
+    project: {
+      patterns: defaultPatterns ?? ['**/*.php', 'phpstan.neon', 'phpstan.neon.*'],
+      run: () => executePhpstan(opts, id, bin, cwd, memoryLimit, defaultPatterns),
+    },
+  };
 }

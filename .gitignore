@@ -147,3 +147,6 @@ vite.config.ts.timestamp-*
 
 # Desktop build artifacts
 packages/desktop/build/
+
+# gesetz violation cache
+.gesetz/

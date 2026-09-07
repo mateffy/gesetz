@@ -2,6 +2,16 @@ import * as nodePath from 'node:path';
 import type { Rule, Exemption } from './rule';
 import type { SyntaxBackend } from '../services/syntax-tree';
 
+/**
+ * Where the violation-marker cache lives. Structurally identical to
+ * netzwerk's NetworkStorageConfig, but declared here so the public d.ts
+ * has no netzwerk references (consumers would otherwise typecheck
+ * netzwerk's TS source).
+ */
+export type GesetzStorageConfig =
+  | { readonly kind?: 'memory' | undefined }
+  | { readonly kind: 'sqlite'; readonly path: string; readonly dimensions?: number | undefined };
+
 export interface CategoryThreshold {
   /** Category name matching `Rule.category` */
   readonly category: string;
@@ -48,6 +58,12 @@ export interface UserConfig {
    * })
    */
   readonly adapters?: readonly SyntaxBackend[] | undefined;
+  /**
+   * Where the violation-marker cache lives. `{ kind: 'sqlite', path }`
+   * persists across runs (CLI default); `{ kind: 'memory' }` is ephemeral
+   * (tests, one-shot runs). Default: memory.
+   */
+  readonly storage?: GesetzStorageConfig | undefined;
 }
 
 export interface ResolvedConfig {
@@ -58,6 +74,7 @@ export interface ResolvedConfig {
   readonly changedSince: string | undefined;
   readonly thresholds: CategoryThreshold[];
   readonly adapters: readonly SyntaxBackend[];
+  readonly storage: GesetzStorageConfig;
 }
 
 /**
@@ -82,5 +99,6 @@ export function defineConfig(config: UserConfig): ResolvedConfig {
     changedSince: config.changedSince,
     thresholds: config.thresholds ?? [],
     adapters: config.adapters ?? [],
+    storage: config.storage ?? { kind: 'memory' },
   };
 }

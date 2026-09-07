@@ -6,6 +6,44 @@ If you are a coding agent tasked with upgrading a codebase, read the section for
 
 ---
 
+## v2.1 — Netzwerk-backed engine (violation cache)
+
+### One-line summary
+
+The rule-execution backend now runs on [netzwerk](../netzwerk): rules are
+compiled to netzwerk extensions, violations are stored as markers in a
+content-hash-indexed cache (SQLite), and `gesetz check` re-checks only
+changed files on repeat runs. **The public API is unchanged** — no migration
+needed for configs, custom checks, or adapters.
+
+### What changed for consumers
+
+- `gesetz check` persists a cache at `.gesetz/cache.db` (add `.gesetz/` to
+  your `.gitignore`). `GESETZ_DB` overrides the location; `--full` bypasses
+  the cache; `--watch` re-runs incrementally on file changes.
+- Under Bun the cache is disabled (better-sqlite3 is unsupported); runs
+  behave as before.
+- `defineConfig` accepts an optional `storage` field
+  (`{ kind: 'sqlite', path }` or `{ kind: 'memory' }`, default memory).
+- `runAll(config, options?)` accepts an optional second argument
+  (`{ fileFilter, onScan }`). The Effect service environment is no longer
+  required — providing it is harmless but ignored.
+- Violations are now reported with repo-relative paths consistently
+  (external-tool adapters that emitted absolute paths are normalized).
+- Files excluded by `.gitignore` (e.g. `dist/`) are no longer scanned —
+  the old backend globbed them in. This can *reduce* reported violations
+  in built artifacts; run `--full` and check your globs if unsure.
+
+### What did NOT change
+
+- `select()`, `defineConfig()`, `runAll()`, `defineArchitecture()`,
+  `noCycles()`, all `@gesetz/*` check factories and tool adapters — same
+  signatures, same `Violation` shape, same scoring formula.
+- `--since`, `--files`, `--category`, exemptions, and thresholds behave as
+  before (now implemented as aggregation-time filters over cached markers).
+
+---
+
 ## v2.0 — Check API migration from Effect to async/await
 
 ### One-line summary

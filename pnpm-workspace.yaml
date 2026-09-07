@@ -4,5 +4,9 @@ packages:
 allowBuilds:
   "@ast-grep/lang-php": true
   "@parcel/watcher": true
+  better-sqlite3: true
   esbuild: true
   msgpackr-extract: true
+  onnxruntime-node: false
+  protobufjs: false
+  sharp: false

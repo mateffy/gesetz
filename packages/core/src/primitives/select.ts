@@ -175,7 +175,19 @@ function buildRule(state: SelectorState, checks: Check[]): Rule {
       return results.flat();
     });
 
-  return { id, description, category: state.category, guidance: state.guidance, run };
+  return {
+    id,
+    description,
+    category: state.category,
+    guidance: state.guidance,
+    run,
+    perFile: {
+      patterns: state.patterns,
+      exclusions: state.exclusions,
+      predicates: state.predicates,
+      checks,
+    },
+  };
 }
 
 function createSelector(state: SelectorState): Selector {

@@ -1,12 +1,12 @@
 import * as childProcess from 'node:child_process';
 import { Effect } from 'effect';
 import micromatch from 'micromatch';
-import type { Violation, Exemption } from './rule';
+import { defineNetwork } from 'netzwerk';
+import type { Violation, Exemption, CheckServices } from './rule';
 import type { ResolvedConfig } from './config';
-import type { FileSystem, ProjectRoot } from '../services/fs';
-import { FileFilter } from '../services/fs';
-import type { SyntaxTree } from '../services/syntax-tree';
-import type { ImportResolver } from '../services/import-resolver';
+import { compileConfig, type CompileContext } from '../backend/compile';
+import { createCheckServices } from '../backend/check-services';
+import { isViolationMarker, markerToViolation } from '../backend/violation-markers';
 
 export interface RuleResult {
   readonly ruleId: string;
@@ -42,6 +42,27 @@ export interface RunResult {
   readonly totalViolations: number;
   /** True when all category scores are at or above their thresholds */
   readonly passing: boolean;
+}
+
+export interface RunAllOptions {
+  /**
+   * When set (CLI `--files`), violations for files not matching these
+   * micromatch globs are suppressed. Pure aggregation-time filter — the
+   * marker cache is unaffected.
+   */
+  readonly fileFilter?: readonly string[] | null | undefined;
+  /** Called with the scan statistics after each scan (for CLI reporting). */
+  readonly onScan?: ((result: ScanStats) => void) | undefined;
+}
+
+/** Scan statistics from the incremental scanner (netzwerk ScanResult). */
+export interface ScanStats {
+  readonly filesSeen: number;
+  readonly added: number;
+  readonly changed: number;
+  readonly removed: number;
+  readonly reused: number;
+  readonly durationMs: number;
 }
 
 /**
@@ -138,70 +159,113 @@ export function applyExemptions(
 }
 
 /**
- * Runs all rules in the config, applies exemptions, and returns a RunResult.
+ * Runs all rules in the config and returns a RunResult.
  *
- * Rules run concurrently (max 5 at once). Rule errors are caught and reported
- * as special violations so a broken rule doesn't prevent others from running.
- *
- * Requires a `FileFilter` in the environment. When no `--files` filter is
- * active, provide `FileFilterLive(null)` (the default in the CLI and test
- * runner) — it scans everything.
+ * Backend: rules are compiled to netzwerk extensions, the project is scanned
+ * incrementally (content-hash diff; unchanged files keep their cached
+ * violation markers), and violations are read back from marker storage and
+ * aggregated. Exemptions, `--files`, and `--since` are aggregation-time
+ * filters — they never invalidate the cache.
  */
 export const runAll = (
   config: ResolvedConfig,
-): Effect.Effect<
-  RunResult,
-  never,
-  FileSystem | SyntaxTree | ImportResolver | ProjectRoot | FileFilter
-> =>
-  Effect.gen(function* () {
-    const changedFiles = resolveChangedFiles(config.changedSince, config.projectRoot);
-    const fileFilter = yield* FileFilter;
+  options: RunAllOptions = {},
+): Effect.Effect<RunResult, never, never> =>
+  Effect.promise(async () => {
+    const pendingViolations: Violation[] = [];
+    const sharedPaths = new Set<string>();
+    let services: CheckServices;
+    const compileCtx: CompileContext = {
+      rootDir: config.projectRoot,
+      getServices: () => services,
+      pendingViolations,
+      sharedPaths,
+    };
+    const network = defineNetwork({
+      rootPath: config.projectRoot,
+      extensions: compileConfig(config, compileCtx),
+      // GesetzStorageConfig is structurally identical to NetworkStorageConfig.
+      storage: config.storage as import('netzwerk').NetworkStorageConfig,
+    });
 
-    const results = yield* Effect.all(
-      config.rules.map((rule) =>
-        rule.run.pipe(
-          Effect.map((violations) => {
-            // Apply the --files filter: suppress violations for non-matching files.
-            // This catches external-tool adapters (eslint, oxlint, phpstan, vitest,
-            // prettier, …) that don't use select()'s file scanning.
-            const fileFiltered = fileFilter.patterns !== null && fileFilter.patterns.length > 0
-              ? violations.filter((v) => fileFilter.matches(v.path))
-              : violations;
-            // Apply changedSince filter: suppress violations for unchanged files
-            const filtered = changedFiles !== null
-              ? fileFiltered.filter((v) => changedFiles.has(v.path))
-              : fileFiltered;
-            return applyExemptions(filtered, config.exemptions, rule.id);
-          }),
-          // Rules should not fail (error = never), but we catch defects defensively
-          Effect.catchAllCause((cause) =>
-            Effect.succeed<Violation[]>([
-              {
-                rule: rule.id,
-                message: `Rule threw an unexpected error: ${String(cause)}`,
-                path: config.projectRoot,
-                severity: 'error' as const,
-                source: 'core' as const,
-              },
-            ]),
-          ),
-          Effect.map(
-            (violations): RuleResult => ({
-              ruleId: rule.id,
-              description: rule.description,
-              category: rule.category,
-              violations,
-            }),
-          ),
-        ),
-      ),
-      { concurrency: 5 },
-    );
+    try {
+      services = await createCheckServices(
+        network,
+        config.adapters,
+        config.projectRoot,
+        sharedPaths,
+      );
+      const scanResult = await network.scan();
+      options.onScan?.(scanResult);
 
-    const totalViolations = results.reduce((sum, r) => sum + r.violations.length, 0);
-    const byCategory = computeCategoryScores(results, config.thresholds);
-    const passing = byCategory.length === 0 || byCategory.every((c) => c.passing);
+      // Collect stored violation markers, grouped by rule id.
+      const violationsByRule = new Map<string, Violation[]>();
+      const metaByRule = new Map<string, { description: string; category: string | undefined }>();
+      const entries = await network.query({ limit: Number.MAX_SAFE_INTEGER });
+      for (const entry of entries) {
+        for (const marker of entry.markers) {
+          if (!isViolationMarker(marker)) continue;
+          const violation = markerToViolation(entry.path, marker);
+          const ruleId = violation.rule ?? '';
+          const list = violationsByRule.get(ruleId) ?? [];
+          list.push(violation);
+          violationsByRule.set(ruleId, list);
+          if (!metaByRule.has(ruleId)) {
+            const data = marker.data as { description: string; category: string | null };
+            metaByRule.set(ruleId, {
+              description: data.description,
+              category: data.category ?? undefined,
+            });
+          }
+        }
+      }
+      // Orphaned violations from after-hook rules (paths without a scanned
+      // file record, e.g. the project root).
+      for (const violation of pendingViolations) {
+        const ruleId = violation.rule ?? '';
+        const list = violationsByRule.get(ruleId) ?? [];
+        list.push(violation);
+        violationsByRule.set(ruleId, list);
+      }
 
-    return { byRule: results, byCategory, totalViolations, passing };
+      const changedFiles = resolveChangedFiles(config.changedSince, config.projectRoot);
+      const fileFilter = options.fileFilter ?? null;
+      const fileFilterActive = fileFilter !== null && fileFilter.length > 0;
+
+      const buildResult = (
+        ruleId: string,
+        description: string,
+        category: string | undefined,
+      ): RuleResult => {
+        let violations = violationsByRule.get(ruleId) ?? [];
+        if (fileFilterActive) {
+          violations = violations.filter((v) => micromatch.isMatch(v.path, fileFilter));
+        }
+        if (changedFiles !== null) {
+          violations = violations.filter((v) => changedFiles.has(v.path));
+        }
+        violations = applyExemptions(violations, config.exemptions, ruleId);
+        return { ruleId, description, category, violations };
+      };
+
+      // Rule results in config order; ids seen only in storage (stale rules
+      // from a previous config) trail at the end.
+      const configIds = new Set(config.rules.map((r) => r.id));
+      const results: RuleResult[] = config.rules.map((rule) =>
+        buildResult(rule.id, rule.description, rule.category),
+      );
+      for (const [ruleId, violations] of violationsByRule) {
+        if (configIds.has(ruleId) || violations.length === 0) continue;
+        const meta = metaByRule.get(ruleId);
+        results.push(buildResult(ruleId, meta?.description ?? ruleId, meta?.category));
+      }
+
+      const totalViolations = results.reduce((sum, r) => sum + r.violations.length, 0);
+      const byCategory = computeCategoryScores(results, config.thresholds);
+      const passing = byCategory.length === 0 || byCategory.every((c) => c.passing);
+
+      return { byRule: results, byCategory, totalViolations, passing };
+    } finally {
+      await network.close();
+    }
   });

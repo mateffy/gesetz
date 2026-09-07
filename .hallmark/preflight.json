@@ -1,0 +1,10 @@
+{
+  "date": "2026-09-07",
+  "scope": "docs/",
+  "framework": "Static HTML; no site build step",
+  "previousDesign": "Cream and amber, Source Serif 4 / Inter / JetBrains Mono, split terminal hero and long document",
+  "instruction": "User requested a complete fresh attempt; replace the previous style and examples",
+  "preserved": ["docs/CNAME", "canonical URL", "GitHub project URL", "static hosting"],
+  "introduced": ["Space Grotesk / Geist Mono", "cool neutrals and cobalt", "manual before/after rule examples", "source-backed example tests"],
+  "sources": ["docs/index.html", "packages/core/src/primitives/select.ts", "packages/core/src/primitives/checks/imports.ts", "packages/core/src/primitives/checks/fs.ts", "packages/core/src/primitives/checks/debug-logging.ts", "packages/core/src/engine/runner.ts", "packages/cli/src/main.ts"]
+}

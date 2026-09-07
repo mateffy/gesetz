@@ -36,40 +36,64 @@ export interface PrettierOptions {
  * @example
  * prettier({ pattern: 'src', label: 'Prettier' })
  */
+async function executePrettier(
+  opts: PrettierOptions,
+  id: string,
+  bin: string,
+  cwd: string,
+  patterns: readonly string[],
+): Promise<Violation[]> {
+  const args = ['--list-different', ...patterns];
+  if (opts.configFile) args.push('--config', opts.configFile);
+
+  const stdout = await Effect.runPromise(execTool(bin, args, cwd, 'prettier'));
+
+  if (!stdout) return [];
+
+  return stdout
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .map((filePath): Violation => ({
+      rule: id,
+      message: 'File is not formatted — run prettier --write to fix',
+      path: nodePath.isAbsolute(filePath) ? nodePath.relative(cwd, filePath) : filePath,
+      severity: 'warn',
+      source: 'custom',
+    }));
+}
+
 export function prettier(opts: PrettierOptions = {}): Rule {
   const id = opts.id ?? 'prettier';
   const description = opts.label ?? 'Prettier formatting';
   const cwd = nodePath.resolve(opts.cwd ?? process.cwd());
   const bin = opts.bin ?? nodePath.join('node_modules', '.bin', 'prettier');
+  const defaultPatterns: string[] = opts.pattern
+    ? Array.isArray(opts.pattern)
+      ? [...opts.pattern]
+      : [opts.pattern]
+    : ['.'];
 
   const run: Rule['run'] = Effect.gen(function* () {
     const fileFilter = yield* FileFilter;
 
     const patterns: string[] = fileFilter.patterns !== null && fileFilter.patterns.length > 0
       ? [...fileFilter.patterns]
-      : opts.pattern
-        ? (Array.isArray(opts.pattern) ? opts.pattern : [opts.pattern])
-        : ['.'];
+      : defaultPatterns;
 
-    const args = ['--list-different', ...patterns];
-    if (opts.configFile) args.push('--config', opts.configFile);
-
-    const stdout = yield* execTool(bin, args, cwd, 'prettier');
-
-    if (!stdout) return [];
-
-    return stdout
-      .split('\n')
-      .map((l) => l.trim())
-      .filter(Boolean)
-      .map((filePath): Violation => ({
-        rule: id,
-        message: 'File is not formatted — run prettier --write to fix',
-        path: nodePath.isAbsolute(filePath) ? nodePath.relative(cwd, filePath) : filePath,
-        severity: 'warn',
-        source: 'custom',
-      }));
+    return yield* Effect.promise(() => executePrettier(opts, id, bin, cwd, patterns));
   });
 
-  return { id, description, run, category: opts.category };
+  return {
+    id,
+    description,
+    run,
+    category: opts.category,
+    project: {
+      patterns: opts.pattern !== undefined
+        ? defaultPatterns
+        : ['**/*', '.prettierrc', '.prettierrc.*', 'prettier.config.*'],
+      run: () => executePrettier(opts, id, bin, cwd, defaultPatterns),
+    },
+  };
 }

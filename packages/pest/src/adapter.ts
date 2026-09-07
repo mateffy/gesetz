@@ -39,25 +39,19 @@ export interface PestOptions {
  * pest({ label: 'Pest' })
  * pest({ pattern: 'tests/Unit', bin: 'vendor/bin/pest', label: 'Unit tests' })
  */
-export function pest(opts: PestOptions = {}): Rule {
-  const id = opts.id ?? 'pest';
-  const description = opts.label ?? 'Pest test suite';
-  const cwd = nodePath.resolve(opts.cwd ?? process.cwd());
-  const bin = opts.bin ?? 'vendor/bin/pest';
+async function executePest(
+  opts: PestOptions,
+  id: string,
+  bin: string,
+  cwd: string,
+  patterns: readonly string[] | null,
+): Promise<Violation[]> {
+  const baseArgs = ['--log-junit', '__TMP__', '--no-progress'];
+  if (opts.extraArgs) baseArgs.push(...opts.extraArgs);
+  if (patterns) baseArgs.push(...patterns);
 
-  const run: Rule['run'] = Effect.gen(function* () {
-    const baseArgs = ['--log-junit', '__TMP__', '--no-progress'];
-    if (opts.extraArgs) baseArgs.push(...opts.extraArgs);
-
-    const fileFilter = yield* FileFilter;
-    const patterns = fileFilter.patterns !== null && fileFilter.patterns.length > 0
-      ? [...fileFilter.patterns]
-      : opts.pattern
-        ? (Array.isArray(opts.pattern) ? opts.pattern : [opts.pattern])
-        : null;
-    if (patterns) baseArgs.push(...patterns);
-
-    return yield* runWithTempFile('gesetz-pest-', 'junit.xml', (tmpFile) =>
+  return Effect.runPromise(
+    runWithTempFile('gesetz-pest-', 'junit.xml', (tmpFile) =>
       Effect.gen(function* () {
         const args = baseArgs.map((a) => (a === '__TMP__' ? `--log-junit=${tmpFile}` : a));
 
@@ -73,8 +67,39 @@ export function pest(opts: PestOptions = {}): Rule {
         const cases = parseJUnitXml(xml, cwd);
         return junitToViolations(cases, id);
       }),
-    );
+    ),
+  );
+}
+
+export function pest(opts: PestOptions = {}): Rule {
+  const id = opts.id ?? 'pest';
+  const description = opts.label ?? 'Pest test suite';
+  const cwd = nodePath.resolve(opts.cwd ?? process.cwd());
+  const bin = opts.bin ?? 'vendor/bin/pest';
+  const defaultPatterns: string[] | null = opts.pattern
+    ? Array.isArray(opts.pattern)
+      ? [...opts.pattern]
+      : [opts.pattern]
+    : null;
+
+  const run: Rule['run'] = Effect.gen(function* () {
+    const fileFilter = yield* FileFilter;
+    const patterns = fileFilter.patterns !== null && fileFilter.patterns.length > 0
+      ? [...fileFilter.patterns]
+      : defaultPatterns;
+
+    return yield* Effect.promise(() => executePest(opts, id, bin, cwd, patterns));
   });
 
-  return { id, description, run, category: opts.category };
+  return {
+    id,
+    description,
+    run,
+    category: opts.category,
+    project: {
+      // Test outcomes depend on any source change — conservative.
+      patterns: defaultPatterns ?? ['**/*'],
+      run: () => executePest(opts, id, bin, cwd, defaultPatterns),
+    },
+  };
 }

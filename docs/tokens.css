@@ -1,0 +1,69 @@
+/* Hallmark · macrostructure: Component Playground · theme: Quiet · tone: technical
+   Typography: Space Grotesk + Geist Mono. Accent: cobalt. */
+@font-face {
+  font-family: "Space Grotesk";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url("./assets/space-grotesk-latin.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Geist Mono";
+  font-style: normal;
+  font-weight: 400 500;
+  font-display: swap;
+  src: url("./assets/geist-mono-latin.woff2") format("woff2");
+}
+
+:root {
+  color-scheme: light;
+  --font-display: "Space Grotesk", Arial, sans-serif;
+  --font-body: var(--font-display);
+  --font-code: "Geist Mono", ui-monospace, monospace;
+  --color-paper: oklch(98.2% 0.003 260);
+  --color-surface: oklch(99.5% 0.001 260);
+  --color-soft: oklch(95.4% 0.005 260);
+  --color-ink: oklch(20% 0.017 260);
+  --color-body: oklch(39% 0.014 260);
+  --color-muted: oklch(48% 0.015 260);
+  --color-rule: oklch(86% 0.008 260);
+  --color-control: oklch(63% 0.018 260);
+  --color-accent: oklch(48% 0.23 264);
+  --color-accent-ink: oklch(99.5% 0.001 260);
+  --color-accent-soft: oklch(94% 0.027 264);
+  --color-focus: var(--color-accent);
+  --color-code: oklch(21.5% 0.018 260);
+  --color-code-ink: oklch(92% 0.007 260);
+  --color-code-muted: oklch(72% 0.015 260);
+  --color-code-keyword: oklch(77% 0.10 265);
+  --color-code-string: oklch(85% 0.055 220);
+  --color-code-rule: oklch(37% 0.017 260);
+  --color-error: oklch(48% 0.17 28);
+  --color-error-soft: oklch(95% 0.025 28);
+  --color-success: oklch(40% 0.10 162);
+  --color-success-soft: oklch(95% 0.023 162);
+  --color-clear: transparent;
+  --space-2xs: 0.25rem;
+  --space-xs: 0.5rem;
+  --space-sm: 0.75rem;
+  --space-md: 1rem;
+  --space-lg: 1.5rem;
+  --space-xl: 2rem;
+  --space-2xl: 3rem;
+  --space-3xl: 4rem;
+  --space-4xl: 6rem;
+  --space-5xl: 8rem;
+  --text-small: 0.8125rem;
+  --text-code: 0.8125rem;
+  --text-body: 1rem;
+  --text-lead: 1.125rem;
+  --text-heading: clamp(2rem, 3.5vw, 3.125rem);
+  --text-display: clamp(2.5rem, 7.5vw + 1rem, 5.5rem);
+  --radius-sm: 3px;
+  --rule-width: 1px;
+  --dur-micro: 120ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --page-width: 1200px;
+  --page-gutter: clamp(1rem, 5vw, 5rem);
+}

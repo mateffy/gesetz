@@ -23,11 +23,11 @@ export {
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 export { defineConfig } from './engine/config';
-export type { UserConfig, ResolvedConfig, CategoryThreshold } from './engine/config';
+export type { UserConfig, ResolvedConfig, CategoryThreshold, GesetzStorageConfig } from './engine/config';
 
 // ─── Runner ───────────────────────────────────────────────────────────────────
 export { runAll, applyExemptions } from './engine/runner';
-export type { RunResult, RuleResult, CategoryScore } from './engine/runner';
+export type { RunResult, RuleResult, CategoryScore, RunAllOptions, ScanStats } from './engine/runner';
 
 // ─── Exec helpers ─────────────────────────────────────────────────────────────
 export { execTool, runWithTempFile, extractLocation } from './engine/exec';

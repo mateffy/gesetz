@@ -43,27 +43,21 @@ export interface PhpunitOptions {
  * phpunit({ label: 'PHPUnit' })
  * phpunit({ pattern: 'tests/Unit', configFile: 'phpunit.xml', label: 'Unit tests' })
  */
-export function phpunit(opts: PhpunitOptions = {}): Rule {
-  const id = opts.id ?? 'phpunit';
-  const description = opts.label ?? 'PHPUnit test suite';
-  const cwd = nodePath.resolve(opts.cwd ?? process.cwd());
-  const bin = opts.bin ?? 'vendor/bin/phpunit';
+async function executePhpunit(
+  opts: PhpunitOptions,
+  id: string,
+  bin: string,
+  cwd: string,
+  patterns: readonly string[] | null,
+): Promise<Violation[]> {
+  const baseArgs = ['--log-junit', '__TMP__', '--no-progress'];
+  if (opts.configFile) baseArgs.push('--configuration', opts.configFile);
+  if (opts.filter) baseArgs.push('--filter', opts.filter);
+  if (opts.extraArgs) baseArgs.push(...opts.extraArgs);
+  if (patterns) baseArgs.push(...patterns);
 
-  const run: Rule['run'] = Effect.gen(function* () {
-    const baseArgs = ['--log-junit', '__TMP__', '--no-progress'];
-    if (opts.configFile) baseArgs.push('--configuration', opts.configFile);
-    if (opts.filter) baseArgs.push('--filter', opts.filter);
-    if (opts.extraArgs) baseArgs.push(...opts.extraArgs);
-
-    const fileFilter = yield* FileFilter;
-    const patterns = fileFilter.patterns !== null && fileFilter.patterns.length > 0
-      ? [...fileFilter.patterns]
-      : opts.pattern
-        ? (Array.isArray(opts.pattern) ? opts.pattern : [opts.pattern])
-        : null;
-    if (patterns) baseArgs.push(...patterns);
-
-    return yield* runWithTempFile('gesetz-phpunit-', 'junit.xml', (tmpFile) =>
+  return Effect.runPromise(
+    runWithTempFile('gesetz-phpunit-', 'junit.xml', (tmpFile) =>
       Effect.gen(function* () {
         const args = baseArgs.map((a) => (a === '__TMP__' ? `--log-junit=${tmpFile}` : a));
 
@@ -81,8 +75,39 @@ export function phpunit(opts: PhpunitOptions = {}): Rule {
         const cases = parseJUnitXml(xml, cwd);
         return junitToViolations(cases, id);
       }),
-    );
+    ),
+  );
+}
+
+export function phpunit(opts: PhpunitOptions = {}): Rule {
+  const id = opts.id ?? 'phpunit';
+  const description = opts.label ?? 'PHPUnit test suite';
+  const cwd = nodePath.resolve(opts.cwd ?? process.cwd());
+  const bin = opts.bin ?? 'vendor/bin/phpunit';
+  const defaultPatterns: string[] | null = opts.pattern
+    ? Array.isArray(opts.pattern)
+      ? [...opts.pattern]
+      : [opts.pattern]
+    : null;
+
+  const run: Rule['run'] = Effect.gen(function* () {
+    const fileFilter = yield* FileFilter;
+    const patterns = fileFilter.patterns !== null && fileFilter.patterns.length > 0
+      ? [...fileFilter.patterns]
+      : defaultPatterns;
+
+    return yield* Effect.promise(() => executePhpunit(opts, id, bin, cwd, patterns));
   });
 
-  return { id, description, run, category: opts.category };
+  return {
+    id,
+    description,
+    run,
+    category: opts.category,
+    project: {
+      // Test outcomes depend on any source change — conservative.
+      patterns: defaultPatterns ?? ['**/*'],
+      run: () => executePhpunit(opts, id, bin, cwd, defaultPatterns),
+    },
+  };
 }

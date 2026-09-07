@@ -10,9 +10,9 @@ import { pathToFileURL } from 'node:url';
 import * as nodeFs from 'node:fs';
 import { Command, Options } from '@effect/cli';
 import { NodeContext, NodeRuntime } from '@effect/platform-node';
-import { Console, Effect, Layer, Option } from 'effect';
+import { Console, Effect, Option } from 'effect';
 import * as nodePath from 'node:path';
-import { runAll, FileSystemLive, ProjectRootLive, FileFilterLive, SyntaxTreeLive, ImportResolverDefault } from '@gesetz/core';
+import { runAll } from '@gesetz/core';
 import { loadConfig } from './load-config';
 import {
   formatCategoryTable,
@@ -27,20 +27,25 @@ import {
 import { SKILL_MARKDOWN } from './skill';
 import { initCommand } from './init';
 
-// ─── Shared services layer ────────────────────────────────────────────────────
+// ─── Storage resolution ─────────────────────────────────────────────────────
 
-const makeServicesLayer = (
+/** True when running under Bun (better-sqlite3 is unsupported there). */
+const isBun = typeof (globalThis as { Bun?: unknown }).Bun !== 'undefined';
+
+/**
+ * Default cache location; GESETZ_DB overrides. `--full` bypasses the cache.
+ * Under Bun the cache is disabled: better-sqlite3 is not supported there
+ * (a bun:sqlite storage backend for netzwerk is a possible follow-up).
+ */
+const resolveStorage = (
   root: string,
-  adapters: readonly import('@gesetz/core').SyntaxBackend[],
-  fileGlobs?: readonly string[] | undefined,
-) =>
-  Layer.mergeAll(
-    FileSystemLive,
-    SyntaxTreeLive(adapters),
-    ImportResolverDefault,
-    ProjectRootLive(root),
-    FileFilterLive(fileGlobs ?? null),
-  );
+  full: boolean,
+): import('@gesetz/core').GesetzStorageConfig => {
+  if (full || isBun) return { kind: 'memory' };
+  const dbPath = process.env.GESETZ_DB ?? nodePath.join(root, '.gesetz', 'cache.db');
+  nodeFs.mkdirSync(nodePath.dirname(dbPath), { recursive: true });
+  return { kind: 'sqlite', path: dbPath };
+};
 
 // ─── `gesetz check` ───────────────────────────────────────────────────────────
 
@@ -78,6 +83,14 @@ const checkCommand = Command.make(
     files: Options.text('files').pipe(
       Options.withDescription('Only check files matching these comma-separated globs (e.g. "src/components/**")'),
       Options.optional,
+    ),
+    full: Options.boolean('full').pipe(
+      Options.withDescription('Bypass the violation cache and re-check everything (no SQLite persistence)'),
+      Options.withDefault(false),
+    ),
+    watch: Options.boolean('watch').pipe(
+      Options.withDescription('Re-run checks when files change (incremental via the violation cache)'),
+      Options.withDefault(false),
     ),
   },
   (opts) =>
@@ -124,31 +137,79 @@ const checkCommand = Command.make(
           ),
       });
 
-      const result = yield* runAll({ ...filteredConfig, thresholds }).pipe(
-        Effect.provide(makeServicesLayer(root, config.adapters, Option.getOrUndefined(filesGlobs))),
-      );
-
+      if (opts.full) {
+        yield* Console.error('(--full) cache bypassed — running without persistence.');
+      } else if (isBun) {
+        yield* Console.error('(bun) violation cache disabled — better-sqlite3 is unsupported under Bun.');
+      }
       const format = detectFormat(Option.getOrUndefined(opts.format) as OutputFormat | undefined);
       const thresholdMap: Record<string, number> = {};
       for (const t of thresholds) thresholdMap[t.category] = t.minScore;
 
-      // Status banner to stderr — stdout stays a clean data contract.
-      yield* Console.error(formatStatusBanner(result).trimEnd());
+      const runAndRender = Effect.gen(function* () {
+        const result = yield* runAll(
+          { ...filteredConfig, thresholds, storage: resolveStorage(root, opts.full) },
+          {
+            fileFilter: Option.getOrUndefined(filesGlobs) ?? null,
+            onScan: (scan) => {
+              process.stderr.write(
+                `scan: ${scan.filesSeen} files — +${scan.added} ~${scan.changed} -${scan.removed} =${scan.reused} reused (${scan.durationMs}ms)\n`,
+              );
+            },
+          },
+        );
 
-      if (format === 'json') {
-        yield* Console.log(formatEnvelope(result, { all: opts.all, thresholds: thresholdMap }).trimEnd());
-      } else if (format === 'ci') {
-        yield* Console.log(formatCi(result).trimEnd());
-      } else {
-        yield* Console.log(formatCategoryTable(result).trimEnd());
-        if (result.totalViolations > 0) {
-          yield* Console.log(formatViolations(result.byRule).trimEnd());
+        // Status banner to stderr — stdout stays a clean data contract.
+        yield* Console.error(formatStatusBanner(result).trimEnd());
+
+        if (format === 'json') {
+          yield* Console.log(formatEnvelope(result, { all: opts.all, thresholds: thresholdMap }).trimEnd());
+        } else if (format === 'ci') {
+          yield* Console.log(formatCi(result).trimEnd());
+        } else {
+          yield* Console.log(formatCategoryTable(result).trimEnd());
+          if (result.totalViolations > 0) {
+            yield* Console.log(formatViolations(result.byRule).trimEnd());
+          }
         }
-      }
 
-      if (!result.passing) {
+        return result;
+      });
+
+      const first = yield* runAndRender;
+      if (!first.passing) {
         yield* Effect.sync(() => {
           process.exitCode = 1;
+        });
+      }
+
+      if (opts.watch) {
+        yield* Console.error('watching for changes… (Ctrl+C to stop)');
+        // fs.watch + debounce + re-run runAll: each run is a fresh network,
+        // but the SQLite marker cache makes re-runs incremental. Events
+        // under the cache dir and VCS/dependency dirs are ignored so the
+        // watcher cannot trigger itself.
+        yield* Effect.async<never>((resume) => {
+          let timer: NodeJS.Timeout | undefined;
+          const IGNORED = /(\/|^)(\.gesetz|\.git|node_modules)(\/|$)/;
+          const watcher = nodeFs.watch(root, { recursive: true }, (_event, filename) => {
+            if (filename === null || IGNORED.test(filename)) return;
+            if (timer !== undefined) clearTimeout(timer);
+            timer = setTimeout(() => {
+              Effect.runFork(
+                runAndRender.pipe(
+                  Effect.catchAllCause((cause) =>
+                    Console.error(`watch run failed: ${String(cause)}`),
+                  ),
+                ),
+              );
+            }, 150);
+          });
+          process.on('SIGINT', () => {
+            watcher.close();
+            process.exit(process.exitCode ?? 0);
+          });
+          void resume;
         });
       }
     }),
