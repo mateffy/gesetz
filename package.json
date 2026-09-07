@@ -4,6 +4,7 @@
   "type": "module",
   "packageManager": "pnpm@11.9.0",
   "dependencies": {
+    "gesetz": "workspace:*",
     "@gesetz/bun-test": "workspace:*",
     "@gesetz/core": "workspace:*",
     "@gesetz/effect-ts": "workspace:*",
@@ -21,7 +22,7 @@
     "test": "pnpm -r run test",
     "typecheck": "pnpm -r run typecheck",
     "build": "tsdown -W",
-    "check": "gesetz check",
+    "check": "node packages/cli/dist/main.js check",
     "prepack": "tsdown -W",
     "publish": "pnpm -r publish --access public",
     "publint": "pnpm -r exec publint",
