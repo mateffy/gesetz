@@ -250,27 +250,25 @@ interface Violation {
 
 ### `Check` — a single-file analysis
 
-A `Check` receives a `File` object and returns `Effect.Effect<Violation[], never, …>`. It never throws — errors become violations or empty arrays.
+A `Check` receives a `File` and a services bag. It returns a `Promise<Violation[]>`. It never throws — errors become violations or empty arrays.
 
 ```ts
-import { Effect } from 'effect';
 import type { Check, File, Violation } from 'gesetz';
 
 // A check that forbids urgent TODO comments
-const noTodoComments: Check = (file) =>
-  Effect.sync(() => {
-    const violations: Violation[] = [];
-    file.content.split('\n').forEach((line, index) => {
-      if (/TODO\s*\(urgent\)/i.test(line)) {
-        violations.push({
-          rule: '', source: 'custom', severity: 'error',
-          path: file.path, line: index + 1,
-          message: `Urgent TODO found: "${line.trim()}"`,
-        });
-      }
-    });
-    return violations;
+const noTodoComments: Check = async (file) => {
+  const violations: Violation[] = [];
+  file.content.split('\n').forEach((line, index) => {
+    if (/TODO\s*\(urgent\)/i.test(line)) {
+      violations.push({
+        source: 'custom', severity: 'error',
+        path: file.path, line: index + 1,
+        message: `Urgent TODO found: "${line.trim()}"`,
+      });
+    }
   });
+  return violations;
+};
 
 import { select } from 'gesetz';
 export const noUrgentTodos = select('src/**/*.ts')
@@ -311,32 +309,32 @@ export const everyComponentNeedsStory = select('src/**/*.tsx')
   .check(requireSibling('.stories.tsx'));
 ```
 
-**Writing a raw rule** — when you need full control (running an external tool, scanning the whole project at once):
+**Writing a raw rule** — when you need full control (running an external tool, scanning the whole project at once). Raw rules use the project-level API, which receives a network context for globbing and file access:
 
 ```ts
-import { Effect } from 'effect';
-import { FileSystem, ProjectRoot } from 'gesetz';
 import type { Rule, Violation } from 'gesetz';
 
 export const noSecretsInEnv: Rule = {
   id: 'no-secrets-in-env',
   description: 'Repo .env files must not contain hardcoded secrets',
   category: 'security',
-  run: Effect.gen(function* () {
-    const fs = yield* FileSystem;
-    const root = yield* ProjectRoot;
-    const envFiles = yield* fs.glob(['**/.env', '**/.env.local'], { cwd: root });
-    const violations: Violation[] = [];
-    for (const file of envFiles) {
-      if (/API_KEY\s*=\s*["']?[a-zA-Z0-9]{32}["']?/m.test(file.content)) {
-        violations.push({
-          rule: 'no-secrets-in-env', source: 'custom', severity: 'error',
-          path: file.path, message: 'Possible hardcoded API key in .env file',
-        });
+  project: {
+    patterns: ['**/.env', '**/.env.local'],
+    run: async (ctx) => {
+      const files = await ctx.network.glob('**/.env*');
+      const violations: Violation[] = [];
+      for (const file of files) {
+        const content = await file.content();
+        if (/API_KEY\s*=\s*["']?[a-zA-Z0-9]{32}["']?/m.test(content)) {
+          violations.push({
+            rule: 'no-secrets-in-env', source: 'custom', severity: 'error',
+            path: file.path, message: 'Possible hardcoded API key in .env file',
+          });
+        }
       }
-    }
-    return violations;
-  }),
+      return violations;
+    },
+  },
 };
 ```
 
@@ -353,14 +351,10 @@ $ gesetz check --format=json
 # }
 ```
 
-**Programmatically** — import `runAll` and provide the service layers your rules need. For any rule that uses `SyntaxTree` (architecture, imports, cycles, structural checks) or `ImportResolver`, wire `SyntaxTreeLive(config.adapters)` and `ImportResolverDefault`:
+**Programmatically** — import `runAll` and call it directly. No Effect service layers are required — `runAll` manages its own backend:
 
 ```ts
-import { Effect, Layer } from 'effect';
-import {
-  runAll, FileSystemLive, ProjectRootLive, FileFilterLive,
-  SyntaxTreeLive, ImportResolverDefault,
-} from 'gesetz';
+import { runAll, defineConfig } from 'gesetz';
 import { typescriptSyntaxBackend } from '@gesetz/typescript';
 
 const config = defineConfig({
@@ -368,23 +362,10 @@ const config = defineConfig({
   rules: [/* ... */],
 });
 
-const program = Effect.gen(function* () {
-  const result = yield* runAll(config);
-  for (const cat of result.byCategory) {
-    console.log(`${cat.category}: ${cat.score}/10 (${cat.errors}e ${cat.warnings}w)`);
-  }
-  return result.passing;
-}).pipe(
-  Effect.provide(Layer.mergeAll(
-    FileSystemLive,
-    SyntaxTreeLive(config.adapters),
-    ImportResolverDefault,
-    ProjectRootLive('.'),
-    FileFilterLive(null),
-  )),
-);
-
-Effect.runPromise(program);
+const result = await Effect.runPromise(runAll(config));
+for (const cat of result.byCategory) {
+  console.log(`${cat.category}: ${cat.score}/10 (${cat.errors}e ${cat.warnings}w)`);
+}
 ```
 
 ### `select` — the rule builder

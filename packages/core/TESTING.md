@@ -4,88 +4,147 @@
 
 - **Runner**: Vitest (`vitest run` / `vitest`)
 - **Colocation**: Tests live in `tests/**/*.test.ts`, parallel to `src/`
-- **Mocking**: Prefer in-memory `MemoryFileSystem` over real disk I/O. Use `vi.mock('node:child_process')` for adapter-style tests.
+- **Mocking**: Use `makeFile`, `makeCheckServices`, and `runCheck` from `@gesetz/core` for unit-testing checks. For adapter-style tests that run real tools, mock `child_process`.
 
 ## Tested Areas Map
 
 | Source File | Test File | Status | Notes |
 |---|---|---|---|
-| `src/engine/config.ts` | — | ❌ | `defineConfig` is trivial object merging — tested implicitly via runner tests |
+| `src/engine/config.ts` | `tests/engine/config.test.ts` | ✅ | `defineConfig` and `GesetzStorageConfig` |
 | `src/engine/errors.ts` | — | ❌ | Error constructors — tested implicitly |
 | `src/engine/exec.ts` | `tests/engine/exec.test.ts` | ✅ | `execTool`, `runWithTempFile`, `extractLocation` |
 | `src/engine/rule.ts` | — | ❌ | Types only |
-| `src/engine/runner.ts` | `tests/engine/runner.test.ts` | ✅ | `runAll`, `applyExemptions` |
+| `src/engine/runner.ts` | `tests/engine/runner.test.ts` — `tests/engine/runner-incremental.test.ts` — `tests/engine/project-rules.test.ts` | ✅ | `runAll`, `applyExemptions`, incremental scanning |
+| `src/backend/compile.ts` | `tests/backend/compile.test.ts` | ✅ | Compilation of rules to netzwerk extensions |
+| `src/backend/check-services.ts` | `tests/backend/check-services.test.ts` | ✅ | `createCheckServices` |
+| `src/backend/violation-markers.ts` | `tests/backend/violation-markers.test.ts` | ✅ | Marker creation and deserialization |
+| `src/backend/syntax-extension.ts` | `tests/backend/syntax-extension.test.ts` | ✅ | Syntax-backed per-file checks |
 | `src/primitives/select.ts` | `tests/primitives/select.test.ts` | ✅ | `select`, `slugify`, chaining API |
 | `src/primitives/checks/fs.ts` | `tests/primitives/checks/fs.test.ts` | ✅ | `requireSibling`, `requireChildren`, `forbidFile`, `relativeImports` |
 | `src/primitives/checks/imports.ts` | `tests/primitives/checks/imports.test.ts` | ✅ | `noImportFrom`, `requireImportFrom` |
 | `src/primitives/checks/patterns.ts` | `tests/primitives/checks/patterns.test.ts` | ✅ | `noPattern`, `requirePattern` |
-| `src/primitives/checks/structure.ts` | `tests/primitives/checks/structure.test.ts` | ✅ | `noGodFile`, `noDeepNesting`, `noConsoleLog`, `noEmptyCatch`, `noMagicNumbers`, `noTrivialComment`, `noDebuggingResidueFiles`, `noHardcodedSecret` |
-| `src/primitives/graph.ts` | — | ❌ | `noCycles` — requires `dependency-cruiser` peer dep; tested at integration level |
+| `src/primitives/checks/structure.ts` | `tests/primitives/checks/structure.test.ts` | ✅ | `noGodFile`, `noDeepNesting`, `noDebuggingResidueFiles`, `noHardcodedSecret` |
+| `src/primitives/checks/debug-logging.ts` | `tests/primitives/checks/debug-logging.test.ts` | ✅ | `noDebugLogging` |
+| `src/primitives/checks/calls.ts` | `tests/primitives/checks/calls.test.ts` | ✅ | `noDirectCalls` |
+| `src/primitives/checks/naming.ts` | `tests/primitives/checks/naming.test.ts` | ✅ | `requireNamingConvention`, `noForbiddenNames` |
+| `src/primitives/checks/docstrings.ts` | `tests/primitives/checks/docstrings.test.ts` | ✅ | `requireDocstrings` |
+| `src/primitives/checks/exports.ts` | `tests/primitives/checks/exports.test.ts` | ✅ | `requireExportsMatching`, `requireRelatedExports` |
+| `src/primitives/checks/structure-count.ts` | `tests/primitives/checks/structure-count.test.ts` | ✅ | `requireMinStructureCount` |
+| `src/primitives/graph.ts` | `tests/primitives/checks/cycles.test.ts` | ✅ | `noCycles` — project-level, uses netzwerk import edges |
 | `src/architecture.ts` | `tests/primitives/architecture.test.ts` | ✅ | `defineArchitecture` |
-| `src/reporters/*.ts` | `tests/reporters/reporters.test.ts` | ✅ | `TestRunnerReporter`, `Reporter` service |
-| `src/services/fs.ts` | `tests/services/fs.test.ts` | ✅ | `MemoryFileSystem`, `FileSystemLive` |
-| `src/services/ts-adapter.ts` | — | ❌ | `TsAdapter` — tested implicitly via typescript/effect-ts adapter tests |
-| `src/services/php-adapter.ts` | — | ❌ | `PhpAdapter` — tested implicitly via php adapter tests |
+| `src/reporters/*.ts` | `tests/reporters/reporters.test.ts` | ✅ | `TestRunnerReporter` |
+| `src/services/fs.ts` | `tests/services/fs.test.ts` | ✅ | `FileSystemLive`, `MemoryFileSystem` |
+| `src/services/syntax-tree.ts` | `tests/services/syntax-tree.test.ts` | ✅ | `SyntaxTreeLive` |
+| `src/test-helpers.ts` | — | ❌ | Tested implicitly through the entire check test suite |
 
 ## Known Coverage Gaps
 
-1. **`noCycles`** (`src/primitives/graph.ts`) — needs `dependency-cruiser` installed to run. Integration-level test would require mocking the dep-cruiser API.
-2. **`TsAdapter`** / **`PhpAdapter`** — tested implicitly through downstream packages (`@gesetz/typescript`, `@gesetz/effect-ts`, `@gesetz/php`).
+1. **`noCycles`** — tested through integration-level mocks. The DFS implementation is unit-tested, but the netzwerk `resolveImportEdges` integration is tested at the smoke level.
+2. **`TsAdapter` / `PhpAdapter`** — deleted in v1.2.0. Replaced by `typescriptSyntaxBackend` / `phpSyntaxBackend`, tested through their respective packages.
 3. **Error branches in `execTool`** — the "command not found" path is tested; the "stdout in error" path is tested via adapter tests.
-4. **`defineConfig`** — trivial object merging; covered implicitly by runner and architecture tests.
 
 ## Testing Patterns
 
-### In-memory FileSystem
+Gesetz ships three test helpers exported from `@gesetz/core`: `makeFile`, `makeCheckServices`, and `runCheck`. They are plain functions — no Effect, no runtime, no dependency injection.
+
+### Pattern 1 — Pure sync checks (regex, text scanning)
+
+Checks that only read `file.content` or `file.path`. No services needed.
 
 ```ts
-const files = {
-  '/project/src/foo.ts': 'export const foo = 1;',
-};
-const layer = Layer.mergeAll(
-  MemoryFileSystem(files),
-  TsAdapterStub,
-  PhpAdapterStub,
-  ProjectRootLive('/project'),
-  FileFilterLive(null),
-);
-const result = await Effect.provide(effect, layer).pipe(Effect.runPromise);
-```
+import { describe, it, expect } from 'vitest';
+import { makeFile, makeCheckServices, runCheck } from '@gesetz/core';
 
-### Mocking child_process for adapter-style tests
-
-```ts
-vi.mock('node:child_process', async () => {
-  const actual = await vi.importActual('node:child_process');
-  return {
-    ...actual,
-    execFileSync: vi.fn(),
-  };
+describe('noDebugLogging', () => {
+  it('flags console.log in TypeScript files', async () => {
+    const violations = await runCheck(
+      noDebugLogging(),
+      makeFile('src/foo.ts', 'console.log("hi");'),
+      makeCheckServices(),  // all safe defaults
+    );
+    expect(violations).toHaveLength(1);
+    expect(violations[0]?.line).toBe(1);
+  });
 });
 ```
 
-### Creating a File object
+### Pattern 2 — File-system checks (`requireSibling`, `requireChildren`)
+
+Checks that call `fs.exists` or `fs.readFile`. Pass a `files` map to `makeCheckServices`.
 
 ```ts
-function makeFile(content: string, path = 'src/foo.ts'): File {
-  return {
-    path,
-    absolutePath: `/abs/${path}`,
-    name: 'foo.ts',
-    stem: 'foo',
-    ext: '.ts',
-    dir: 'src',
-    content,
-    size: content.length,
-    mtimeMs: 0,
-  };
-}
+import * as nodePath from 'node:path';
+import { makeCheckServices } from '@gesetz/core';
+
+const CWD = process.cwd();
+
+describe('requireSibling', () => {
+  it('passes when the sibling file exists', async () => {
+    const services = makeCheckServices({
+      projectRoot: CWD,
+      files: {
+        [nodePath.resolve(CWD, 'src/Button.stories.tsx')]: '',
+      },
+    });
+    const violations = await runCheck(
+      requireSibling('.stories.tsx'),
+      makeFile('src/Button.tsx'),
+      services,
+    );
+    expect(violations).toHaveLength(0);
+  });
+
+  it('fails when the sibling is missing', async () => {
+    const services = makeCheckServices({ projectRoot: CWD });
+    const violations = await runCheck(
+      requireSibling('.stories.tsx'),
+      makeFile('src/Button.tsx'),
+      services,
+    );
+    expect(violations).toHaveLength(1);
+  });
+});
 ```
+
+### Pattern 3 — Syntax-tree checks (`noDirectCalls`, `requireNamingConvention`, `noImportFrom`)
+
+Checks that call `syntax.process` and `syntax.canProcess`. Pass mock data via the `syntax` option.
+
+```ts
+describe('noDirectCalls', () => {
+  it('flags calls whose name is in the banned set', async () => {
+    const services = makeCheckServices({
+      syntax: {
+        calls: [
+          { name: 'eval', line: 3 },
+          { name: 'fetch', line: 7 },
+        ],
+      },
+    });
+    const violations = await runCheck(noDirectCalls(['eval']), makeFile('src/foo.ts'), services);
+    expect(violations).toHaveLength(1);
+    expect(violations[0]?.line).toBe(3);
+  });
+
+  it('returns no violations when canProcess is false', async () => {
+    const services = makeCheckServices({
+      overrides: { syntax: { canProcess: () => false } },
+    });
+    const violations = await runCheck(noDirectCalls(['eval']), makeFile('src/foo.rb'), services);
+    expect(violations).toHaveLength(0);
+  });
+});
+```
+
+### Pattern 4 — Project-level rules (adapters, architecture, noCycles)
+
+Rules that use the `project` descriptor can be tested by constructing a minimal `ProjectRuleContext` with mock glob and file methods. See `tests/engine/project-rules.test.ts` for full examples.
 
 ## Watch-Outs
 
-1. **`MemoryFileSystem.glob`** uses `micromatch` (not `fast-glob`) for in-memory matching. Do not expect real filesystem traversal.
-2. **`ProjectRoot`** must be provided when testing rules that call `fs.glob()` without an explicit `cwd`. The `architecture.ts` rule was fixed to read `ProjectRoot` after a bug where it defaulted to `process.cwd()`.
-3. **Architecture import resolution** uses `nodePath.normalize()` to resolve relative imports (`../b/foo` → `b/foo`). Tests must use realistic relative paths.
-4. **Structure checks** cap violations per file (e.g., `noDeepNesting` at 10, `noMagicNumbers` at 20). Tests should not expect more violations than the cap.
-5. **`noEmptyCatch`** checks the 3 lines after `catch {` for real content. If the catch body is on the same line as the opening brace, it won't be detected.
+1. **`makeCheckServices` defaults.** `fs.exists` returns `false` for all paths; `fs.readFile` returns `''`; `syntax.canProcess` returns `true` for `.ts`, `.tsx`, `.js`, `.jsx`, `.mjs`, `.cjs`, `.php`; `syntax.process` returns empty arrays. Override only what your check needs.
+2. **Always use absolute paths in `files`.** `fs.exists` receives absolute paths from checks. Build keys with `nodePath.resolve(projectRoot, relativePath)` or use `makeFile().absolutePath`.
+3. **Use `overrides` for dynamic mocks.** When you need `canProcess` that varies per file, or `process` that throws for specific files, use `makeCheckServices({ overrides: { syntax: { ... } } })`.
+4. **Structure checks cap violations per file.** `noDeepNesting` caps at 10, `noMagicNumbers` caps at 20. Tests must not expect more violations than the cap.
+5. **`noEmptyCatch`** checks the 3 lines after `catch {` for real content. If the catch body is on the same line as the opening brace, it is not detected.
+6. **Scoring formula.** `weighted = errors*1.0 + warnings*0.5 + infos*0.1`, then `score = max(0, 10 - weighted)`. Tests for violations must match the declared severity — a test that expects a `warn` violation to count as 1.0 toward the score is wrong.

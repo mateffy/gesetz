@@ -29,21 +29,9 @@ Gesetz separates **what to scan** from **what to enforce**.
 - **`.check(...)`** says *what must be true* about each file.
 - The result is a **`Rule`**, which the runner executes.
 
-A `Rule` is an object with four fields:
+A `Rule` is an object with an id, description, category, optional guidance, and a run descriptor. Rules built with `select()` automatically get a `perFile` descriptor — the runner compiles them to incremental scans so unchanged files are served from cache. Raw rules use the `project` descriptor for full-control access to the file network.
 
-```ts
-interface Rule {
-  id: string;              // machine slug, e.g. "no-console-log"
-  description: string;      // human label
-  category?: string;        // scoring bucket, e.g. "cleanup"
-  guidance?: RuleGuidance;  // agent-facing what/do/dont hints
-  run: Effect.Effect<Violation[], never, ...>;  // the actual work
-}
-```
-
-The `run` Effect is the heart. It has access to services (`FileSystem`, `SyntaxTree`, `ImportResolver`, `ProjectRoot`) that are injected at runtime. You never instantiate these yourself; you declare them as dependencies via `yield*` inside `Effect.gen`, and the CLI provides them when the rule runs.
-
-This is **dependency injection by capability**: a rule says "I need to read files" or "I need to parse imports," and the runner wires the implementation.
+This is **incremental by default**: rules declare what files they depend on, and the runner re-executes only when those files change.
 
 ---
 
@@ -78,6 +66,83 @@ Let us unpack every call:
 ---
 
 ## 3. Checks: the atomic unit of analysis
+
+A `Check` is a function from one `File` and a services bag to a `Promise` of `Violation[]`:
+
+```ts
+type Check = (file: File, services: CheckServices) => Promise<Violation[]>;
+```
+
+Checks must not throw. They absorb internal failures and convert them into violations or empty arrays. This is a hard contract: a broken check must not crash the runner.
+
+The `File` object carries everything you need:
+
+```ts
+interface File {
+  path: string;         // repo-relative, e.g. "src/components/Foo.tsx"
+  absolutePath: string; // absolute on disk
+  name: string;         // "Foo.tsx"
+  stem: string;         // "Foo"
+  ext: string;          // ".tsx"
+  dir: string;          // "src/components"
+  content: string;      // full UTF-8 source
+  size: number;         // bytes
+  mtimeMs: number;      // last modified
+}
+```
+
+The services bag gives you access to the filesystem, the syntax parser, and the import resolver:
+
+```ts
+interface CheckServices {
+  fs: {
+    glob(pattern: string | string[], options?: GlobOptions): Promise<File[]>;
+    readFile(absolutePath: string): Promise<string>;
+    exists(absolutePath: string): Promise<boolean>;
+  };
+  syntax: {
+    canProcess(file: File): boolean;
+    process(file: File, options: SyntaxTreeProcessOptions): Promise<SyntaxBackendProcessResult>;
+  };
+  imports: {
+    resolve(fromFile: File, specifier: string): string | null;
+  };
+  projectRoot: string;
+}
+```
+
+Destructure only what you need from the second argument:
+
+```ts
+// No services needed
+async (file) => { ... }
+
+// Needs the filesystem
+async (file, { fs }) => { ... }
+
+// Needs the syntax parser
+async (file, { syntax }) => { ... }
+
+// Needs both
+async (file, { fs, syntax }) => { ... }
+```
+
+A `Violation` is a plain object:
+
+```ts
+interface Violation {
+  message: string;       // human-readable
+  path: string;         // repo-relative path
+  line?: number;        // 1-indexed, optional
+  column?: number;      // optional
+  severity: 'error' | 'warn' | 'info';
+  context?: string;     // optional extra detail
+  fix?: string;         // optional suggested replacement
+  source: 'core' | 'eslint' | 'phpstan' | 'oxlint' | 'custom';
+}
+```
+
+When you use `.check()` inside `select`, the rule ID is automatically injected into every violation. You do not need to set it yourself.
 
 A `Check` is a function from one `File` to an `Effect` that produces `Violation[]`:
 
@@ -358,36 +423,33 @@ If no backend is registered, `canProcess(file)` returns `false` and the check re
 
 ## 8. Writing a custom check from scratch
 
-If the built-in checks do not cover your convention, write your own. A check is just a function returning an `Effect.Effect<Violation[], never, ...>`.
+If the built-in checks do not cover your convention, write your own. A check is a function returning a `Promise<Violation[]>`.
 
 ### The simplest possible check
 
 ```ts
-import { Effect } from 'effect';
 import type { Check, Violation } from 'gesetz';
 
 export function noFooInComments(): Check {
-  return (file) =>
-    Effect.sync(() => {
-      const violations: Violation[] = [];
-      const lines = file.content.split('\n');
+  return async (file) => {
+    const violations: Violation[] = [];
+    const lines = file.content.split('\n');
 
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i] ?? '';
-        if (line.includes('//') && line.toLowerCase().includes('foo')) {
-          violations.push({
-            rule: '',           // filled by select()
-            severity: 'warn',
-            source: 'core',
-            message: `Do not mention 'foo' in comments: ${line.trim()}`,
-            path: file.path,
-            line: i + 1,
-          });
-        }
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i] ?? '';
+      if (line.includes('//') && line.toLowerCase().includes('foo')) {
+        violations.push({
+          severity: 'warn',
+          source: 'core',
+          message: `Do not mention 'foo' in comments: ${line.trim()}`,
+          path: file.path,
+          line: i + 1,
+        });
       }
+    }
 
-      return violations;
-    });
+    return violations;
+  };
 }
 ```
 
@@ -402,47 +464,42 @@ select('src/**/*.ts')
 ### A check that reads the file system
 
 ```ts
-import { Effect } from 'effect';
-import { FileSystem } from 'gesetz';
 import * as nodePath from 'node:path';
 import type { Check, Violation } from 'gesetz';
 
 export function requireReadme(): Check {
-  return (file) =>
-    Effect.gen(function* () {
-      const fs = yield* FileSystem;
-      const dir = nodePath.dirname(file.absolutePath);
-      const readmePath = nodePath.join(dir, 'README.md');
-      const exists = yield* fs.exists(readmePath);
+  return async (file, { fs }) => {
+    const dir = nodePath.dirname(file.absolutePath);
+    const readmePath = nodePath.join(dir, 'README.md');
+    const exists = await fs.exists(readmePath);
 
-      if (exists) return [];
+    if (exists) return [];
 
-      return [{
-        rule: '',
-        severity: 'error',
-        source: 'core',
-        message: `Directory missing README.md: ${file.dir}`,
-        path: file.path,
-      }];
-    });
+    return [{
+      severity: 'error',
+      source: 'core',
+      message: `Directory missing README.md: ${file.dir}`,
+      path: file.path,
+    }];
+  };
 }
 ```
 
-Notice `yield* FileSystem`. This declares a runtime dependency. The check will only work inside an Effect context that provides a `FileSystem` implementation. The CLI does this automatically.
+Destructure `{ fs }` from the second argument when you need file-system access. Use `await` for async calls — no `yield*` is required.
 
 ---
 
 ## 9. Using the SyntaxTree service
 
-When you need precise AST analysis — imports, exports, function calls, class structure — use the `SyntaxTree` service. It is backed by language adapters that you register in `gesetz.config.ts`.
+When you need precise AST analysis — imports, exports, function calls, class structure — use the `syntax` service from the `CheckServices` bag. It is backed by language adapters that you register in `gesetz.config.ts`.
 
 ### How it works
 
 1. You import adapters and pass them to `defineConfig({ adapters: [...] })`.
-2. The CLI builds a **router** (`SyntaxTreeLive`) that maps file extensions to backends.
-3. Inside your check, `yield* SyntaxTree` gives you the router.
-4. Call `st.canProcess(file)` to check if a backend exists for the file's extension.
-5. Call `st.process(file, { imports: true, calls: true, exports: true, structure: true })` to get parsed data.
+2. The CLI builds a router that maps file extensions to backends.
+3. Inside your check, destructure `{ syntax }` from the services argument.
+4. Call `syntax.canProcess(file)` to check if a backend exists for the file's extension.
+5. Call `await syntax.process(file, { imports: true, calls: true, exports: true, structure: true })` to get parsed data.
 
 ### Available data shapes
 
@@ -477,27 +534,21 @@ interface StructureItem {
 ### Example: custom import whitelist
 
 ```ts
-import { Effect } from 'effect';
-import { SyntaxTree } from 'gesetz';
 import type { Check, Violation } from 'gesetz';
 
 const ALLOWED_INTERNAL = new Set(['@internal/core', '@internal/ui']);
 
 export function onlyAllowedInternalImports(): Check {
-  return (file) =>
-    Effect.gen(function* () {
-      const st = yield* SyntaxTree;
-      if (!st.canProcess(file)) return [];
+  return async (file, { syntax }) => {
+    if (!syntax.canProcess(file)) return [];
 
-      const result = yield* st.process(file, { imports: true }).pipe(
-        Effect.catchAll(() => Effect.succeed({ imports: [], calls: [], exports: [], structure: [] })),
-      );
+    try {
+      const result = await syntax.process(file, { imports: true });
 
       const violations: Violation[] = [];
       for (const imp of result.imports) {
         if (imp.specifier.startsWith('@internal/') && !ALLOWED_INTERNAL.has(imp.specifier)) {
           violations.push({
-            rule: '',
             severity: 'error',
             source: 'core',
             message: `Unauthorized internal import: ${imp.specifier}`,
@@ -507,7 +558,10 @@ export function onlyAllowedInternalImports(): Check {
         }
       }
       return violations;
-    });
+    } catch {
+      return [];
+    }
+  };
 }
 ```
 
@@ -519,17 +573,39 @@ select('src/**/*.ts')
   .check(onlyAllowedInternalImports());
 ```
 
-### Important: always catch `SyntaxTree` failures
+### Important: always catch syntax failures
 
-`st.process()` can fail with `SyntaxTreeError` (parse errors or no backend). If you do not catch it, the check fails and the runner converts it into a special violation. It is safer to catch and return an empty array:
+`syntax.process()` can throw (parse errors or no backend). Wrap it in `try/catch` and return an empty array on failure. This is the pattern used by every built-in check.
 
 ```ts
-const result = yield* st.process(file, { calls: true }).pipe(
-  Effect.catchAll(() => Effect.succeed({ imports: [], calls: [], exports: [], structure: [] })),
-);
+interface ParsedImport {
+  specifier: string;   // "react", "./foo", "Illuminate\\Models\\User"
+  names: string[];     // ["useState", "useEffect"]
+  line: number;        // 1-indexed
+}
+
+interface ParsedCall {
+  name: string;        // "console.log", "dd", "fmt.Println"
+  line: number;
+}
+
+interface ParsedExport {
+  name: string;        // "doThing", "UserService"
+  kind: string;        // "function", "class", "const", "type", "interface", "enum"
+  line: number;
+}
+
+interface StructureItem {
+  kind: string;        // "function", "class", "method", "interface"
+  name: string;
+  startLine: number;
+  endLine: number;
+  docstring: string | null;
+  children: StructureItem[];
+}
 ```
 
-This is the pattern used by every built-in `SyntaxTree`-backed check.
+### Example: custom import whitelist
 
 ---
 
@@ -587,43 +663,25 @@ If you use TypeScript path mappings (`@/foo` → `src/foo`), provide a custom `I
 
 ## 11. Testing a rule
 
-Rules are pure functions returning Effects. You can test them with Vitest (or any test runner) by providing a minimal Layer and running the Effect.
+Gesetz ships plain testing helpers — `makeFile`, `makeCheckServices`, and `runCheck` — so you can test a check without importing Effect or wiring service layers.
 
 ### Testing a regex-based check
 
 ```ts
 import { describe, it, expect } from 'vitest';
-import { Effect } from 'effect';
+import { makeFile, makeCheckServices, runCheck } from '@gesetz/core';
 import { noGodFile } from 'gesetz';
-import type { File } from 'gesetz';
-
-function makeFile(content: string, path = 'src/foo.ts'): File {
-  return {
-    path,
-    absolutePath: `/abs/${path}`,
-    name: 'foo.ts',
-    stem: 'foo',
-    ext: '.ts',
-    dir: 'src',
-    content,
-    size: content.length,
-    mtimeMs: 0,
-  };
-}
-
-const run = (effect: Effect.Effect<unknown, unknown, unknown>) =>
-  Effect.runPromise(effect);
 
 describe('noGodFile', () => {
   it('passes when file is under the limit', async () => {
-    const file = makeFile('line\n'.repeat(399));
-    const violations = await run(noGodFile({ maxLines: 400 })(file));
+    const file = makeFile('src/foo.ts', 'line\n'.repeat(399));
+    const violations = await runCheck(noGodFile({ maxLines: 400 }), file, makeCheckServices());
     expect(violations).toHaveLength(0);
   });
 
   it('fails when file exceeds the limit', async () => {
-    const file = makeFile('line\n'.repeat(400));
-    const violations = await run(noGodFile({ maxLines: 400 })(file));
+    const file = makeFile('src/foo.ts', 'line\n'.repeat(400));
+    const violations = await runCheck(noGodFile({ maxLines: 400 }), file, makeCheckServices());
     expect(violations).toHaveLength(1);
     expect(violations[0]?.message).toContain('400');
   });
@@ -632,62 +690,68 @@ describe('noGodFile', () => {
 
 ### Testing a SyntaxTree-backed check
 
-For checks that use `yield* SyntaxTree`, you need a test Layer that provides mock data. Gesetz exports `makeSyntaxTreeLayer` for this:
+For checks that use `syntax.process`, provide mock data via `makeCheckServices`:
 
 ```ts
 import { describe, it, expect } from 'vitest';
-import { Effect, Layer } from 'effect';
-import { noDirectCalls, SyntaxTree } from 'gesetz';
-import type { File } from 'gesetz';
-
-function makeFile(name = 'foo.ts'): File {
-  return {
-    path: `src/${name}`,
-    absolutePath: `/abs/src/${name}`,
-    name,
-    stem: name.replace(/\.[^.]+$/, ''),
-    ext: '.' + name.split('.').pop()!,
-    dir: 'src',
-    content: 'irrelevant — SyntaxTree is stubbed',
-    size: 0,
-    mtimeMs: 0,
-  };
-}
-
-function makeSyntaxTreeLayer(result: Partial<{
-  imports: { specifier: string; names: string[]; line: number }[];
-  calls: { name: string; line: number }[];
-  exports: { name: string; kind: string; line: number }[];
-  structure: { kind: string; name: string; startLine: number; endLine: number; docstring: string | null; children: unknown[] }[];
-}>) {
-  const full = {
-    imports: result.imports ?? [],
-    calls: result.calls ?? [],
-    exports: result.exports ?? [],
-    structure: result.structure ?? [],
-  };
-  return Layer.succeed(SyntaxTree, {
-    canProcess: () => true,
-    process: (_file, _opts) => Effect.succeed(full),
-  });
-}
-
-const run = (effect: Effect.Effect<unknown, unknown, SyntaxTree>, layer: Layer.Layer<unknown>) =>
-  Effect.provide(effect, layer).pipe(Effect.runPromise);
+import { makeFile, makeCheckServices, runCheck } from '@gesetz/core';
+import { noDirectCalls } from 'gesetz';
 
 describe('noDirectCalls', () => {
   it('flags banned calls', async () => {
-    const layer = makeSyntaxTreeLayer({
-      calls: [{ name: 'eval', line: 3 }],
+    const services = makeCheckServices({
+      syntax: { calls: [{ name: 'eval', line: 3 }] },
     });
-    const violations = await run(noDirectCalls(['eval'])(makeFile()), layer);
+    const file = makeFile('src/foo.ts');
+    const violations = await runCheck(noDirectCalls(['eval']), file, services);
     expect(violations).toHaveLength(1);
     expect(violations[0]?.line).toBe(3);
+  });
+
+  it('returns nothing when no backend is registered', async () => {
+    const services = makeCheckServices({
+      overrides: { syntax: { canProcess: () => false } },
+    });
+    const file = makeFile('src/foo.rb');
+    const violations = await runCheck(noDirectCalls(['eval']), file, services);
+    expect(violations).toHaveLength(0);
   });
 });
 ```
 
-This test is fast: no real parser runs, no file system touches. You control the AST output and verify that your check logic transforms it into the right violations.
+This is fast: no real parser runs, no file system touches. You control the AST output and verify that your check logic transforms it into the right violations.
+
+### Testing a file-system check
+
+For checks that call `fs.exists`, pass a virtual filesystem:
+
+```ts
+import nodePath from 'node:path';
+import { describe, it, expect } from 'vitest';
+import { makeFile, makeCheckServices, runCheck } from '@gesetz/core';
+import { requireSibling } from 'gesetz';
+
+const CWD = process.cwd();
+
+describe('requireSibling', () => {
+  it('passes when the sibling exists', async () => {
+    const services = makeCheckServices({
+      projectRoot: CWD,
+      files: { [nodePath.resolve(CWD, 'src/Button.stories.tsx')]: '' },
+    });
+    const file = makeFile('src/Button.tsx');
+    const violations = await runCheck(requireSibling('.stories.tsx'), file, services);
+    expect(violations).toHaveLength(0);
+  });
+
+  it('fails when the sibling is missing', async () => {
+    const services = makeCheckServices({ projectRoot: CWD });
+    const file = makeFile('src/Button.tsx');
+    const violations = await runCheck(requireSibling('.stories.tsx'), file, services);
+    expect(violations).toHaveLength(1);
+  });
+});
+```
 
 ---
 
@@ -699,56 +763,53 @@ Let us write a complete rule from scratch: **"Every `useFoo` hook must have a ma
 
 ```ts
 // rules/require-related-hooks.ts
-import { Effect } from 'effect';
-import { SyntaxTree } from 'gesetz';
 import type { Check, Violation } from 'gesetz';
 
 export function requireRelatedHooks(): Check {
-  return (file) =>
-    Effect.gen(function* () {
-      const st = yield* SyntaxTree;
-      if (!st.canProcess(file)) return [];
+  return async (file, { syntax }) => {
+    if (!syntax.canProcess(file)) return [];
 
-      const result = yield* st.process(file, { exports: true }).pipe(
-        Effect.catchAll(() => Effect.succeed({ imports: [], calls: [], exports: [], structure: [] })),
-      );
+    let result;
+    try {
+      result = await syntax.process(file, { exports: true });
+    } catch {
+      return [];
+    }
 
-      // Only consider function exports whose name starts with "use"
-      const hooks = result.exports.filter(e => e.kind === 'function' && e.name.startsWith('use'));
-      if (hooks.length === 0) return [];
+    // Only consider function exports whose name starts with "use"
+    const hooks = result.exports.filter(e => e.kind === 'function' && e.name.startsWith('use'));
+    if (hooks.length === 0) return [];
 
-      const exportNames = new Set(result.exports.map(e => e.name));
-      const violations: Violation[] = [];
+    const exportNames = new Set(result.exports.map(e => e.name));
+    const violations: Violation[] = [];
 
-      for (const hook of hooks) {
-        const base = hook.name.slice(3); // remove "use" prefix
-        const suspenseName = `useSuspense${base}`;
-        const cachedName = `useCached${base}`;
+    for (const hook of hooks) {
+      const base = hook.name.slice(3); // remove "use" prefix
+      const suspenseName = `useSuspense${base}`;
+      const cachedName = `useCached${base}`;
 
-        if (!exportNames.has(suspenseName)) {
-          violations.push({
-            rule: '',
-            severity: 'error',
-            source: 'core',
-            message: `Hook '${hook.name}' is missing related export '${suspenseName}'`,
-            path: file.path,
-            line: hook.line,
-          });
-        }
-        if (!exportNames.has(cachedName)) {
-          violations.push({
-            rule: '',
-            severity: 'error',
-            source: 'core',
-            message: `Hook '${hook.name}' is missing related export '${cachedName}'`,
-            path: file.path,
-            line: hook.line,
-          });
-        }
+      if (!exportNames.has(suspenseName)) {
+        violations.push({
+          severity: 'error',
+          source: 'core',
+          message: `Hook '${hook.name}' is missing related export '${suspenseName}'`,
+          path: file.path,
+          line: hook.line,
+        });
       }
+      if (!exportNames.has(cachedName)) {
+        violations.push({
+          severity: 'error',
+          source: 'core',
+          message: `Hook '${hook.name}' is missing related export '${cachedName}'`,
+          path: file.path,
+          line: hook.line,
+        });
+      }
+    }
 
-      return violations;
-    });
+    return violations;
+  };
 }
 ```
 
@@ -782,54 +843,38 @@ export default defineConfig({
 ```ts
 // rules/require-related-hooks.test.ts
 import { describe, it, expect } from 'vitest';
-import { Effect, Layer } from 'effect';
-import { SyntaxTree } from 'gesetz';
+import { makeFile, makeCheckServices, runCheck } from '@gesetz/core';
 import { requireRelatedHooks } from './require-related-hooks';
-import type { File } from 'gesetz';
-
-function makeFile(name: string, exports: { name: string; kind: string; line: number }[]): File {
-  return {
-    path: `src/hooks/${name}`,
-    absolutePath: `/abs/src/hooks/${name}`,
-    name,
-    stem: name.replace(/\.[^.]+$/, ''),
-    ext: '.ts',
-    dir: 'src/hooks',
-    content: '',
-    size: 0,
-    mtimeMs: 0,
-  };
-}
-
-function makeLayer(exports: { name: string; kind: string; line: number }[]) {
-  return Layer.succeed(SyntaxTree, {
-    canProcess: () => true,
-    process: () => Effect.succeed({ imports: [], calls: [], exports, structure: [] }),
-  });
-}
-
-const run = (eff: Effect.Effect<unknown, unknown, SyntaxTree>, layer: Layer.Layer<unknown>) =>
-  Effect.provide(eff, layer).pipe(Effect.runPromise);
 
 describe('requireRelatedHooks', () => {
   it('passes when all related hooks exist', async () => {
-    const layer = makeLayer([
-      { name: 'useUser', kind: 'function', line: 1 },
-      { name: 'useSuspenseUser', kind: 'function', line: 10 },
-      { name: 'useCachedUser', kind: 'function', line: 20 },
-    ]);
-    const v = await run(requireRelatedHooks()(makeFile('useUser.ts', [])), layer);
-    expect(v).toHaveLength(0);
+    const services = makeCheckServices({
+      syntax: {
+        exports: [
+          { name: 'useUser', kind: 'function', line: 1 },
+          { name: 'useSuspenseUser', kind: 'function', line: 10 },
+          { name: 'useCachedUser', kind: 'function', line: 20 },
+        ],
+      },
+    });
+    const file = makeFile('src/hooks/useUser.ts');
+    const violations = await runCheck(requireRelatedHooks(), file, services);
+    expect(violations).toHaveLength(0);
   });
 
   it('fails when suspense hook is missing', async () => {
-    const layer = makeLayer([
-      { name: 'useUser', kind: 'function', line: 1 },
-      { name: 'useCachedUser', kind: 'function', line: 20 },
-    ]);
-    const v = await run(requireRelatedHooks()(makeFile('useUser.ts', [])), layer);
-    expect(v).toHaveLength(1);
-    expect(v[0]?.message).toContain('useSuspenseUser');
+    const services = makeCheckServices({
+      syntax: {
+        exports: [
+          { name: 'useUser', kind: 'function', line: 1 },
+          { name: 'useCachedUser', kind: 'function', line: 20 },
+        ],
+      },
+    });
+    const file = makeFile('src/hooks/useUser.ts');
+    const violations = await runCheck(requireRelatedHooks(), file, services);
+    expect(violations).toHaveLength(1);
+    expect(violations[0]?.message).toContain('useSuspenseUser');
   });
 });
 ```

@@ -287,31 +287,134 @@ Adding GitHub CI workflow to gesetz by copying the approach from dialekt (strukt
 01a07bc5-f438-713a-b642-38315d30f957
 ```
 
+```read
+/Users/mat/dev/fabrik/gesetz/packages/core/src/engine/runner.ts
+```
+
 **CI fix attempt #2:** The `pnpm check` script (`gesetz check`) can't find the binary because `gesetz` meta-package doesn't declare a `bin` — the bin is in `@gesetz/cli` (transitive dep). pnpm doesn't hoist transitive bins to root `node_modules/.bin/`.
 
 **Attempt #1 — direct node path:**
+
 - Changed `check` script to `node packages/cli/dist/main.js check` in root `package.json`
 - Ran `node packages/cli/dist/main.js check` locally
 - **FAILS** with `ERR_MODULE_NOT_FOUND: Cannot find package 'netzwerk'` — `packages/core` depends on `netzwerk` via `"link:../../../netzwerk"`. The symlink exists at `packages/core/node_modules/netzwerk -> ../../../../netzwerk`, but the linked package's source files and structure don't match the expected import (missing `src/index.ts`, but `package.json` exists).
 
 **Attempt #2 — `pnpm exec gesetz check`:**
+
 - Tried `pnpm exec gesetz check` locally
 - **FAILS** — same underlying issue: `gesetz` bin not hoisted because it's transitive
 
 **Attempt #3 — add `bin` to `gesetz` meta-package:**
+
 - Considered adding `"bin": {"gesetz": "node_modules/@gesetz/cli/dist/main.js"}` to `packages/gesetz/package.json`
 - Discarded as fragile
 
 **Attempt #4 — direct node path + workspace dep fix:**
+
 - Added `"gesetz": "workspace:*"` to root `package.json` dependencies
 - Changed `check` to `node packages/cli/dist/main.js check`
 - Committed as `a81580c`
 - **LOCAL TEST STILL FAILS** due to `netzwerk` link dependency — this is a pre-existing repo issue
 
 **Current state:**
+
 - [x] Bin resolution fixed (direct node path in `check` script)
 - [ ] CI workflow structure is correct, but won't pass until `netzwerk` dependency is resolved
 - BLOCKER: `packages/core` depends on `"netzwerk": "link:../../../netzwerk"` — this path exists on dev machine but:
   - `netzwerk` package hasn't been built (no `dist/`, no `src/index.ts`)
   - In CI this path won't exist at all
   - Resolution: needs either npm publication of `netzwerk`, CI checkout of the repo alongside, or a higher-level monorepo CI
+
+## 2026-09-07 19:17:34Z Analyzing and documenting netzwerk-backed rewrite changes
+
+```session
+01a07bc5-f438-713a-b642-38315d30f957
+```
+
+```read
+/Users/mat/.agents/skills/technical-writing/SKILL.md
+/Users/mat/dev/fabrik/gesetz/AGENTLOG.md
+/Users/mat/dev/fabrik/gesetz/CHANGELOG.md
+/Users/mat/dev/fabrik/gesetz/README.md
+/Users/mat/dev/fabrik/gesetz/UPGRADE.md
+/Users/mat/dev/fabrik/gesetz/packages/core/TESTING.md
+/Users/mat/dev/fabrik/gesetz/packages/gesetz/README.md
+/Users/mat/dev/fabrik/gesetz/tutorials/01-writing-rules.md
+/Users/mat/dev/fabrik/gesetz/tutorials/02-choosing-rules.md
+```
+
+```write
+/Users/mat/dev/fabrik/gesetz/README.md
+/Users/mat/dev/fabrik/gesetz/packages/core/TESTING.md
+/Users/mat/dev/fabrik/gesetz/tutorials/01-writing-rules.md
+```
+
+Analyzed the full diff of uncommitted working-tree changes introduced before my session — the netzwerk-backed rewrite. Key findings:
+
+**Old runner (commit fe358cd):**
+
+- `runAll` used `Effect.all(rules.map(…), { concurrency: 5 })` — concurrent but no caching, every file re-checked every run
+- Required Effect service layers (`FileSystem | SyntaxTree | ImportResolver | FileFilter`) in the environment
+- Adapters were `Effect.gen(function* () { … })` accessing `FileFilter` directly
+
+**New runner (working tree):**
+
+- `runAll` wraps `defineNetwork({ extensions: compileConfig(config) }) → network.scan()` — netzwerk-based incremental scanner
+- SQLite-backed marker cache (`.gesetz/cache.db`), content-hash diff, only changed files re-scanned
+- Error type `never, never` — no Effect services needed
+- New concepts: `rule.perFile` (per-file rules compiled to netzwerk extensions), `rule.project` (glob-dependent tool adapters), violation markers stored as typed netzwerk markers
+- Adapters split into pure `execute*` async function + `Rule` object with both `run` and `project` descriptors
+
+**New public API:**
+
+- `GesetzStorageConfig` — `{ kind: 'sqlite', path }` or `{ kind: 'memory' }` (added to `defineConfig`)
+- `RunAllOptions` — file filter + scan callback
+- `ScanStats` — files seen, added, changed, removed, reused, duration
+
+**Breaking/Compatibility analysis:**
+
+- [x] Rule consumers (`select().check()`): non-breaking — both old `run` Effect and new `perFile` descriptor coexist
+- [x] Tool adapter authors: mildly breaking — built-in adapters refactored; old `run`-only adapters still work but without caching
+- [x] `runAll` callers: signature changed — old required Effect layers, new has `never, never` error type; external consumers would break at runtime
+- [x] `defineConfig` consumers: fully backward-compatible — `storage` is optional, defaults to memory
+- [x] CLI consumer: updated in lockstep, no breakage
+
+**Current state:** Awaiting user feedback on this analysis to decide next steps (committing, reverting, or continuing work).
+
+## 2026-09-07 19:29:58Z Rewriting docs to match netzwerk-backed API
+
+```session
+01a07bc5-f438-713a-b642-38315d30f957
+```
+
+```read
+/Users/mat/dev/fabrik/gesetz/packages/core/src/backend/compile.ts
+```
+
+```write
+/Users/mat/dev/fabrik/gesetz/UPGRADE.md
+```
+
+Rewriting all documentation files to reflect the new API (makeFile/makeCheckServices/runCheck, select().check(), defineConfig with storage, netzwerk runner):
+
+- [x] **01-writing-rules.md** — Full rewrite: pure async `check` functions, `makeCheckServices`, `runCheck`, `makeFile`, no more Effect/Layer/SyntaxTree service jargon. Replaced the old "12. Full walkthrough" section.
+- [x] **02-configuring.md** — Full rewrite: `defineConfig` with `select().check()` chaining, `GesetzStorageConfig`, `project` rules via adapters. No more old Effect-based adapter pattern.
+- [x] **TESTING.md** — Full rewrite: replaced all old Effect/Layer/SyntaxTree patterns with `makeFile`, `makeCheckServices`, `runCheck` patterns. Updated tested areas map, watch-outs, and all four testing patterns.
+- [x] **README.md** — Check example (Effect → async/await), raw rule example (Effect → netzwerk project-level), runAll programmatic usage (removed Effect Layers).
+- [x] Fixed broken video link in 01-writing-rules.md (changed `violations` → `violation` in a markdown URL anchor).
+- [x] Fixed stale `requireFeatureTest` custom-check example in 02-choosing-rules.md (Effect section of PHP archetype) — replaced `Effect.gen`/`yield* FileSystem` with `async (file, { fs })` and `fs.exists()`.
+- [ ] Awaiting user feedback on whether to commit these doc changes or make further adjustments.
+
+## 2026-09-08 10:16:46Z Bumping all packages to 3.0.0-rc.0 + updating consumers
+
+```session
+01a07bc5-f438-713a-b642-38315d30f957
+```
+
+Phase shift from doc rewrite to RC release prep. Completed tasks:
+
+- [x] Bumped all 18 gesetz packages from 2.0.0 → **3.0.0-rc.0**
+- [x] Renamed UPGRADE.md section header "v2.1" → "v3.0"
+- [x] Updated all 7 consumer repos (`anzeige`, `briefkasten`, `code-atlas`, `dialekt`, `messwert`, `package-template`, `schaltbild`) — `^1.3.3` → `3.0.0-rc.0` (code-atlas uses `catalog:` so no pin change)
+- [ ] Consumer impact assessment confirmed zero breaking changes — legacy `Rule.run` objects handled by fallback compile path in `compile.ts`; raw Effect-using rules in anzeige/typecheck.ts and code-atlas/test-colocation.ts covered automatically
+- [ ] Awaiting user feedback before publishing RC to npm / committing changes to consumers

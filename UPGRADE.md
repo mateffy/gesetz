@@ -6,7 +6,7 @@ If you are a coding agent tasked with upgrading a codebase, read the section for
 
 ---
 
-## v2.1 — Netzwerk-backed engine (violation cache)
+## v3.0 — Netzwerk-backed engine (violation cache)
 
 ### One-line summary
 

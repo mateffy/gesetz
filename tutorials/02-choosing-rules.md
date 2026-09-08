@@ -482,31 +482,26 @@ export default defineConfig({
 `requireSibling` checks the **same directory**. If your tests live in `tests/Feature/` and your controllers live in `app/Http/Controllers/`, `requireSibling` will not work directly. Write a custom `Check` that resolves the expected test path from the controller path:
 
 ```ts
-import { Effect } from 'effect';
-import { FileSystem } from 'gesetz';
 import * as nodePath from 'node:path';
 import type { Check, Violation } from 'gesetz';
 
 export function requireFeatureTest(): Check {
-  return (file) =>
-    Effect.gen(function* () {
-      const fs = yield* FileSystem;
-      const base = nodePath.basename(file.stem); // "UserController"
-      const expected = nodePath.resolve(
-        nodePath.dirname(file.absolutePath),
-        '../../../tests/Feature',
-        base + 'Test.php',
-      );
-      const exists = yield* fs.exists(expected);
-      if (exists) return [];
-      return [{
-        rule: '',
-        severity: 'error',
-        source: 'core',
-        message: `Missing feature test: ${expected}`,
-        path: file.path,
-      }];
-    });
+  return async (file, { fs }) => {
+    const base = nodePath.basename(file.stem); // "UserController"
+    const expected = nodePath.resolve(
+      nodePath.dirname(file.absolutePath),
+      '../../../tests/Feature',
+      base + 'Test.php',
+    );
+    const exists = await fs.exists(expected);
+    if (exists) return [];
+    return [{
+      severity: 'error',
+      source: 'core',
+      message: `Missing feature test: ${expected}`,
+      path: file.path,
+    }];
+  };
 }
 ```
 
