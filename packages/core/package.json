@@ -1,6 +1,6 @@
 {
   "name": "@gesetz/core",
-  "version": "3.0.0-rc.0",
+  "version": "3.0.0-rc.2",
   "type": "module",
   "exports": {
     ".": {
@@ -23,7 +23,7 @@
     "effect": "^3.15.0",
     "fast-glob": "^3.3.3",
     "micromatch": "^4.0.8",
-    "netzwerk": "link:../../../netzwerk"
+    "netzwerk": "link:../../../netzwerk/packages/netzwerk"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.0",

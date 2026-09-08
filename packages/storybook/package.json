@@ -1,6 +1,6 @@
 {
   "name": "@gesetz/storybook",
-  "version": "3.0.0-rc.0",
+  "version": "3.0.0-rc.2",
   "type": "module",
   "main": "src/index.ts",
   "exports": {

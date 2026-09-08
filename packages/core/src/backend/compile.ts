@@ -154,24 +154,24 @@ function groupByPath(
  * path that previously carried this rule's markers is overwritten (with the
  * empty set when the violation disappeared), and new paths are stored.
  */
-function storeProjectViolations(
+async function storeProjectViolations(
   storage: ExtensionContext['storage'],
   rule: Rule,
   violations: readonly Violation[],
   ctx: CompileContext,
-): void {
+): Promise<void> {
   const { byPath, orphaned } = groupByPath(violations, ctx.rootDir);
-  for (const [path, markers] of storage.allMarkers()) {
+  for (const [path, markers] of await storage.allMarkers()) {
     if (!byPath.has(path) && markers.some((m) => m.extension === rule.id)) {
-      storage.putMarkers(path, rule.id, []);
+      await storage.putMarkers(path, rule.id, []);
     }
   }
   for (const [path, pathViolations] of byPath) {
-    if (storage.getFile(path) === undefined) {
+    if (await storage.getFile(path) === undefined) {
       orphaned.push(...pathViolations);
       continue;
     }
-    storage.putMarkers(
+    await storage.putMarkers(
       path,
       rule.id,
       pathViolations.map((v) => violationToMarker({ ...v, rule: v.rule ?? rule.id }, rule)),
@@ -210,12 +210,13 @@ function shimLayers(
 }
 
 /** Storage-backed NetworkFile facade for project rules. */
-function networkFileFromStorage(
+async function networkFileFromStorage(
   storage: ExtensionContext['storage'],
   rootDir: string,
   path: string,
-): NetworkFile {
-  const markers = storage.markersFor(path).map((m) => ({
+): Promise<NetworkFile> {
+  const stored = await storage.markersFor(path);
+  const markers = stored.map((m) => ({
     type: `${m.extension}.${m.type}`,
     data: m.data,
     ...(m.lines === undefined ? {} : { lines: m.lines }),
@@ -240,19 +241,18 @@ function projectRuleContext(
 ): ProjectRuleContext {
   return {
     network: {
-      glob: (pattern: string) =>
-        Promise.resolve(
-          extCtx.storage
-            .listFiles()
-            .filter((record) => globMatch(pattern, record.path))
-            .map((record) => networkFileFromStorage(extCtx.storage, ctx.rootDir, record.path)),
-        ),
-      file: (path: string) =>
-        Promise.resolve(
-          extCtx.storage.getFile(path) === undefined
-            ? null
-            : networkFileFromStorage(extCtx.storage, ctx.rootDir, path),
-        ),
+      glob: async (pattern: string) => {
+          const records = await extCtx.storage.listFiles();
+          return Promise.all(
+            records
+              .filter((record) => globMatch(pattern, record.path))
+              .map((record) => networkFileFromStorage(extCtx.storage, ctx.rootDir, record.path)),
+          );
+        },
+      file: async (path: string) => {
+          if (await extCtx.storage.getFile(path) === undefined) return null;
+          return networkFileFromStorage(extCtx.storage, ctx.rootDir, path);
+        },
     },
     changedFiles,
     rootDir: ctx.rootDir,
@@ -267,7 +267,7 @@ function compileRunOnlyRule(rule: Rule, ctx: CompileContext): NetworkExtension {
     // Conservative: re-executes on every scan (legacy behavior). Violation
     // markers are replaced wholesale per path, so warm runs stay correct.
     async after(entries, extCtx) {
-      refreshSharedPaths(ctx, extCtx);
+      await refreshSharedPaths(ctx, extCtx);
       let violations: Violation[];
       try {
         violations = await Effect.runPromise(
@@ -285,7 +285,7 @@ function compileRunOnlyRule(rule: Rule, ctx: CompileContext): NetworkExtension {
           },
         ];
       }
-      storeProjectViolations(extCtx.storage, rule, violations, ctx);
+      await storeProjectViolations(extCtx.storage, rule, violations, ctx);
     },
   };
 }
@@ -307,24 +307,24 @@ function compileProjectRule(rule: Rule, ctx: CompileContext): NetworkExtension {
         [...project.patterns],
         { dot: true },
       );
-      if (!relevant && hasStoredMarkers(extCtx.storage, rule.id)) return;
+      if (!relevant && await hasStoredMarkers(extCtx.storage, rule.id)) return;
 
-      refreshSharedPaths(ctx, extCtx);
+      await refreshSharedPaths(ctx, extCtx);
       const violations = await project.run(projectRuleContext(extCtx, ctx, changed));
-      storeProjectViolations(extCtx.storage, rule, violations, ctx);
+      await storeProjectViolations(extCtx.storage, rule, violations, ctx);
     },
   };
 }
 
 /** Refills the shared path set from storage so imports.resolve is fresh. */
-function refreshSharedPaths(ctx: CompileContext, extCtx: ExtensionContext): void {
+async function refreshSharedPaths(ctx: CompileContext, extCtx: ExtensionContext): Promise<void> {
   if (ctx.sharedPaths === undefined) return;
   ctx.sharedPaths.clear();
-  for (const record of extCtx.storage.listFiles()) ctx.sharedPaths.add(record.path);
+  for (const record of await extCtx.storage.listFiles()) ctx.sharedPaths.add(record.path);
 }
 
-function hasStoredMarkers(storage: ExtensionContext['storage'], ruleId: string): boolean {
-  for (const markers of storage.allMarkers().values()) {
+async function hasStoredMarkers(storage: ExtensionContext['storage'], ruleId: string): Promise<boolean> {
+  for (const [, markers] of await storage.allMarkers()) {
     if (markers.some((m) => m.extension === ruleId)) return true;
   }
   return false;

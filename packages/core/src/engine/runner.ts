@@ -1,7 +1,7 @@
 import * as childProcess from 'node:child_process';
 import { Effect } from 'effect';
 import micromatch from 'micromatch';
-import { defineNetwork } from 'netzwerk';
+import { createNetwork } from 'netzwerk';
 import type { Violation, Exemption, CheckServices } from './rule';
 import type { ResolvedConfig } from './config';
 import { compileConfig, type CompileContext } from '../backend/compile';
@@ -181,7 +181,7 @@ export const runAll = (
       pendingViolations,
       sharedPaths,
     };
-    const network = defineNetwork({
+    const network = createNetwork({
       rootPath: config.projectRoot,
       extensions: compileConfig(config, compileCtx),
       // GesetzStorageConfig is structurally identical to NetworkStorageConfig.
