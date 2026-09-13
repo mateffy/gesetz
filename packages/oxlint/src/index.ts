@@ -1,2 +1,2 @@
-export { oxlint } from './adapter';
-export type { OxlintOptions } from './adapter';
+export { oxlint } from "./adapter";
+export type { OxlintOptions } from "./adapter";

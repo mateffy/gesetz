@@ -1,4 +1,4 @@
-import type { Check, Violation } from '@gesetz/core';
+import type { Check, Violation } from "@gesetz/core";
 
 export interface TestScoring {
   /** Minimum score required. Files below this score get a violation. */
@@ -49,12 +49,12 @@ export function requireMinTestScore(scoring: TestScoring): Check {
     assertionBonus = 5,
     testCountThresholds = [2, 4, 6],
     testCountBonus = 5,
-    assertionNames = ['expect('],
-    trivialAssertions = ['toBeTrue(', 'toBeTruthy(', 'toBeDefined('],
+    assertionNames = ["expect("],
+    trivialAssertions = ["toBeTrue(", "toBeTruthy(", "toBeDefined("],
     trivialPenalty = -20,
-    asyncIndicators = ['waitFor(', 'act('],
-    interactionMethods = ['userEvent.', 'fireEvent.'],
-    errorIndicators = ['.toThrow(', '.rejects.', 'toThrow('],
+    asyncIndicators = ["waitFor(", "act("],
+    interactionMethods = ["userEvent.", "fireEvent."],
+    errorIndicators = [".toThrow(", ".rejects.", "toThrow("],
     asyncBonus = 5,
     interactionBonus = 5,
     errorBonus = 5,
@@ -69,9 +69,7 @@ export function requireMinTestScore(scoring: TestScoring): Check {
       0,
     );
 
-    const testCount =
-      (content.split('it(').length - 1) +
-      (content.split('test(').length - 1);
+    const testCount = content.split("it(").length - 1 + (content.split("test(").length - 1);
 
     const hasTrivial = trivialAssertions.some((t) => content.includes(t));
     const hasAsync = asyncIndicators.some((a) => content.includes(a));
@@ -82,7 +80,7 @@ export function requireMinTestScore(scoring: TestScoring): Check {
     const assertionTypes = new Set<string>();
     const assertionTypePattern = /\.(to[A-Z][a-zA-Z]+|not\.[a-zA-Z]+)\(/g;
     for (const match of content.matchAll(assertionTypePattern)) {
-      assertionTypes.add(match[1] ?? '');
+      assertionTypes.add(match[1] ?? "");
     }
     const hasVariety = assertionTypes.size >= 3;
 
@@ -106,7 +104,8 @@ export function requireMinTestScore(scoring: TestScoring): Check {
 
     // Trivial assertion penalty
     if (hasTrivial && assertionCount > 0) {
-      const isTrivialOnly = !errorIndicators.some((e) => content.includes(e)) &&
+      const isTrivialOnly =
+        !errorIndicators.some((e) => content.includes(e)) &&
         !interactionMethods.some((m) => content.includes(m));
       if (isTrivialOnly) score += trivialPenalty;
     }
@@ -115,8 +114,8 @@ export function requireMinTestScore(scoring: TestScoring): Check {
 
     return [
       {
-        severity: 'warn',
-        source: 'core',
+        severity: "warn",
+        source: "core",
         message: `Test quality score ${score} is below minimum ${minScore}. Add more assertions, async tests, or interaction coverage.`,
         path: file.path,
       },

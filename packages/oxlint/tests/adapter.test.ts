@@ -1,19 +1,25 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import * as childProcess from 'node:child_process';
-import { Effect, Layer } from 'effect';
-import { oxlint } from '../src/adapter';
-import { MemoryFileSystem, ProjectRootLive, FileFilterLive, SyntaxTreeStub, ImportResolverDefault } from '@gesetz/core';
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import * as childProcess from "node:child_process";
+import { Effect, Layer } from "effect";
+import { oxlint } from "../src/adapter";
+import {
+  MemoryFileSystem,
+  ProjectRootLive,
+  FileFilterLive,
+  SyntaxTreeStub,
+  ImportResolverDefault,
+} from "@gesetz/core";
 
 const TestLayer = Layer.mergeAll(
   MemoryFileSystem({}),
   SyntaxTreeStub,
   ImportResolverDefault,
-  ProjectRootLive('/project'),
+  ProjectRootLive("/project"),
   FileFilterLive(null),
 );
 
-vi.mock('node:child_process', async () => {
-  const actual = await vi.importActual('node:child_process');
+vi.mock("node:child_process", async () => {
+  const actual = await vi.importActual("node:child_process");
   return {
     ...actual,
     execFileSync: vi.fn(),
@@ -24,17 +30,18 @@ vi.mock('node:child_process', async () => {
 const OXLINT_JSON = JSON.stringify({
   diagnostics: [
     {
-      message: "Parameter 'children' is declared but never used. Unused parameters should start with a '_'.",
-      code: 'eslint(no-unused-vars)',
-      severity: 'warning',
-      filename: 'src/components/ui/Button.tsx',
+      message:
+        "Parameter 'children' is declared but never used. Unused parameters should start with a '_'.",
+      code: "eslint(no-unused-vars)",
+      severity: "warning",
+      filename: "src/components/ui/Button.tsx",
       labels: [{ span: { line: 42, column: 12 } }],
     },
     {
-      message: 'React Hook useCallback has a missing dependency.',
-      code: 'react-hooks(exhaustive-deps)',
-      severity: 'error',
-      filename: 'src/components/ui/Dialog.tsx',
+      message: "React Hook useCallback has a missing dependency.",
+      code: "react-hooks(exhaustive-deps)",
+      severity: "error",
+      filename: "src/components/ui/Dialog.tsx",
       labels: [{ span: { line: 10, column: 5 } }],
     },
   ],
@@ -42,41 +49,41 @@ const OXLINT_JSON = JSON.stringify({
   number_of_rules: 103,
 });
 
-describe('oxlint', () => {
+describe("oxlint", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     vi.clearAllMocks();
   });
 
-  it('parses diagnostics from the { diagnostics: [...] } JSON format', async () => {
+  it("parses diagnostics from the { diagnostics: [...] } JSON format", async () => {
     (childProcess.execFileSync as ReturnType<typeof vi.fn>).mockImplementation(() => OXLINT_JSON);
 
-    const rule = oxlint({ cwd: '/project', label: 'oxlint' });
+    const rule = oxlint({ cwd: "/project", label: "oxlint" });
     const violations = await Effect.runPromise(Effect.provide(rule.run, TestLayer));
 
     expect(violations).toHaveLength(2);
-    expect(violations[0]?.severity).toBe('warn');
-    expect(violations[0]?.message).toContain('eslint(no-unused-vars)');
-    expect(violations[0]?.path).toBe('src/components/ui/Button.tsx');
+    expect(violations[0]?.severity).toBe("warn");
+    expect(violations[0]?.message).toContain("eslint(no-unused-vars)");
+    expect(violations[0]?.path).toBe("src/components/ui/Button.tsx");
     expect(violations[0]?.line).toBe(42);
-    expect(violations[1]?.severity).toBe('error');
-    expect(violations[1]?.path).toBe('src/components/ui/Dialog.tsx');
+    expect(violations[1]?.severity).toBe("error");
+    expect(violations[1]?.path).toBe("src/components/ui/Dialog.tsx");
     expect(violations[1]?.line).toBe(10);
   });
 
-  it('returns no violations when oxlint finds nothing', async () => {
+  it("returns no violations when oxlint finds nothing", async () => {
     (childProcess.execFileSync as ReturnType<typeof vi.fn>).mockImplementation(() =>
       JSON.stringify({ diagnostics: [], number_of_files: 0 }),
     );
 
-    const rule = oxlint({ cwd: '/project' });
+    const rule = oxlint({ cwd: "/project" });
     const violations = await Effect.runPromise(Effect.provide(rule.run, TestLayer));
     expect(violations).toEqual([]);
   });
 
-  it('handles non-zero exit codes by reading stdout from the error', async () => {
+  it("handles non-zero exit codes by reading stdout from the error", async () => {
     // oxlint exits 1 on violations but still writes JSON to stdout
-    const execError = Object.assign(new Error('Command failed'), {
+    const execError = Object.assign(new Error("Command failed"), {
       stdout: OXLINT_JSON,
       status: 1,
     });
@@ -84,63 +91,71 @@ describe('oxlint', () => {
       throw execError;
     });
 
-    const rule = oxlint({ cwd: '/project' });
+    const rule = oxlint({ cwd: "/project" });
     const violations = await Effect.runPromise(Effect.provide(rule.run, TestLayer));
     expect(violations).toHaveLength(2);
   });
 
-  it('passes the config file when provided', async () => {
+  it("passes the config file when provided", async () => {
     const spy = childProcess.execFileSync as ReturnType<typeof vi.fn>;
     spy.mockImplementation(() => JSON.stringify({ diagnostics: [] }));
 
-    const rule = oxlint({ cwd: '/project', configFile: '.oxlintrc.json' });
+    const rule = oxlint({ cwd: "/project", configFile: ".oxlintrc.json" });
     await Effect.runPromise(Effect.provide(rule.run, TestLayer));
 
     expect(spy).toHaveBeenCalledWith(
-      'oxlint',
-      expect.arrayContaining(['--config', '.oxlintrc.json']),
+      "oxlint",
+      expect.arrayContaining(["--config", ".oxlintrc.json"]),
       expect.any(Object),
     );
   });
 
-  it('returns empty array when stdout is not valid JSON', async () => {
-    (childProcess.execFileSync as ReturnType<typeof vi.fn>).mockImplementation(() => 'not json at all');
+  it("returns empty array when stdout is not valid JSON", async () => {
+    (childProcess.execFileSync as ReturnType<typeof vi.fn>).mockImplementation(
+      () => "not json at all",
+    );
 
-    const rule = oxlint({ cwd: '/project' });
+    const rule = oxlint({ cwd: "/project" });
     const violations = await Effect.runPromise(Effect.provide(rule.run, TestLayer));
     expect(violations).toEqual([]);
   });
 
-  describe('FileFilter integration', () => {
-    it('passes FileFilter patterns to oxlint when --files is active', async () => {
+  describe("FileFilter integration", () => {
+    it("passes FileFilter patterns to oxlint when --files is active", async () => {
       const spy = childProcess.execFileSync as ReturnType<typeof vi.fn>;
       spy.mockImplementation(() => JSON.stringify({ diagnostics: [] }));
 
-      const rule = oxlint({ cwd: '/project' });
-      await Effect.runPromise(Effect.provide(rule.run,
-        Layer.mergeAll(
-          MemoryFileSystem({}), SyntaxTreeStub, ImportResolverDefault,
-          ProjectRootLive('/project'), FileFilterLive(['src/app/**', 'src/lib/**']),
+      const rule = oxlint({ cwd: "/project" });
+      await Effect.runPromise(
+        Effect.provide(
+          rule.run,
+          Layer.mergeAll(
+            MemoryFileSystem({}),
+            SyntaxTreeStub,
+            ImportResolverDefault,
+            ProjectRootLive("/project"),
+            FileFilterLive(["src/app/**", "src/lib/**"]),
+          ),
         ),
-      ));
+      );
 
       expect(spy).toHaveBeenCalledWith(
-        'oxlint',
-        expect.arrayContaining(['src/app/**', 'src/lib/**']),
+        "oxlint",
+        expect.arrayContaining(["src/app/**", "src/lib/**"]),
         expect.any(Object),
       );
     });
 
-    it('uses adapter pattern when FileFilter is null', async () => {
+    it("uses adapter pattern when FileFilter is null", async () => {
       const spy = childProcess.execFileSync as ReturnType<typeof vi.fn>;
       spy.mockImplementation(() => JSON.stringify({ diagnostics: [] }));
 
-      const rule = oxlint({ cwd: '/project', pattern: 'src/custom/**' });
+      const rule = oxlint({ cwd: "/project", pattern: "src/custom/**" });
       await Effect.runPromise(Effect.provide(rule.run, TestLayer));
 
       expect(spy).toHaveBeenCalledWith(
-        'oxlint',
-        expect.arrayContaining(['src/custom/**']),
+        "oxlint",
+        expect.arrayContaining(["src/custom/**"]),
         expect.any(Object),
       );
     });
@@ -149,36 +164,38 @@ describe('oxlint', () => {
       const spy = childProcess.execFileSync as ReturnType<typeof vi.fn>;
       spy.mockImplementation(() => JSON.stringify({ diagnostics: [] }));
 
-      const rule = oxlint({ cwd: '/project' });
+      const rule = oxlint({ cwd: "/project" });
       await Effect.runPromise(Effect.provide(rule.run, TestLayer));
 
-      expect(spy).toHaveBeenCalledWith(
-        'oxlint',
-        expect.arrayContaining(['.']),
-        expect.any(Object),
-      );
+      expect(spy).toHaveBeenCalledWith("oxlint", expect.arrayContaining(["."]), expect.any(Object));
     });
 
-    it('FileFilter patterns override adapter pattern', async () => {
+    it("FileFilter patterns override adapter pattern", async () => {
       const spy = childProcess.execFileSync as ReturnType<typeof vi.fn>;
       spy.mockImplementation(() => JSON.stringify({ diagnostics: [] }));
 
-      const rule = oxlint({ cwd: '/project', pattern: 'src/everything/**' });
-      await Effect.runPromise(Effect.provide(rule.run,
-        Layer.mergeAll(
-          MemoryFileSystem({}), SyntaxTreeStub, ImportResolverDefault,
-          ProjectRootLive('/project'), FileFilterLive(['src/subset/**']),
+      const rule = oxlint({ cwd: "/project", pattern: "src/everything/**" });
+      await Effect.runPromise(
+        Effect.provide(
+          rule.run,
+          Layer.mergeAll(
+            MemoryFileSystem({}),
+            SyntaxTreeStub,
+            ImportResolverDefault,
+            ProjectRootLive("/project"),
+            FileFilterLive(["src/subset/**"]),
+          ),
         ),
-      ));
+      );
 
       expect(spy).toHaveBeenCalledWith(
-        'oxlint',
-        expect.arrayContaining(['src/subset/**']),
+        "oxlint",
+        expect.arrayContaining(["src/subset/**"]),
         expect.any(Object),
       );
       // Should NOT contain the adapter pattern
       const callArgs = spy.mock.calls[spy.mock.calls.length - 1]?.[1] as string[];
-      expect(callArgs).not.toContain('src/everything/**');
+      expect(callArgs).not.toContain("src/everything/**");
     });
   });
 });

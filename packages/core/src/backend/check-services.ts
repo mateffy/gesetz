@@ -8,11 +8,11 @@
  *   syntax.process           → reads cached `gesetz-syntax.*` markers (never parses)
  *   imports.resolve          → netzwerk import resolution over stored paths
  */
-import * as nodeFs from 'node:fs';
-import * as nodePath from 'node:path';
-import type { Network, NetworkFile } from 'netzwerk';
-import { resolverForLanguage } from 'netzwerk';
-import type { CheckServices, File } from '../engine/rule';
+import * as nodeFs from "node:fs";
+import * as nodePath from "node:path";
+import type { Network, NetworkFile } from "netzwerk";
+import { resolverForLanguage } from "netzwerk";
+import type { CheckServices, File } from "../engine/rule";
 import type {
   SyntaxBackend,
   SyntaxBackendProcessResult,
@@ -21,8 +21,8 @@ import type {
   ParsedCall,
   ParsedExport,
   StructureItem,
-} from '../services/syntax-tree';
-import { SYNTAX_EXTENSION } from './syntax-extension';
+} from "../services/syntax-tree";
+import { SYNTAX_EXTENSION } from "./syntax-extension";
 
 const EMPTY_RESULT: SyntaxBackendProcessResult = {
   imports: [],
@@ -32,9 +32,9 @@ const EMPTY_RESULT: SyntaxBackendProcessResult = {
 };
 
 function languageForExt(ext: string): string {
-  if (['.ts', '.tsx', '.js', '.jsx', '.mts', '.cts'].includes(ext)) return 'typescript';
-  if (ext === '.php') return 'php-laravel';
-  return 'generic';
+  if ([".ts", ".tsx", ".js", ".jsx", ".mts", ".cts"].includes(ext)) return "typescript";
+  if (ext === ".php") return "php-laravel";
+  return "generic";
 }
 
 function toGesetzFile(rootDir: string, networkFile: NetworkFile): File {
@@ -62,13 +62,13 @@ function toGesetzFile(rootDir: string, networkFile: NetworkFile): File {
     name,
     stem,
     ext,
-    dir: dir === '.' ? '' : dir,
+    dir: dir === "." ? "" : dir,
     get content(): string {
       if (cachedContent === undefined) {
         try {
-          cachedContent = nodeFs.readFileSync(absolutePath, 'utf-8');
+          cachedContent = nodeFs.readFileSync(absolutePath, "utf-8");
         } catch {
-          cachedContent = '';
+          cachedContent = "";
         }
       }
       return cachedContent;
@@ -132,16 +132,16 @@ export async function createCheckServices(
 
       async readFile(absolutePath): Promise<string> {
         const relative = nodePath.relative(rootDir, absolutePath);
-        if (!relative.startsWith('..')) {
+        if (!relative.startsWith("..")) {
           const networkFile = await network.file(relative);
           if (networkFile !== null) return networkFile.content();
         }
-        return nodeFs.readFileSync(absolutePath, 'utf-8');
+        return nodeFs.readFileSync(absolutePath, "utf-8");
       },
 
       async exists(absolutePath): Promise<boolean> {
         const relative = nodePath.relative(rootDir, absolutePath);
-        if (!relative.startsWith('..')) {
+        if (!relative.startsWith("..")) {
           const networkFile = await network.file(relative);
           if (networkFile !== null) return true;
         }
@@ -178,9 +178,7 @@ export async function createCheckServices(
               .map((m) => ({ name: m.data.name, kind: m.data.kind, line: m.data.line }))
           : [];
         const structure: StructureItem[] = options.structure
-          ? networkFile
-              .markersOf<StructureItem>(`${SYNTAX_EXTENSION}.structure`)
-              .map((m) => m.data)
+          ? networkFile.markersOf<StructureItem>(`${SYNTAX_EXTENSION}.structure`).map((m) => m.data)
           : [];
 
         return { imports, calls, exports: exports_, structure };
@@ -191,7 +189,7 @@ export async function createCheckServices(
       resolve(fromFile, specifier): string | null {
         const resolver = resolverForLanguage(languageForExt(fromFile.ext));
         const resolution = resolver.resolve(specifier, fromFile.path, cachedPaths);
-        return resolution.kind === 'resolved' ? nodePath.join(rootDir, resolution.path) : null;
+        return resolution.kind === "resolved" ? nodePath.join(rootDir, resolution.path) : null;
       },
     },
   };

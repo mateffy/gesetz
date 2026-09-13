@@ -1,4 +1,4 @@
-import type { Check, Violation } from '@gesetz/core';
+import type { Check, Violation } from "@gesetz/core";
 
 export interface NoTrivialCommentOptions {
   readonly message?: string | undefined;
@@ -18,19 +18,19 @@ export function noTrivialComment(options: NoTrivialCommentOptions = {}): Check {
 
   return async (file) => {
     const violations: Violation[] = [];
-    const lines = file.content.split('\n');
+    const lines = file.content.split("\n");
     for (let i = 0; i < lines.length; i++) {
-      const line = lines[i] ?? '';
+      const line = lines[i] ?? "";
       if (narrationPattern.test(line) || dividerPattern.test(line)) {
         violations.push({
-          rule: 'no-trivial-comment',
+          rule: "no-trivial-comment",
           message:
             options.message ??
-            'Trivial or narrative comment. Remove it — good code is self-explanatory.',
+            "Trivial or narrative comment. Remove it — good code is self-explanatory.",
           path: file.path,
           line: i + 1,
-          severity: 'info',
-          source: 'core',
+          severity: "info",
+          source: "core",
         });
       }
     }

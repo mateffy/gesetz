@@ -1,5 +1,5 @@
-import type { Check, Violation } from '@gesetz/core';
-import { parseFile, findByKind, startLine } from './shared';
+import type { Check, Violation } from "@gesetz/core";
+import { parseFile, findByKind, startLine } from "./shared";
 
 export interface NoDefaultExportOptions {
   readonly message?: string;
@@ -20,14 +20,14 @@ export function noDefaultExport(opts: NoDefaultExportOptions = {}): Check {
     if (root === null) return [];
 
     const violations: Violation[] = [];
-    const exportStmts = findByKind(root, 'export_statement');
+    const exportStmts = findByKind(root, "export_statement");
     for (const node of exportStmts) {
-      const hasDefault = node.children().some((c) => c.kind() === 'default');
+      const hasDefault = node.children().some((c) => c.kind() === "default");
       if (hasDefault) {
         violations.push({
-          severity: 'warn',
-          source: 'core',
-          message: opts.message ?? 'Avoid `export default` — use a named export instead',
+          severity: "warn",
+          source: "core",
+          message: opts.message ?? "Avoid `export default` — use a named export instead",
           path: file.path,
           line: startLine(node),
         });

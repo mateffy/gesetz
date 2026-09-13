@@ -9,7 +9,7 @@ export type {
   Exemption,
   RuleCategory,
   RuleGuidance,
-} from './engine/rule';
+} from "./engine/rule";
 
 // ─── Tagged errors ────────────────────────────────────────────────────────────
 export {
@@ -19,25 +19,49 @@ export {
   PhpstanError,
   ExecError,
   ReporterError,
-} from './engine/errors';
+} from "./engine/errors";
 
 // ─── Config ───────────────────────────────────────────────────────────────────
-export { defineConfig } from './engine/config';
-export type { UserConfig, ResolvedConfig, CategoryThreshold, GesetzStorageConfig } from './engine/config';
+export { defineConfig } from "./engine/config";
+export type {
+  UserConfig,
+  ResolvedConfig,
+  CategoryThreshold,
+  GesetzStorageConfig,
+} from "./engine/config";
 
 // ─── Runner ───────────────────────────────────────────────────────────────────
-export { runAll, applyExemptions } from './engine/runner';
-export type { RunResult, RuleResult, CategoryScore, RunAllOptions, ScanStats } from './engine/runner';
+export { runAll, applyExemptions } from "./engine/runner";
+export type {
+  RunResult,
+  RuleResult,
+  CategoryScore,
+  RunAllOptions,
+  ScanStats,
+} from "./engine/runner";
 
 // ─── Exec helpers ─────────────────────────────────────────────────────────────
-export { execTool, runWithTempFile, extractLocation } from './engine/exec';
+export { execTool, runWithTempFile, extractLocation } from "./engine/exec";
 
 // ─── Services ─────────────────────────────────────────────────────────────────
-export { FileSystem, FileSystemLive, MemoryFileSystem, ProjectRoot, ProjectRootLive, FileFilter, FileFilterLive } from './services/fs';
-export type { GlobOptions, FileSystemService, FileFilterService } from './services/fs';
+export {
+  FileSystem,
+  FileSystemLive,
+  MemoryFileSystem,
+  ProjectRoot,
+  ProjectRootLive,
+  FileFilter,
+  FileFilterLive,
+} from "./services/fs";
+export type { GlobOptions, FileSystemService, FileFilterService } from "./services/fs";
 
 // SyntaxTree — abstract tag + router factory. Live backends: /typescript, /php, /python
-export { SyntaxTree, SyntaxTreeLive, SyntaxTreeStub, SyntaxTreeError } from './services/syntax-tree';
+export {
+  SyntaxTree,
+  SyntaxTreeLive,
+  SyntaxTreeStub,
+  SyntaxTreeError,
+} from "./services/syntax-tree";
 export type {
   SyntaxBackend,
   ParsedImport,
@@ -47,56 +71,66 @@ export type {
   SyntaxBackendProcessResult,
   SyntaxTreeProcessOptions,
   SyntaxTreeService,
-} from './services/syntax-tree';
+} from "./services/syntax-tree";
 
 // ImportResolver — abstract tag + default relative-path resolver
-export { ImportResolver, ImportResolverDefault, ImportResolveError } from './services/import-resolver';
-export type { ImportResolverService } from './services/import-resolver';
+export {
+  ImportResolver,
+  ImportResolverDefault,
+  ImportResolveError,
+} from "./services/import-resolver";
+export type { ImportResolverService } from "./services/import-resolver";
 
 // ─── Select DSL ───────────────────────────────────────────────────────────────
-export { select, slugify } from './primitives/select';
-export type { Selector } from './primitives/select';
+export { select, slugify } from "./primitives/select";
+export type { Selector } from "./primitives/select";
 
 // ─── Check types ─────────────────────────────────────────────────────────────
-export type { CheckServices } from './engine/rule';
+export type { CheckServices } from "./engine/rule";
 
 // ─── Test helpers ─────────────────────────────────────────────────────────────
-export { makeFile, makeCheckServices, runCheck } from './test-helpers';
-export type { MakeCheckServicesOptions } from './test-helpers';
+export { makeFile, makeCheckServices, runCheck } from "./test-helpers";
+export type { MakeCheckServicesOptions } from "./test-helpers";
 
 // ─── Primitive checks (language-agnostic) ─────────────────────────────────────
-export { requireSibling, requireChildren, forbidFile } from './primitives/checks/fs';
-export { noImportFrom, requireImportFrom } from './primitives/checks/imports';
-export { noPattern, requirePattern } from './primitives/checks/patterns';
+export { requireSibling, requireChildren, forbidFile } from "./primitives/checks/fs";
+export { noImportFrom, requireImportFrom } from "./primitives/checks/imports";
+export { noPattern, requirePattern } from "./primitives/checks/patterns";
 export {
   noGodFile,
   noDeepNesting,
   noDebuggingResidueFiles,
   noHardcodedSecret,
-} from './primitives/checks/structure';
+} from "./primitives/checks/structure";
 
 // ─── New structural primitives (SyntaxTree-backed) ────────────────────────────
-export { noDebugLogging } from './primitives/checks/debug-logging';
-export type { NoDebugLoggingOptions } from './primitives/checks/debug-logging';
+export { noDebugLogging } from "./primitives/checks/debug-logging";
+export type { NoDebugLoggingOptions } from "./primitives/checks/debug-logging";
 
-export { noDirectCalls } from './primitives/checks/calls';
-export type { NoDirectCallsOptions } from './primitives/checks/calls';
+export { noDirectCalls } from "./primitives/checks/calls";
+export type { NoDirectCallsOptions } from "./primitives/checks/calls";
 
-export { requireNamingConvention, noForbiddenNames } from './primitives/checks/naming';
-export type { RequireNamingConventionOptions, NoForbiddenNamesOptions } from './primitives/checks/naming';
+export { requireNamingConvention, noForbiddenNames } from "./primitives/checks/naming";
+export type {
+  RequireNamingConventionOptions,
+  NoForbiddenNamesOptions,
+} from "./primitives/checks/naming";
 
-export { requireDocstrings } from './primitives/checks/docstrings';
-export type { RequireDocstringsOptions } from './primitives/checks/docstrings';
+export { requireDocstrings } from "./primitives/checks/docstrings";
+export type { RequireDocstringsOptions } from "./primitives/checks/docstrings";
 
-export { requireExportsMatching, requireRelatedExports } from './primitives/checks/exports';
-export type { RequireExportsMatchingOptions, RequireRelatedExportsOptions } from './primitives/checks/exports';
+export { requireExportsMatching, requireRelatedExports } from "./primitives/checks/exports";
+export type {
+  RequireExportsMatchingOptions,
+  RequireRelatedExportsOptions,
+} from "./primitives/checks/exports";
 
-export { requireMinStructureCount } from './primitives/checks/structure-count';
-export type { RequireMinStructureCountOptions } from './primitives/checks/structure-count';
+export { requireMinStructureCount } from "./primitives/checks/structure-count";
+export type { RequireMinStructureCountOptions } from "./primitives/checks/structure-count";
 
 // ─── Dependency graph ─────────────────────────────────────────────────────────
-export { noCycles } from './primitives/graph';
+export { noCycles } from "./primitives/graph";
 
 // ─── Architecture ─────────────────────────────────────────────────────────────
-export { defineArchitecture } from './architecture';
-export type { ArchitectureConfig, ArchitectureLayer, ForbiddenImport } from './architecture';
+export { defineArchitecture } from "./architecture";
+export type { ArchitectureConfig, ArchitectureLayer, ForbiddenImport } from "./architecture";

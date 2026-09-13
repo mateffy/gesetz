@@ -1,7 +1,7 @@
-import * as nodePath from 'node:path';
-import { Effect } from 'effect';
-import type { Rule, Violation } from '@gesetz/core';
-import { execTool, FileFilter } from '@gesetz/core';
+import * as nodePath from "node:path";
+import { Effect } from "effect";
+import type { Rule, Violation } from "@gesetz/core";
+import { execTool, FileFilter } from "@gesetz/core";
 
 export interface PrettierOptions {
   /**
@@ -43,43 +43,44 @@ async function executePrettier(
   cwd: string,
   patterns: readonly string[],
 ): Promise<Violation[]> {
-  const args = ['--list-different', ...patterns];
-  if (opts.configFile) args.push('--config', opts.configFile);
+  const args = ["--list-different", ...patterns];
+  if (opts.configFile) args.push("--config", opts.configFile);
 
-  const stdout = await Effect.runPromise(execTool(bin, args, cwd, 'prettier'));
+  const stdout = await Effect.runPromise(execTool(bin, args, cwd, "prettier"));
 
   if (!stdout) return [];
 
   return stdout
-    .split('\n')
+    .split("\n")
     .map((l) => l.trim())
     .filter(Boolean)
     .map((filePath): Violation => ({
       rule: id,
-      message: 'File is not formatted — run prettier --write to fix',
+      message: "File is not formatted — run prettier --write to fix",
       path: nodePath.isAbsolute(filePath) ? nodePath.relative(cwd, filePath) : filePath,
-      severity: 'warn',
-      source: 'custom',
+      severity: "warn",
+      source: "custom",
     }));
 }
 
 export function prettier(opts: PrettierOptions = {}): Rule {
-  const id = opts.id ?? 'prettier';
-  const description = opts.label ?? 'Prettier formatting';
+  const id = opts.id ?? "prettier";
+  const description = opts.label ?? "Prettier formatting";
   const cwd = nodePath.resolve(opts.cwd ?? process.cwd());
-  const bin = opts.bin ?? nodePath.join('node_modules', '.bin', 'prettier');
+  const bin = opts.bin ?? nodePath.join("node_modules", ".bin", "prettier");
   const defaultPatterns: string[] = opts.pattern
     ? Array.isArray(opts.pattern)
       ? [...opts.pattern]
       : [opts.pattern]
-    : ['.'];
+    : ["."];
 
-  const run: Rule['run'] = Effect.gen(function* () {
+  const run: Rule["run"] = Effect.gen(function* () {
     const fileFilter = yield* FileFilter;
 
-    const patterns: string[] = fileFilter.patterns !== null && fileFilter.patterns.length > 0
-      ? [...fileFilter.patterns]
-      : defaultPatterns;
+    const patterns: string[] =
+      fileFilter.patterns !== null && fileFilter.patterns.length > 0
+        ? [...fileFilter.patterns]
+        : defaultPatterns;
 
     return yield* Effect.promise(() => executePrettier(opts, id, bin, cwd, patterns));
   });
@@ -90,9 +91,10 @@ export function prettier(opts: PrettierOptions = {}): Rule {
     run,
     category: opts.category,
     project: {
-      patterns: opts.pattern !== undefined
-        ? defaultPatterns
-        : ['**/*', '.prettierrc', '.prettierrc.*', 'prettier.config.*'],
+      patterns:
+        opts.pattern !== undefined
+          ? defaultPatterns
+          : ["**/*", ".prettierrc", ".prettierrc.*", "prettier.config.*"],
       run: () => executePrettier(opts, id, bin, cwd, defaultPatterns),
     },
   };

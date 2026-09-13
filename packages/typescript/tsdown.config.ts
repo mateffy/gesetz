@@ -1,4 +1,4 @@
-import { defineConfig } from 'tsdown';
+import { defineConfig } from "tsdown";
 
 /**
  * Per-package build config for @gesetz/typescript.
@@ -9,9 +9,9 @@ import { defineConfig } from 'tsdown';
  * same options as the root workspace config.
  */
 export default defineConfig({
-  entry: ['src/index.ts'],
-  format: ['esm'],
+  entry: ["src/index.ts"],
+  format: ["esm"],
   dts: true,
   clean: true,
-  outExtensions: () => ({ js: '.js', dts: '.d.ts' }),
+  outExtensions: () => ({ js: ".js", dts: ".d.ts" }),
 });

@@ -36,12 +36,12 @@
   --color-code: oklch(21.5% 0.018 260);
   --color-code-ink: oklch(92% 0.007 260);
   --color-code-muted: oklch(72% 0.015 260);
-  --color-code-keyword: oklch(77% 0.10 265);
+  --color-code-keyword: oklch(77% 0.1 265);
   --color-code-string: oklch(85% 0.055 220);
   --color-code-rule: oklch(37% 0.017 260);
   --color-error: oklch(48% 0.17 28);
   --color-error-soft: oklch(95% 0.025 28);
-  --color-success: oklch(40% 0.10 162);
+  --color-success: oklch(40% 0.1 162);
   --color-success-soft: oklch(95% 0.023 162);
   --color-clear: transparent;
   --space-2xs: 0.25rem;

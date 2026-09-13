@@ -10,35 +10,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Breaking: Check type migrated from Effect to async/await
 
 The `Check` type is now `(file: File, services: CheckServices) => Promise<Violation[]>`
- instead of `Effect.Effect<Violation[], never, FileSystem | SyntaxTree | ...>`.
- This is the **largest breaking change in v2.0.0** — every custom check, every
- adapter check, and every test must be rewritten.
+instead of `Effect.Effect<Violation[], never, FileSystem | SyntaxTree | ...>`.
+This is the **largest breaking change in v2.0.0** — every custom check, every
+adapter check, and every test must be rewritten.
 
 **Effect stays internal.** The runner, services, and `Rule.run` remain
- Effect-based. Only per-file check functions become plain async. Checks
- receive `FileSystem`, `SyntaxTree`, `ImportResolver`, and `projectRoot` via
- a `CheckServices` bag as the second argument — no more `Effect.gen` or `yield*`.
+Effect-based. Only per-file check functions become plain async. Checks
+receive `FileSystem`, `SyntaxTree`, `ImportResolver`, and `projectRoot` via
+a `CheckServices` bag as the second argument — no more `Effect.gen` or `yield*`.
 
 #### Before (1.x)
 
 ```ts
-import { Effect } from 'effect';
-import { FileSystem } from '@gesetz/core';
-import type { Check } from '@gesetz/core';
+import { Effect } from "effect";
+import { FileSystem } from "@gesetz/core";
+import type { Check } from "@gesetz/core";
 
 export function requireSibling(suffix: string): Check {
   return (file) =>
     Effect.gen(function* () {
       const fs = yield* FileSystem;
-      const siblingPath = file.dir + '/' + file.stem + suffix;
+      const siblingPath = file.dir + "/" + file.stem + suffix;
       const exists = yield* fs.exists(file.absolutePath.replace(file.name, file.stem + suffix));
       if (exists) return [];
-      return [{
-        severity: 'error',
-        source: 'core',
-        message: `Missing sibling file: ${file.stem}${suffix}`,
-        path: file.path,
-      }];
+      return [
+        {
+          severity: "error",
+          source: "core",
+          message: `Missing sibling file: ${file.stem}${suffix}`,
+          path: file.path,
+        },
+      ];
     });
 }
 ```
@@ -46,19 +48,21 @@ export function requireSibling(suffix: string): Check {
 #### After (2.0)
 
 ```ts
-import type { Check } from '@gesetz/core';
+import type { Check } from "@gesetz/core";
 
 export function requireSibling(suffix: string): Check {
   return async (file, { fs }) => {
-    const siblingPath = file.dir + '/' + file.stem + suffix;
+    const siblingPath = file.dir + "/" + file.stem + suffix;
     const exists = await fs.exists(file.absolutePath.replace(file.name, file.stem + suffix));
     if (exists) return [];
-    return [{
-      severity: 'error',
-      source: 'core',
-      message: `Missing sibling file: ${file.stem}${suffix}`,
-      path: file.path,
-    }];
+    return [
+      {
+        severity: "error",
+        source: "core",
+        message: `Missing sibling file: ${file.stem}${suffix}`,
+        path: file.path,
+      },
+    ];
   };
 }
 ```
@@ -96,8 +100,8 @@ interface CheckServices {
 ### Breaking: `--files` filtering now happens before execution
 
 Previously, `--files <globs>` only filtered output — all checks and external
- tools ran on the full codebase, and violations from non-matching files were
- suppressed post-hoc. Now the filter is applied proactively:
+tools ran on the full codebase, and violations from non-matching files were
+suppressed post-hoc. Now the filter is applied proactively:
 
 - **`select()` rules** — `--files` patterns are used for `fast-glob` scanning
   instead of the rule's own patterns. The rule's `select()` patterns are
@@ -128,10 +132,10 @@ Previously, `--files <globs>` only filtered output — all checks and external
 ### Affected packages
 
 All 18 packages (`@gesetz/bun-test`, `@gesetz/cli`, `@gesetz/core`,
- `@gesetz/effect-ts`, `@gesetz/eslint`, `gesetz`, `@gesetz/junit`,
- `@gesetz/laravel`, `@gesetz/oxfmt`, `@gesetz/oxlint`, `@gesetz/pest`,
- `@gesetz/php`, `@gesetz/phpstan`, `@gesetz/phpunit`, `@gesetz/prettier`,
- `@gesetz/storybook`, `@gesetz/typescript`, `@gesetz/vitest`).
+`@gesetz/effect-ts`, `@gesetz/eslint`, `gesetz`, `@gesetz/junit`,
+`@gesetz/laravel`, `@gesetz/oxfmt`, `@gesetz/oxlint`, `@gesetz/pest`,
+`@gesetz/php`, `@gesetz/phpstan`, `@gesetz/phpunit`, `@gesetz/prettier`,
+`@gesetz/storybook`, `@gesetz/typescript`, `@gesetz/vitest`).
 
 ---
 
@@ -166,7 +170,7 @@ All 18 packages (`@gesetz/bun-test`, `@gesetz/cli`, `@gesetz/core`,
 - **`@gesetz/cli` could not load `gesetz.config.ts` under plain Node.** The
   1.3.0/1.3.1 CLI used a native `import()` to load the config, which worked
   under Bun (native TS) but failed under Node with `SyntaxError: Cannot use
-  import statement outside a module`. Now uses [`jiti`](https://github.com/unjs/jiti)
+import statement outside a module`. Now uses [`jiti`](https://github.com/unjs/jiti)
   (the same runtime TS loader used by Nuxt, Nitro, ESLint, Tailwind, Knip) to
   transpile TypeScript config files on the fly. `jiti` is a new runtime
   dependency of `@gesetz/cli` (kept external in the bundle, resolves from
@@ -185,7 +189,7 @@ All 18 packages (`@gesetz/bun-test`, `@gesetz/cli`, `@gesetz/core`,
 - **`@gesetz/cli` produced no output when invoked via the `node_modules/.bin/gesetz`
   symlink** (the normal consumer install path). The entry-point guard compared
   `import.meta.url` to `pathToFileURL(process.argv[1])`, but `process.argv[1]`
-  is the *unresolved* symlink path while `import.meta.url` is the real file URL,
+  is the _unresolved_ symlink path while `import.meta.url` is the real file URL,
   so the guard failed and `runGesetz()` was never called — the CLI silently
   exited 0. Now resolves `process.argv[1]` with `fs.realpathSync` before
   comparing, so symlinked bin invocation works.
@@ -258,7 +262,7 @@ packages.
 2. **Runtime no longer requires Bun.** Any Node 20+ runtime works.
 3. **If you develop in this repo**, switch to pnpm: `npm i -g pnpm`, then
    `pnpm install`. Use `pnpm run build` / `pnpm run test` / `pnpm run
-   typecheck` instead of the `bun run` equivalents. The `pnpm publish`
+typecheck` instead of the `bun run` equivalents. The `pnpm publish`
    flow replaces the deleted scripts.
 
 ---
@@ -273,10 +277,11 @@ no compatibility shims are provided.
 ### Added
 
 **Architecture — `SyntaxBackend` routing pattern**
+
 - New `SyntaxTree` service + `SyntaxBackend` interface in `@gesetz/core`. A
   `SyntaxBackend` is a plain object (not an Effect Layer) that extracts
   imports, calls, exports, and structure from source. Core's `SyntaxTreeLive(
-  backends[])` factory creates one Effect Layer that routes requests to the
+backends[])` factory creates one Effect Layer that routes requests to the
   correct backend by file extension.
 - New `ImportResolver` service + `ImportResolverDefault` (relative-path
   resolver) in `@gesetz/core`. Used by `defineArchitecture` and `noCycles` to
@@ -286,6 +291,7 @@ no compatibility shims are provided.
 - New `SyntaxTreeStub` Layer for tests that don't need parsing.
 
 **New core primitives (SyntaxTree-backed)**
+
 - `noDirectCalls(names, opts?)` — precise AST-level ban on specific function
   calls (member access supported: `console.log`, `fmt.Println`).
 - `requireNamingConvention({ kinds?, pattern, message?, severity? })` —
@@ -303,6 +309,7 @@ no compatibility shims are provided.
   least `minCount` structural items of a kind (counted recursively).
 
 **New core primitive (regex, no backend)**
+
 - `noDebugLogging(opts?)` — polyglot debug-logging detector. Extension-aware:
   flags `console.*` in TS/JS, `print`/`pprint`/`breakpoint` in Python,
   `var_dump`/`dd`/`dump` in PHP, `fmt.Println`/`log.Printf` in Go,
@@ -310,14 +317,17 @@ no compatibility shims are provided.
   silently skipped. Supports `extraNames`, custom severity, custom message.
 
 **New TypeScript/JS checks (`@gesetz/typescript`)**
+
 - `noTypedAny`, `noAsUnknownAs` (double casts), `noDefaultExport`, `noEnum`,
   `noBarrelFile`, `requireExplicitReturnType`.
 
 **New PHP checks (`@gesetz/php`)**
+
 - `requireTypeHints`, `requireReturnType`, `requireNamespace`, `noDieOrExit`,
   `noEval`, `requireFinalClasses`.
 
 **New Laravel checks (`@gesetz/laravel`)**
+
 - `noDd({ message?, severity? })` — standalone Check banning `dd`/`ddd`/`dump`/
   `debug` (more precise than the pre-built `noDebugHelpers` rule).
 - `noFacades({ facades?, message?, severity? })` — ban Laravel Facades
@@ -371,6 +381,7 @@ specifiers when a backend is registered; fall back to a JS/TS regex otherwise.
 Report 1-indexed line numbers when a backend is used.
 
 **Renames (signatures changed too)**
+
 - `requireExportPairs(getCounterpart: (name) => string | null)` →
   `requireRelatedExports(getRelated: (name) => string[] | null)`. Now N-ary:
   returns an array of required counterparts, all of which must be exported.
@@ -382,6 +393,7 @@ Report 1-indexed line numbers when a backend is used.
 
 **Moved from `@gesetz/core` to `@gesetz/typescript`** (these are
 TypeScript/JavaScript-specific, not language-agnostic):
+
 - `noConsoleLog`, `noEmptyCatch`, `noMagicNumbers`, `noTrivialComment`,
   `relativeImports`.
 

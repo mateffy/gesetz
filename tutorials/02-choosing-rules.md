@@ -60,15 +60,15 @@ weighted = errors * 1.0 + warnings * 0.5 + infos * 0.1
 score    = max(0, 10 - weighted)
 ```
 
-| Category | Typical rules |
-|---|---|
-| `strictness` | Type discipline: `noTypedAny`, `noAsUnknownAs`, `noEnum`, `noDefaultExport`, `requireExplicitReturnType` |
-| `structure` | Code shape: `noGodFile`, `noDeepNesting`, `noMagicNumbers`, `noEmptyCatch` |
-| `organization` | Architecture: `defineArchitecture`, `noCycles`, `requireSibling`, `noImportFrom` |
-| `cleanup` | Dead code: `noDebugLogging`, `noTrivialComment`, `noDebuggingResidueFiles` |
-| `security` | Secrets, unsafe calls: `noHardcodedSecret`, `noDirectCalls(['eval'])` |
-| `react` | Component conventions: `noLocalFunctionComponents`, `noLiteralJsxText` |
-| `effect-ts` | Effect patterns: `noRunPromiseScattered`, `noThrowInEffectGen` |
+| Category       | Typical rules                                                                                            |
+| -------------- | -------------------------------------------------------------------------------------------------------- |
+| `strictness`   | Type discipline: `noTypedAny`, `noAsUnknownAs`, `noEnum`, `noDefaultExport`, `requireExplicitReturnType` |
+| `structure`    | Code shape: `noGodFile`, `noDeepNesting`, `noMagicNumbers`, `noEmptyCatch`                               |
+| `organization` | Architecture: `defineArchitecture`, `noCycles`, `requireSibling`, `noImportFrom`                         |
+| `cleanup`      | Dead code: `noDebugLogging`, `noTrivialComment`, `noDebuggingResidueFiles`                               |
+| `security`     | Secrets, unsafe calls: `noHardcodedSecret`, `noDirectCalls(['eval'])`                                    |
+| `react`        | Component conventions: `noLocalFunctionComponents`, `noLiteralJsxText`                                   |
+| `effect-ts`    | Effect patterns: `noRunPromiseScattered`, `noThrowInEffectGen`                                           |
 
 You can define your own categories. They are just strings. A `category: 'api-conventions'` rule will produce an `api-conventions` score alongside the standard ones.
 
@@ -114,8 +114,8 @@ src/
 ### Recommended rule set
 
 ```ts
-import { defineConfig, select } from 'gesetz';
-import { typescriptSyntaxBackend } from '@gesetz/typescript';
+import { defineConfig, select } from "gesetz";
+import { typescriptSyntaxBackend } from "@gesetz/typescript";
 import {
   noGodFile,
   noDeepNesting,
@@ -124,7 +124,7 @@ import {
   noImportFrom,
   requireSibling,
   relativeImports,
-} from 'gesetz';
+} from "gesetz";
 import {
   noTypedAny,
   noAsUnknownAs,
@@ -137,105 +137,101 @@ import {
   noLocalFunctionComponents,
   noLiteralJsxText,
   requireExplicitReturnType,
-} from '@gesetz/typescript';
+} from "@gesetz/typescript";
 
 export default defineConfig({
   adapters: [typescriptSyntaxBackend],
   rules: [
     // ── Universal hygiene ──
-    select('src/**/*.{ts,tsx}')
-      .label('Files should stay under 400 lines')
-      .category('structure')
+    select("src/**/*.{ts,tsx}")
+      .label("Files should stay under 400 lines")
+      .category("structure")
       .check(noGodFile({ maxLines: 400 })),
 
-    select('src/**/*.{ts,tsx}')
-      .label('Avoid deep nesting')
-      .category('structure')
+    select("src/**/*.{ts,tsx}")
+      .label("Avoid deep nesting")
+      .category("structure")
       .check(noDeepNesting({ maxLevels: 4 })),
 
-    select('src/**/*')
-      .label('No debug logging in production')
-      .category('cleanup')
-      .check(noDebugLogging({ severity: 'warn' })),
+    select("src/**/*")
+      .label("No debug logging in production")
+      .category("cleanup")
+      .check(noDebugLogging({ severity: "warn" })),
 
-    select('src/**/*')
-      .label('No hardcoded secrets')
-      .category('security')
+    select("src/**/*")
+      .label("No hardcoded secrets")
+      .category("security")
       .check(noHardcodedSecret()),
 
     // ── TypeScript discipline ──
-    select('src/**/*.{ts,tsx}')
-      .label('No any type annotations')
-      .category('strictness')
+    select("src/**/*.{ts,tsx}")
+      .label("No any type annotations")
+      .category("strictness")
       .check(noTypedAny()),
 
-    select('src/**/*.{ts,tsx}')
-      .label('No as unknown as casts')
-      .category('strictness')
+    select("src/**/*.{ts,tsx}")
+      .label("No as unknown as casts")
+      .category("strictness")
       .check(noAsUnknownAs()),
 
-    select('src/**/*.{ts,tsx}')
-      .label('No default exports')
-      .category('strictness')
+    select("src/**/*.{ts,tsx}")
+      .label("No default exports")
+      .category("strictness")
       .check(noDefaultExport()),
 
-    select('src/**/*.{ts,tsx}')
-      .label('No enums')
-      .category('strictness')
-      .check(noEnum()),
+    select("src/**/*.{ts,tsx}").label("No enums").category("strictness").check(noEnum()),
 
-    select('src/**/*.{ts,tsx}')
-      .label('Explicit return types on exported functions')
-      .category('strictness')
+    select("src/**/*.{ts,tsx}")
+      .label("Explicit return types on exported functions")
+      .category("strictness")
       .check(requireExplicitReturnType({ exportedOnly: true })),
 
-    select('src/**/*.{ts,tsx}')
-      .label('No empty catch blocks')
-      .category('structure')
+    select("src/**/*.{ts,tsx}")
+      .label("No empty catch blocks")
+      .category("structure")
       .check(noEmptyCatch()),
 
-    select('src/**/*.{ts,tsx}')
-      .label('Avoid magic numbers')
-      .category('structure')
+    select("src/**/*.{ts,tsx}")
+      .label("Avoid magic numbers")
+      .category("structure")
       .check(noMagicNumbers({ ignore: [0, 1, 100] })),
 
-    select('src/**/*.{ts,tsx}')
-      .label('Remove trivial comments')
-      .category('cleanup')
+    select("src/**/*.{ts,tsx}")
+      .label("Remove trivial comments")
+      .category("cleanup")
       .check(noTrivialComment()),
 
     // ── React conventions ──
-    select('src/components/**/*.tsx')
-      .label('Components should not use local function components')
-      .category('react')
+    select("src/components/**/*.tsx")
+      .label("Components should not use local function components")
+      .category("react")
       .check(noLocalFunctionComponents()),
 
-    select('src/components/**/*.tsx')
-      .label('No raw text in JSX')
-      .category('react')
+    select("src/components/**/*.tsx")
+      .label("No raw text in JSX")
+      .category("react")
       .check(noLiteralJsxText()),
 
     // ── File pairing ──
-    select('src/components/**/*.tsx')
-      .exclude('**/*.test.tsx', '**/*.stories.tsx')
-      .label('Components need tests and stories')
-      .category('organization')
-      .check(
-        requireSibling('.test.tsx'),
-        requireSibling('.stories.tsx'),
-      ),
+    select("src/components/**/*.tsx")
+      .exclude("**/*.test.tsx", "**/*.stories.tsx")
+      .label("Components need tests and stories")
+      .category("organization")
+      .check(requireSibling(".test.tsx"), requireSibling(".stories.tsx")),
 
     // ── Import discipline ──
-    select('src/**/*.{ts,tsx}')
-      .label('Do not import from legacy helpers')
-      .category('organization')
-      .check(noImportFrom('src/legacy', {
-        message: 'Import from src/utils instead of src/legacy.',
-      })),
+    select("src/**/*.{ts,tsx}")
+      .label("Do not import from legacy helpers")
+      .category("organization")
+      .check(
+        noImportFrom("src/legacy", {
+          message: "Import from src/utils instead of src/legacy.",
+        }),
+      ),
 
-    select('src/**/*.{ts,tsx}')
-      .label('Relative imports must resolve')
-      .category('organization')
+    select("src/**/*.{ts,tsx}")
+      .label("Relative imports must resolve")
+      .category("organization")
       .check(relativeImports()),
   ],
 });
@@ -306,10 +302,10 @@ select('lib/**/*.{ts,tsx}')
 The `'use client'` check above is content-based, not path-based. A more robust approach is a custom check that reads the file content and skips files containing `'use client'`:
 
 ```ts
-select('app/**/*.tsx')
-  .label('Server components must not use client hooks')
-  .filter(file => !file.content.includes("'use client'"))
-  .check(noDirectCalls(['useState', 'useEffect']));
+select("app/**/*.tsx")
+  .label("Server components must not use client hooks")
+  .filter((file) => !file.content.includes("'use client'"))
+  .check(noDirectCalls(["useState", "useEffect"]));
 ```
 
 This uses `.filter()` in the selector, which runs after globbing but before checks.
@@ -336,51 +332,55 @@ src/
 ### Recommended rule set
 
 ```ts
-import { defineConfig, select } from 'gesetz';
-import { typescriptSyntaxBackend } from '@gesetz/typescript';
+import { defineConfig, select } from "gesetz";
+import { typescriptSyntaxBackend } from "@gesetz/typescript";
 import {
   noRunPromiseScattered,
   noThrowInEffectGen,
   noYieldWithoutStar,
   noUnboundedEffectAll,
-} from '@gesetz/effect-ts';
+} from "@gesetz/effect-ts";
 
 export default defineConfig({
   adapters: [typescriptSyntaxBackend],
   rules: [
     // Effect discipline
-    select('src/**/*.ts')
-      .exclude('src/main.ts')
-      .label('Effect.runPromise only in entry points')
-      .category('effect-ts')
+    select("src/**/*.ts")
+      .exclude("src/main.ts")
+      .label("Effect.runPromise only in entry points")
+      .category("effect-ts")
       .check(noRunPromiseScattered()),
 
-    select('src/**/*.ts')
-      .label('No throw inside Effect.gen')
-      .category('effect-ts')
+    select("src/**/*.ts")
+      .label("No throw inside Effect.gen")
+      .category("effect-ts")
       .check(noThrowInEffectGen()),
 
-    select('src/**/*.ts')
-      .label('Use yield* not yield inside Effect.gen')
-      .category('effect-ts')
+    select("src/**/*.ts")
+      .label("Use yield* not yield inside Effect.gen")
+      .category("effect-ts")
       .check(noYieldWithoutStar()),
 
-    select('src/**/*.ts')
-      .label('Effect.all must have concurrency option')
-      .category('effect-ts')
+    select("src/**/*.ts")
+      .label("Effect.all must have concurrency option")
+      .category("effect-ts")
       .check(noUnboundedEffectAll()),
 
     // Universal hygiene
-    select('src/**/*.ts')
-      .label('Files should stay under 300 lines')
-      .category('structure')
+    select("src/**/*.ts")
+      .label("Files should stay under 300 lines")
+      .category("structure")
       .check(noGodFile({ maxLines: 300 })),
 
     // Architecture
-    select('src/**/*.ts')
-      .label('Services must not import from main')
-      .category('organization')
-      .check(noImportFrom('src/main', { message: 'Circular dependency: services should not depend on the entry point.' })),
+    select("src/**/*.ts")
+      .label("Services must not import from main")
+      .category("organization")
+      .check(
+        noImportFrom("src/main", {
+          message: "Circular dependency: services should not depend on the entry point.",
+        }),
+      ),
   ],
 });
 ```
@@ -417,8 +417,8 @@ tests/
 ### Recommended rule set
 
 ```ts
-import { defineConfig, select } from 'gesetz';
-import { phpSyntaxBackend } from '@gesetz/php';
+import { defineConfig, select } from "gesetz";
+import { phpSyntaxBackend } from "@gesetz/php";
 import {
   noGodFile,
   noDebugLogging,
@@ -427,51 +427,52 @@ import {
   requirePattern,
   requireSibling,
   relativeImports,
-} from 'gesetz';
+} from "gesetz";
 
 export default defineConfig({
   adapters: [phpSyntaxBackend],
   rules: [
     // Universal hygiene
-    select('app/**/*.php')
-      .label('Controllers should stay under 200 lines')
-      .category('structure')
+    select("app/**/*.php")
+      .label("Controllers should stay under 200 lines")
+      .category("structure")
       .check(noGodFile({ maxLines: 200 })),
 
-    select('app/**/*.php')
-      .label('No debug logging')
-      .category('cleanup')
-      .check(noDebugLogging()),
+    select("app/**/*.php").label("No debug logging").category("cleanup").check(noDebugLogging()),
 
-    select('app/**/*.php')
-      .label('No hardcoded secrets')
-      .category('security')
+    select("app/**/*.php")
+      .label("No hardcoded secrets")
+      .category("security")
       .check(noHardcodedSecret()),
 
     // PHP discipline
-    select('app/**/*.php')
-      .label('Declare strict types')
-      .category('strictness')
-      .check(requirePattern(/declare\(strict_types=1\)/, {
-        message: 'Add declare(strict_types=1) at the top of the file.',
-      })),
+    select("app/**/*.php")
+      .label("Declare strict types")
+      .category("strictness")
+      .check(
+        requirePattern(/declare\(strict_types=1\)/, {
+          message: "Add declare(strict_types=1) at the top of the file.",
+        }),
+      ),
 
     // Architecture
-    select('app/Services/**/*.php')
-      .label('Services must not import from controllers')
-      .category('organization')
-      .check(noImportFrom('app/Http/Controllers', {
-        message: 'Services are a lower layer than controllers.',
-      })),
+    select("app/Services/**/*.php")
+      .label("Services must not import from controllers")
+      .category("organization")
+      .check(
+        noImportFrom("app/Http/Controllers", {
+          message: "Services are a lower layer than controllers.",
+        }),
+      ),
 
     // Test pairing
-    select('app/Http/Controllers/**/*.php')
-      .label('Controllers need feature tests')
-      .category('organization')
+    select("app/Http/Controllers/**/*.php")
+      .label("Controllers need feature tests")
+      .category("organization")
       .check(
-        requireSibling('.php', {
+        requireSibling(".php", {
           message: (missing) => `Missing test: tests/Feature/${missing}`,
-        }),   // Note: requireSibling checks same directory; for cross-dir tests write a custom check
+        }), // Note: requireSibling checks same directory; for cross-dir tests write a custom check
       ),
   ],
 });
@@ -482,25 +483,27 @@ export default defineConfig({
 `requireSibling` checks the **same directory**. If your tests live in `tests/Feature/` and your controllers live in `app/Http/Controllers/`, `requireSibling` will not work directly. Write a custom `Check` that resolves the expected test path from the controller path:
 
 ```ts
-import * as nodePath from 'node:path';
-import type { Check, Violation } from 'gesetz';
+import * as nodePath from "node:path";
+import type { Check, Violation } from "gesetz";
 
 export function requireFeatureTest(): Check {
   return async (file, { fs }) => {
     const base = nodePath.basename(file.stem); // "UserController"
     const expected = nodePath.resolve(
       nodePath.dirname(file.absolutePath),
-      '../../../tests/Feature',
-      base + 'Test.php',
+      "../../../tests/Feature",
+      base + "Test.php",
     );
     const exists = await fs.exists(expected);
     if (exists) return [];
-    return [{
-      severity: 'error',
-      source: 'core',
-      message: `Missing feature test: ${expected}`,
-      path: file.path,
-    }];
+    return [
+      {
+        severity: "error",
+        source: "core",
+        message: `Missing feature test: ${expected}`,
+        path: file.path,
+      },
+    ];
   };
 }
 ```
@@ -526,31 +529,29 @@ packages/
 Import all adapters and use `select` glob patterns to scope rules to the right packages:
 
 ```ts
-import { defineConfig, select } from 'gesetz';
-import { typescriptSyntaxBackend } from '@gesetz/typescript';
-import { phpSyntaxBackend } from '@gesetz/php';
+import { defineConfig, select } from "gesetz";
+import { typescriptSyntaxBackend } from "@gesetz/typescript";
+import { phpSyntaxBackend } from "@gesetz/php";
 
 export default defineConfig({
   adapters: [typescriptSyntaxBackend, phpSyntaxBackend],
   rules: [
     // TypeScript rules scoped to web/
-    select('packages/web/**/*.ts')
-      .label('Web: no any')
-      .check(noTypedAny()),
+    select("packages/web/**/*.ts").label("Web: no any").check(noTypedAny()),
 
     // PHP rules scoped to api/
-    select('packages/api/**/*.php')
-      .label('API: strict types')
+    select("packages/api/**/*.php")
+      .label("API: strict types")
       .check(requirePattern(/declare\(strict_types=1\)/)),
 
     // Universal rules run everywhere
-    select('packages/**/*')
-      .label('No god files')
+    select("packages/**/*")
+      .label("No god files")
       .check(noGodFile({ maxLines: 400 })),
 
     // Protobuf: no hand-edited files
-    select('packages/proto/**/*.proto')
-      .label('Protos must be generated, not hand-edited')
+    select("packages/proto/**/*.proto")
+      .label("Protos must be generated, not hand-edited")
       .check(requirePattern(/Code generated by protoc/)),
   ],
 });
@@ -575,23 +576,28 @@ If a language does not have a Gesetz adapter yet, you have three options:
 ### Clean Architecture example
 
 ```ts
-import { defineArchitecture } from 'gesetz';
+import { defineArchitecture } from "gesetz";
 
 const cleanArch = defineArchitecture({
   layers: [
-    { name: 'domain',    pattern: 'src/domain/**',    canImportFrom: [] },
-    { name: 'usecase',   pattern: 'src/usecase/**',   canImportFrom: ['domain'] },
-    { name: 'infra',     pattern: 'src/infra/**',     canImportFrom: ['domain', 'usecase'] },
-    { name: 'presenter', pattern: 'src/presenter/**', canImportFrom: ['domain', 'usecase'] },
-    { name: 'main',      pattern: 'src/main/**',      canImportFrom: ['domain', 'usecase', 'infra', 'presenter'] },
+    { name: "domain", pattern: "src/domain/**", canImportFrom: [] },
+    { name: "usecase", pattern: "src/usecase/**", canImportFrom: ["domain"] },
+    { name: "infra", pattern: "src/infra/**", canImportFrom: ["domain", "usecase"] },
+    { name: "presenter", pattern: "src/presenter/**", canImportFrom: ["domain", "usecase"] },
+    {
+      name: "main",
+      pattern: "src/main/**",
+      canImportFrom: ["domain", "usecase", "infra", "presenter"],
+    },
   ],
   bannedExternals: {
-    domain: ['express', 'react', 'next'],
+    domain: ["express", "react", "next"],
   },
 });
 ```
 
 This says:
+
 - `domain` has no dependencies at all — it is pure business logic.
 - `usecase` may import from `domain` only.
 - `infra` and `presenter` may import from `domain` and `usecase`.
@@ -603,24 +609,24 @@ This says:
 ```ts
 const hexagonal = defineArchitecture({
   layers: [
-    { name: 'core',      pattern: 'src/core/**',       canImportFrom: [] },
-    { name: 'ports',     pattern: 'src/ports/**',      canImportFrom: ['core'] },
-    { name: 'adapters',  pattern: 'src/adapters/**',   canImportFrom: ['core', 'ports'] },
-    { name: 'config',    pattern: 'src/config/**',     canImportFrom: ['core', 'ports', 'adapters'] },
+    { name: "core", pattern: "src/core/**", canImportFrom: [] },
+    { name: "ports", pattern: "src/ports/**", canImportFrom: ["core"] },
+    { name: "adapters", pattern: "src/adapters/**", canImportFrom: ["core", "ports"] },
+    { name: "config", pattern: "src/config/**", canImportFrom: ["core", "ports", "adapters"] },
   ],
   forbidden: [
-    { from: 'adapters', to: 'adapters', message: 'Adapters must not import from other adapters.' },
+    { from: "adapters", to: "adapters", message: "Adapters must not import from other adapters." },
   ],
 });
 ```
 
 ### When to use `defineArchitecture` vs. `noImportFrom`
 
-| Situation | Use |
-|---|---|
-| One-off banned module | `noImportFrom('bad-module')` |
-| Layer-to-layer constraints | `defineArchitecture` |
-| Circular dependency detection | `noCycles()` (uses SyntaxTree + ImportResolver) |
+| Situation                             | Use                                                                             |
+| ------------------------------------- | ------------------------------------------------------------------------------- |
+| One-off banned module                 | `noImportFrom('bad-module')`                                                    |
+| Layer-to-layer constraints            | `defineArchitecture`                                                            |
+| Circular dependency detection         | `noCycles()` (uses SyntaxTree + ImportResolver)                                 |
 | Cross-package import bans in monorepo | `defineArchitecture` with patterns like `packages/web/**` and `packages/api/**` |
 
 ---
@@ -638,22 +644,21 @@ If you write `.check(noTypedAny())` but forget to include `typescriptSyntaxBacke
 ### Mistake 3: Glob patterns that are too broad
 
 ```ts
-select('src/**/*').check(noDebugLogging())
+select("src/**/*").check(noDebugLogging());
 ```
 
 This includes `node_modules`, `.next`, `dist`, and generated files. Use exclusions:
 
 ```ts
-select('src/**/*')
-  .exclude('**/node_modules/**', '**/.next/**', '**/generated/**')
+select("src/**/*")
+  .exclude("**/node_modules/**", "**/.next/**", "**/generated/**")
   .check(noDebugLogging());
 ```
 
 Or, better, scope the glob:
 
 ```ts
-select('src/app/**/*.tsx', 'src/components/**/*.tsx', 'src/hooks/**/*.ts')
-  .check(noDebugLogging());
+select("src/app/**/*.tsx", "src/components/**/*.tsx", "src/hooks/**/*.ts").check(noDebugLogging());
 ```
 
 ### Mistake 4: Category mismatch
@@ -696,6 +701,7 @@ gesetz check --files="src/components/**"
 ### Dry-run against existing code
 
 Write the rule, run `gesetz check`, inspect the output. Ask yourself:
+
 - Are the violations real problems?
 - Are there false positives?
 - Is the message actionable?
@@ -732,13 +738,13 @@ defineConfig({
 
 ### Exemption fields
 
-| Field | Required? | Meaning |
-|---|---|---|
-| `path` | Yes | micromatch glob matching violation paths |
-| `rule` | No | micromatch glob matching rule IDs. Default: `*` (all rules) |
-| `reason` | Yes | Why this exemption exists |
-| `ticket` | No | Ticket reference for traceability |
-| `until` | No | ISO 8601 expiry date. After this date, violations resurface |
+| Field    | Required? | Meaning                                                     |
+| -------- | --------- | ----------------------------------------------------------- |
+| `path`   | Yes       | micromatch glob matching violation paths                    |
+| `rule`   | No        | micromatch glob matching rule IDs. Default: `*` (all rules) |
+| `reason` | Yes       | Why this exemption exists                                   |
+| `ticket` | No        | Ticket reference for traceability                           |
+| `until`  | No        | ISO 8601 expiry date. After this date, violations resurface |
 
 ### Expiry is the most important feature
 
@@ -746,11 +752,11 @@ An exemption without `until` is a permanent hole in your quality gate. Always se
 
 ### When to use exemptions vs. `.exclude()`
 
-| | `.exclude()` | Exemption |
-|---|---|---|
-| Scope | Removes files from the rule entirely | Suppresses violations after they are detected |
-| Use for | Files that should never be scanned (generated, vendored) | Temporary exceptions for legitimate cases |
-| Example | `**/*.generated.ts` | A known migration path that is tracked in Jira |
+|         | `.exclude()`                                             | Exemption                                      |
+| ------- | -------------------------------------------------------- | ---------------------------------------------- |
+| Scope   | Removes files from the rule entirely                     | Suppresses violations after they are detected  |
+| Use for | Files that should never be scanned (generated, vendored) | Temporary exceptions for legitimate cases      |
+| Example | `**/*.generated.ts`                                      | A known migration path that is tracked in Jira |
 
 ---
 
@@ -759,27 +765,32 @@ An exemption without `until` is a permanent hole in your quality gate. Always se
 Your rules should evolve with your codebase. Here is a simple cadence:
 
 ### Week 1–2: Foundation
+
 - `noGodFile({ maxLines: 400 })`
 - `noHardcodedSecret()`
 - `noDebugLogging()`
 - `relativeImports()`
 
 ### Week 3–4: Language discipline
+
 - `noTypedAny()` (TypeScript)
 - `noDefaultExport()` (TypeScript)
 - `requirePattern(/declare\(strict_types=1\)/)` (PHP)
 
 ### Week 5–6: Framework conventions
+
 - `noLocalFunctionComponents()` (React)
 - `noLiteralJsxText()` (React)
 - `noRunPromiseScattered()` (Effect-TS)
 
 ### Week 7–8: Architecture
+
 - `defineArchitecture(...)` for your layer model
 - `noCycles()` for circular dependency detection
 - `requireSibling()` for file pairing conventions
 
 ### Ongoing: Tuning
+
 - Review exemptions monthly. Close tickets or extend dates.
 - Lower `maxLines` by 25 lines every quarter until the team pushes back.
 - Add project-specific rules when code review finds the same issue three times.
@@ -788,11 +799,11 @@ Your rules should evolve with your codebase. Here is a simple cadence:
 
 Run `gesetz check --format=json` and track these over time:
 
-| Metric | Healthy trend |
-|---|---|
-| Total violations | Decreasing |
-| Exemptions count | Stable or decreasing |
-| Category scores | Increasing toward 10 |
+| Metric              | Healthy trend                           |
+| ------------------- | --------------------------------------- |
+| Total violations    | Decreasing                              |
+| Exemptions count    | Stable or decreasing                    |
+| Category scores     | Increasing toward 10                    |
 | Violations per rule | Balanced (one rule should not dominate) |
 
 If one rule produces 80% of violations, it is either too strict or the codebase has a systematic problem worth addressing as a team.

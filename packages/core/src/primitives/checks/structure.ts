@@ -5,7 +5,7 @@
  * any language. For AST-level checks (function line count) prefer the
  * TypeScript adapter primitives.
  */
-import type { Check, Violation } from '../../engine/rule';
+import type { Check, Violation } from "../../engine/rule";
 
 // ─── God file ────────────────────────────────────────────────────────────────
 
@@ -24,7 +24,7 @@ export interface NoGodFileOptions {
 export function noGodFile(options: NoGodFileOptions = {}): Check {
   const maxLines = options.maxLines ?? 400;
   return async (file) => {
-    const count = file.content.split('\n').length;
+    const count = file.content.split("\n").length;
     if (count <= maxLines) return [];
     return [
       {
@@ -33,8 +33,8 @@ export function noGodFile(options: NoGodFileOptions = {}): Check {
           `File has ${count} lines (max: ${maxLines}). Split into smaller modules.`,
         path: file.path,
         line: maxLines + 1,
-        severity: 'warn',
-        source: 'core',
+        severity: "warn",
+        source: "core",
       },
     ];
   };
@@ -56,12 +56,12 @@ export function noDeepNesting(options: NoDeepNestingOptions = {}): Check {
   const maxLevels = options.maxLevels ?? 4;
   return async (file) => {
     const violations: Violation[] = [];
-    const lines = file.content.split('\n');
+    const lines = file.content.split("\n");
     for (let i = 0; i < lines.length; i++) {
-      const line = lines[i] ?? '';
+      const line = lines[i] ?? "";
       if (!line.trim()) continue;
-      const indent = line.match(/^(\s+)/)?.[1] ?? '';
-      const level = indent.includes('\t') ? indent.length : Math.floor(indent.length / 2);
+      const indent = line.match(/^(\s+)/)?.[1] ?? "";
+      const level = indent.includes("\t") ? indent.length : Math.floor(indent.length / 2);
       if (level > maxLevels) {
         violations.push({
           message:
@@ -69,8 +69,8 @@ export function noDeepNesting(options: NoDeepNestingOptions = {}): Check {
             `Nesting level ${level} exceeds maximum (${maxLevels}). Refactor using early returns or extracted functions.`,
           path: file.path,
           line: i + 1,
-          severity: 'warn',
-          source: 'core',
+          severity: "warn",
+          source: "core",
         });
       }
     }
@@ -99,18 +99,18 @@ export function noConsoleLog(options: NoConsoleLogOptions = {}): Check {
 
   return async (file) => {
     const violations: Violation[] = [];
-    const lines = file.content.split('\n');
+    const lines = file.content.split("\n");
     for (let i = 0; i < lines.length; i++) {
-      const line = lines[i] ?? '';
+      const line = lines[i] ?? "";
       if (pattern.test(line)) {
         violations.push({
           message:
             options.message ??
-            'Remove console logging from production code. Use a proper logger instead.',
+            "Remove console logging from production code. Use a proper logger instead.",
           path: file.path,
           line: i + 1,
-          severity: 'warn',
-          source: 'core',
+          severity: "warn",
+          source: "core",
         });
       }
       pattern.lastIndex = 0;
@@ -131,25 +131,25 @@ export interface NoEmptyCatchOptions {
 export function noEmptyCatch(options: NoEmptyCatchOptions = {}): Check {
   return async (file) => {
     const violations: Violation[] = [];
-    const lines = file.content.split('\n');
+    const lines = file.content.split("\n");
     // Simple state machine: look for catch { with no real body
     for (let i = 0; i < lines.length; i++) {
-      const line = lines[i] ?? '';
+      const line = lines[i] ?? "";
       if (/\}\s*catch\s*(\([^)]*\))?\s*\{/.test(line) || /catch\s*(\([^)]*\))?\s*\{/.test(line)) {
         // Check next 3 lines for real content
         const body = lines
           .slice(i + 1, i + 4)
           .map((l) => l.trim())
-          .filter((l) => l && l !== '}' && !l.startsWith('//') && !l.startsWith('*'));
+          .filter((l) => l && l !== "}" && !l.startsWith("//") && !l.startsWith("*"));
         if (body.length === 0) {
           violations.push({
             message:
               options.message ??
-              'Empty catch block swallows errors. Log, rethrow, or handle explicitly.',
+              "Empty catch block swallows errors. Log, rethrow, or handle explicitly.",
             path: file.path,
             line: i + 1,
-            severity: 'error',
-            source: 'core',
+            severity: "error",
+            source: "core",
           });
         }
       }
@@ -178,15 +178,15 @@ export function noMagicNumbers(options: NoMagicNumbersOptions = {}): Check {
 
   return async (file) => {
     const violations: Violation[] = [];
-    const lines = file.content.split('\n');
+    const lines = file.content.split("\n");
     for (let i = 0; i < lines.length; i++) {
-      const line = lines[i] ?? '';
+      const line = lines[i] ?? "";
       // Skip named constant declarations and comment lines
       if (constDecl.test(line) || /^\s*\/\//.test(line) || /^\s*\*\//.test(line)) continue;
       let match: RegExpExecArray | null;
       numericLit.lastIndex = 0;
       while ((match = numericLit.exec(line)) !== null) {
-        const val = parseFloat(match[0] ?? '');
+        const val = parseFloat(match[0] ?? "");
         if (!Number.isFinite(val) || ignore.has(val)) continue;
         violations.push({
           message:
@@ -194,8 +194,8 @@ export function noMagicNumbers(options: NoMagicNumbersOptions = {}): Check {
             `Magic number ${match[0]}. Extract to a named constant with a descriptive name.`,
           path: file.path,
           line: i + 1,
-          severity: 'warn',
-          source: 'core',
+          severity: "warn",
+          source: "core",
         });
       }
     }
@@ -221,18 +221,18 @@ export function noTrivialComment(options: NoTrivialCommentOptions = {}): Check {
 
   return async (file) => {
     const violations: Violation[] = [];
-    const lines = file.content.split('\n');
+    const lines = file.content.split("\n");
     for (let i = 0; i < lines.length; i++) {
-      const line = lines[i] ?? '';
+      const line = lines[i] ?? "";
       if (narrationPattern.test(line) || dividerPattern.test(line)) {
         violations.push({
           message:
             options.message ??
-            'Trivial or narrative comment. Remove it — good code is self-explanatory.',
+            "Trivial or narrative comment. Remove it — good code is self-explanatory.",
           path: file.path,
           line: i + 1,
-          severity: 'info',
-          source: 'core',
+          severity: "info",
+          source: "core",
         });
       }
     }
@@ -258,8 +258,7 @@ export function noDebuggingResidueFiles(options: NoDebuggingResidueFilesOptions 
 
   return async (file) => {
     const hit =
-      builtIn.test(file.name) ||
-      (options.extraPatterns?.some((p) => p.test(file.name)) ?? false);
+      builtIn.test(file.name) || (options.extraPatterns?.some((p) => p.test(file.name)) ?? false);
     if (!hit) return [];
     return [
       {
@@ -267,8 +266,8 @@ export function noDebuggingResidueFiles(options: NoDebuggingResidueFilesOptions 
           options.message ??
           `File name '${file.name}' looks like a debugging artefact. Delete it or rename to the correct name.`,
         path: file.path,
-        severity: 'error',
-        source: 'core',
+        severity: "error",
+        source: "core",
       },
     ];
   };
@@ -290,18 +289,18 @@ export function noHardcodedSecret(options: NoHardcodedSecretOptions = {}): Check
 
   return async (file) => {
     const violations: Violation[] = [];
-    const lines = file.content.split('\n');
+    const lines = file.content.split("\n");
     for (let i = 0; i < lines.length; i++) {
-      const line = lines[i] ?? '';
+      const line = lines[i] ?? "";
       if (pattern.test(line)) {
         violations.push({
           message:
             options.message ??
-            'Possible hardcoded secret detected. Use environment variables or a secrets manager.',
+            "Possible hardcoded secret detected. Use environment variables or a secrets manager.",
           path: file.path,
           line: i + 1,
-          severity: 'error',
-          source: 'core',
+          severity: "error",
+          source: "core",
         });
       }
     }

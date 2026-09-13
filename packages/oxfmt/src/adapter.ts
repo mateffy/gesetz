@@ -1,7 +1,7 @@
-import * as nodePath from 'node:path';
-import { Effect } from 'effect';
-import type { Rule, Violation } from '@gesetz/core';
-import { execTool, FileFilter } from '@gesetz/core';
+import * as nodePath from "node:path";
+import { Effect } from "effect";
+import type { Rule, Violation } from "@gesetz/core";
+import { execTool, FileFilter } from "@gesetz/core";
 
 export interface OxfmtOptions {
   /**
@@ -43,43 +43,44 @@ async function executeOxfmt(
   cwd: string,
   patterns: readonly string[],
 ): Promise<Violation[]> {
-  const args = ['--list-different', ...patterns];
-  if (opts.configFile) args.push('-c', opts.configFile);
+  const args = ["--list-different", ...patterns];
+  if (opts.configFile) args.push("-c", opts.configFile);
 
-  const stdout = await Effect.runPromise(execTool(bin, args, cwd, 'oxfmt'));
+  const stdout = await Effect.runPromise(execTool(bin, args, cwd, "oxfmt"));
 
   if (!stdout) return [];
 
   return stdout
-    .split('\n')
+    .split("\n")
     .map((l) => l.trim())
     .filter(Boolean)
     .map((filePath): Violation => ({
       rule: id,
-      message: 'File is not formatted — run oxfmt --write to fix',
+      message: "File is not formatted — run oxfmt --write to fix",
       path: nodePath.isAbsolute(filePath) ? nodePath.relative(cwd, filePath) : filePath,
-      severity: 'warn',
-      source: 'custom',
+      severity: "warn",
+      source: "custom",
     }));
 }
 
 export function oxfmt(opts: OxfmtOptions = {}): Rule {
-  const id = opts.id ?? 'oxfmt';
-  const description = opts.label ?? 'oxfmt formatting';
+  const id = opts.id ?? "oxfmt";
+  const description = opts.label ?? "oxfmt formatting";
   const cwd = nodePath.resolve(opts.cwd ?? process.cwd());
-  const bin = opts.bin ?? nodePath.join('node_modules', '.bin', 'oxfmt');
+  const bin = opts.bin ?? nodePath.join("node_modules", ".bin", "oxfmt");
   const defaultPatterns: string[] = opts.pattern
     ? Array.isArray(opts.pattern)
       ? [...opts.pattern]
       : [opts.pattern]
-    : ['.'];
+    : ["."];
 
-  const run: Rule['run'] = Effect.gen(function* () {
+  const run: Rule["run"] = Effect.gen(function* () {
     const fileFilter = yield* FileFilter;
 
-    const patterns = fileFilter.patterns !== null && fileFilter.patterns.length > 0
-      ? [...fileFilter.patterns]
-      : defaultPatterns;
+    const patterns =
+      fileFilter.patterns !== null && fileFilter.patterns.length > 0
+        ? [...fileFilter.patterns]
+        : defaultPatterns;
 
     return yield* Effect.promise(() => executeOxfmt(opts, id, bin, cwd, patterns));
   });
@@ -90,7 +91,7 @@ export function oxfmt(opts: OxfmtOptions = {}): Rule {
     run,
     category: opts.category,
     project: {
-      patterns: opts.pattern !== undefined ? defaultPatterns : ['**/*'],
+      patterns: opts.pattern !== undefined ? defaultPatterns : ["**/*"],
       run: () => executeOxfmt(opts, id, bin, cwd, defaultPatterns),
     },
   };

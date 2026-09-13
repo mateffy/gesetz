@@ -1,2 +1,2 @@
-export { prettier } from './adapter';
-export type { PrettierOptions } from './adapter';
+export { prettier } from "./adapter";
+export type { PrettierOptions } from "./adapter";

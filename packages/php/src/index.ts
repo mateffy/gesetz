@@ -1,5 +1,5 @@
 // PHP SyntaxBackend (@ast-grep/lang-php). Replaces the old tree-sitter PhpAdapterLive.
-export { phpSyntaxBackend } from './syntax-backend';
+export { phpSyntaxBackend } from "./syntax-backend";
 
 // PHP check primitives
 export {
@@ -12,7 +12,7 @@ export {
   noDieOrExit,
   noEval,
   requireFinalClasses,
-} from './checks';
+} from "./checks";
 export type {
   RequireTypeHintsOptions,
   RequireReturnTypeOptions,
@@ -20,4 +20,4 @@ export type {
   NoDieOrExitOptions,
   NoEvalOptions,
   RequireFinalClassesOptions,
-} from './checks';
+} from "./checks";

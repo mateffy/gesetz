@@ -1,4 +1,4 @@
-import type { Check, Violation } from '@gesetz/core';
+import type { Check, Violation } from "@gesetz/core";
 
 export interface NoConsoleLogOptions {
   /**
@@ -20,19 +20,19 @@ export function noConsoleLog(options: NoConsoleLogOptions = {}): Check {
 
   return async (file) => {
     const violations: Violation[] = [];
-    const lines = file.content.split('\n');
+    const lines = file.content.split("\n");
     for (let i = 0; i < lines.length; i++) {
-      const line = lines[i] ?? '';
+      const line = lines[i] ?? "";
       if (pattern.test(line)) {
         violations.push({
-          rule: 'no-console-log',
+          rule: "no-console-log",
           message:
             options.message ??
-            'Remove console logging from production code. Use a proper logger instead.',
+            "Remove console logging from production code. Use a proper logger instead.",
           path: file.path,
           line: i + 1,
-          severity: 'warn',
-          source: 'core',
+          severity: "warn",
+          source: "core",
         });
       }
       pattern.lastIndex = 0;

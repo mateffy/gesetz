@@ -26,16 +26,16 @@
  * const config = defineConfig({ rules: arch });
  * ```
  */
-import * as nodePath from 'node:path';
-import { Effect } from 'effect';
-import micromatch from 'micromatch';
-import { resolveImportEdges } from 'netzwerk';
-import { FileSystem, ProjectRoot } from './services/fs';
-import { SyntaxTree } from './services/syntax-tree';
-import type { ParsedImport } from './services/syntax-tree';
-import { ImportResolver } from './services/import-resolver';
-import type { NetworkFileLike, Rule, Violation } from './engine/rule';
-import { SYNTAX_EXTENSION } from './backend/syntax-extension';
+import * as nodePath from "node:path";
+import { Effect } from "effect";
+import micromatch from "micromatch";
+import { resolveImportEdges } from "netzwerk";
+import { FileSystem, ProjectRoot } from "./services/fs";
+import { SyntaxTree } from "./services/syntax-tree";
+import type { ParsedImport } from "./services/syntax-tree";
+import { ImportResolver } from "./services/import-resolver";
+import type { NetworkFileLike, Rule, Violation } from "./engine/rule";
+import { SYNTAX_EXTENSION } from "./backend/syntax-extension";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -84,7 +84,7 @@ export interface ArchitectureConfig {
 
 /** Returns true if the import path is a relative or absolute path, not a package. */
 function isRelativeImport(importPath: string): boolean {
-  return importPath.startsWith('.') || importPath.startsWith('/') || importPath.startsWith('~');
+  return importPath.startsWith(".") || importPath.startsWith("/") || importPath.startsWith("~");
 }
 
 /** Returns true if the import path is an external npm package. */
@@ -112,8 +112,8 @@ function regexExtractImports(content: string): string[] {
 // ─── Rule builder ─────────────────────────────────────────────────────────────
 
 function buildLayerRule(config: ArchitectureConfig): Rule {
-  const id = 'architecture-layer-violations';
-  const description = 'Architecture layer constraints must not be violated';
+  const id = "architecture-layer-violations";
+  const description = "Architecture layer constraints must not be violated";
 
   const run = Effect.gen(function* () {
     const fs = yield* FileSystem;
@@ -125,9 +125,9 @@ function buildLayerRule(config: ArchitectureConfig): Rule {
     const allPatterns = config.layers.flatMap((l) =>
       Array.isArray(l.pattern) ? l.pattern : [l.pattern],
     );
-    const allFiles = yield* fs.glob(allPatterns, { cwd: projectRoot }).pipe(
-      Effect.catchAll(() => Effect.succeed([])),
-    );
+    const allFiles = yield* fs
+      .glob(allPatterns, { cwd: projectRoot })
+      .pipe(Effect.catchAll(() => Effect.succeed([])));
 
     if (allFiles.length === 0) return [];
 
@@ -165,7 +165,7 @@ function buildLayerRule(config: ArchitectureConfig): Rule {
     // Build a lookup of absolute path -> layer name for resolved-import matching.
     const absToLayer = new Map<string, string>();
     for (const file of allFiles) {
-      absToLayer.set(nodePath.normalize(file.absolutePath), fileToLayer.get(file.path) ?? '');
+      absToLayer.set(nodePath.normalize(file.absolutePath), fileToLayer.get(file.path) ?? "");
     }
 
     const violations: Violation[] = [];
@@ -177,9 +177,13 @@ function buildLayerRule(config: ArchitectureConfig): Rule {
       // Extract imports: SyntaxTree when available, regex fallback otherwise.
       let importSpecifiers: string[];
       if (st.canProcess(file)) {
-        const result = yield* st.process(file, { imports: true }).pipe(
-          Effect.catchAll(() => Effect.succeed({ imports: [], calls: [], exports: [], structure: [] })),
-        );
+        const result = yield* st
+          .process(file, { imports: true })
+          .pipe(
+            Effect.catchAll(() =>
+              Effect.succeed({ imports: [], calls: [], exports: [], structure: [] }),
+            ),
+          );
         importSpecifiers = result.imports.map((i: ParsedImport) => i.specifier);
       } else {
         importSpecifiers = regexExtractImports(file.content);
@@ -192,16 +196,16 @@ function buildLayerRule(config: ArchitectureConfig): Rule {
       for (const importPath of importSpecifiers) {
         // Check banned external packages
         if (isExternalPackage(importPath) && bannedForFrom.length > 0) {
-          const pkg = importPath.startsWith('@')
-            ? importPath.split('/').slice(0, 2).join('/')
-            : (importPath.split('/')[0] ?? importPath);
+          const pkg = importPath.startsWith("@")
+            ? importPath.split("/").slice(0, 2).join("/")
+            : (importPath.split("/")[0] ?? importPath);
           if (bannedForFrom.includes(pkg) || bannedForForLayer(bannedForFrom, importPath)) {
             violations.push({
               rule: id,
               message: `Layer '${fromLayer}' must not import external package '${pkg}'.`,
               path: file.path,
-              severity: 'error',
-              source: 'core',
+              severity: "error",
+              source: "core",
             });
           }
         }
@@ -217,15 +221,15 @@ function buildLayerRule(config: ArchitectureConfig): Rule {
         // and extension-stripped variants (e.g. './foo' → './foo.ts').
         const candidates = [
           nodePath.normalize(resolved),
-          nodePath.normalize(resolved + '.ts'),
-          nodePath.normalize(resolved + '.tsx'),
-          nodePath.normalize(resolved + '.js'),
-          nodePath.normalize(resolved + '.jsx'),
-          nodePath.normalize(resolved + '.php'),
-          nodePath.normalize(nodePath.join(resolved, 'index.ts')),
-          nodePath.normalize(nodePath.join(resolved, 'index.tsx')),
-          nodePath.normalize(nodePath.join(resolved, 'index.js')),
-          nodePath.normalize(nodePath.join(resolved, 'index.php')),
+          nodePath.normalize(resolved + ".ts"),
+          nodePath.normalize(resolved + ".tsx"),
+          nodePath.normalize(resolved + ".js"),
+          nodePath.normalize(resolved + ".jsx"),
+          nodePath.normalize(resolved + ".php"),
+          nodePath.normalize(nodePath.join(resolved, "index.ts")),
+          nodePath.normalize(nodePath.join(resolved, "index.tsx")),
+          nodePath.normalize(nodePath.join(resolved, "index.js")),
+          nodePath.normalize(nodePath.join(resolved, "index.php")),
         ];
 
         let toLayer: string | undefined;
@@ -243,10 +247,10 @@ function buildLayerRule(config: ArchitectureConfig): Rule {
         if (allowedForFrom !== undefined && !allowedForFrom.has(toLayer)) {
           violations.push({
             rule: id,
-            message: `Layer '${fromLayer}' must not import from layer '${toLayer}'. Allowed: [${[...allowedForFrom].join(', ')}].`,
+            message: `Layer '${fromLayer}' must not import from layer '${toLayer}'. Allowed: [${[...allowedForFrom].join(", ")}].`,
             path: file.path,
-            severity: 'error',
-            source: 'core',
+            severity: "error",
+            source: "core",
           });
           continue;
         }
@@ -257,11 +261,10 @@ function buildLayerRule(config: ArchitectureConfig): Rule {
           violations.push({
             rule: id,
             message:
-              pair?.message ??
-              `Layer '${fromLayer}' must not import from layer '${toLayer}'.`,
+              pair?.message ?? `Layer '${fromLayer}' must not import from layer '${toLayer}'.`,
             path: file.path,
-            severity: 'error',
-            source: 'core',
+            severity: "error",
+            source: "core",
           });
         }
       }
@@ -270,7 +273,7 @@ function buildLayerRule(config: ArchitectureConfig): Rule {
     return violations;
   });
 
-  return { id, description, category: 'organization', run };
+  return { id, description, category: "organization", run };
 }
 
 function bannedForForLayer(banned: string[], importPath: string): boolean {
@@ -303,7 +306,7 @@ function bannedForForLayer(banned: string[], importPath: string): boolean {
  * Project-rule implementation: reads resolved import edges and import
  * specifiers from netzwerk markers — no re-parsing, no candidate probing.
  */
-function buildLayerProject(config: ArchitectureConfig): NonNullable<Rule['project']> {
+function buildLayerProject(config: ArchitectureConfig): NonNullable<Rule["project"]> {
   const allPatterns = config.layers.flatMap((l) =>
     Array.isArray(l.pattern) ? [...l.pattern] : [l.pattern],
   );
@@ -343,7 +346,7 @@ function buildLayerProject(config: ArchitectureConfig): NonNullable<Rule['projec
       }
       const bannedExternals = config.bannedExternals ?? {};
 
-      const id = 'architecture-layer-violations';
+      const id = "architecture-layer-violations";
       const violations: Violation[] = [];
 
       // Banned external packages — from raw import specifiers.
@@ -355,16 +358,16 @@ function buildLayerProject(config: ArchitectureConfig): NonNullable<Rule['projec
         for (const marker of file.markersOf<{ specifier: string }>(`${SYNTAX_EXTENSION}.import`)) {
           const specifier = marker.data.specifier;
           if (!isExternalPackage(specifier)) continue;
-          const pkg = specifier.startsWith('@')
-            ? specifier.split('/').slice(0, 2).join('/')
-            : (specifier.split('/')[0] ?? specifier);
+          const pkg = specifier.startsWith("@")
+            ? specifier.split("/").slice(0, 2).join("/")
+            : (specifier.split("/")[0] ?? specifier);
           if (banned.includes(pkg) || banned.includes(specifier)) {
             violations.push({
               rule: id,
               message: `Layer '${fromLayer}' must not import external package '${pkg}'.`,
               path: file.path,
-              severity: 'error',
-              source: 'core',
+              severity: "error",
+              source: "core",
             });
           }
         }
@@ -380,10 +383,10 @@ function buildLayerProject(config: ArchitectureConfig): NonNullable<Rule['projec
         if (allowedForFrom !== undefined && !allowedForFrom.has(toLayer)) {
           violations.push({
             rule: id,
-            message: `Layer '${fromLayer}' must not import from layer '${toLayer}'. Allowed: [${[...allowedForFrom].join(', ')}].`,
+            message: `Layer '${fromLayer}' must not import from layer '${toLayer}'. Allowed: [${[...allowedForFrom].join(", ")}].`,
             path: edge.from,
-            severity: 'error',
-            source: 'core',
+            severity: "error",
+            source: "core",
           });
           continue;
         }
@@ -392,10 +395,11 @@ function buildLayerProject(config: ArchitectureConfig): NonNullable<Rule['projec
           const pair = config.forbidden?.find((f) => f.from === fromLayer && f.to === toLayer);
           violations.push({
             rule: id,
-            message: pair?.message ?? `Layer '${fromLayer}' must not import from layer '${toLayer}'.`,
+            message:
+              pair?.message ?? `Layer '${fromLayer}' must not import from layer '${toLayer}'.`,
             path: edge.from,
-            severity: 'error',
-            source: 'core',
+            severity: "error",
+            source: "core",
           });
         }
       }

@@ -1,29 +1,35 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import * as childProcess from 'node:child_process';
-import * as nodeFs from 'node:fs';
-import * as nodePath from 'node:path';
-import { Effect, Layer } from 'effect';
-import { pest } from '../src/adapter';
-import { MemoryFileSystem, ProjectRootLive, FileFilterLive, SyntaxTreeStub, ImportResolverDefault } from '@gesetz/core';
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import * as childProcess from "node:child_process";
+import * as nodeFs from "node:fs";
+import * as nodePath from "node:path";
+import { Effect, Layer } from "effect";
+import { pest } from "../src/adapter";
+import {
+  MemoryFileSystem,
+  ProjectRootLive,
+  FileFilterLive,
+  SyntaxTreeStub,
+  ImportResolverDefault,
+} from "@gesetz/core";
 
 const TestLayer = Layer.mergeAll(
   MemoryFileSystem({}),
   SyntaxTreeStub,
   ImportResolverDefault,
-  ProjectRootLive('/project'),
+  ProjectRootLive("/project"),
   FileFilterLive(null),
 );
 
-vi.mock('node:child_process', async () => {
-  const actual = await vi.importActual('node:child_process');
+vi.mock("node:child_process", async () => {
+  const actual = await vi.importActual("node:child_process");
   return {
     ...actual,
     execFileSync: vi.fn(),
   };
 });
 
-vi.mock('node:fs', async () => {
-  const actual = await vi.importActual('node:fs');
+vi.mock("node:fs", async () => {
+  const actual = await vi.importActual("node:fs");
   return {
     ...actual,
     mkdtempSync: vi.fn(),
@@ -42,163 +48,182 @@ const JUNIT_XML = `<?xml version="1.0" encoding="UTF-8"?>
   </testsuite>
 </testsuites>`;
 
-describe('pest adapter', () => {
+describe("pest adapter", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     vi.clearAllMocks();
   });
 
-  it('parses failed tests from JUnit XML', async () => {
-    const tmpDir = '/tmp/gesetz-pest-test-1';
+  it("parses failed tests from JUnit XML", async () => {
+    const tmpDir = "/tmp/gesetz-pest-test-1";
     (nodeFs.mkdtempSync as ReturnType<typeof vi.fn>).mockReturnValue(tmpDir);
     (nodeFs.readFileSync as ReturnType<typeof vi.fn>).mockReturnValue(JUNIT_XML);
-    (childProcess.execFileSync as ReturnType<typeof vi.fn>).mockImplementation(() => '');
+    (childProcess.execFileSync as ReturnType<typeof vi.fn>).mockImplementation(() => "");
 
-    const rule = pest({ cwd: '/project', label: 'Pest' });
+    const rule = pest({ cwd: "/project", label: "Pest" });
     const violations = await Effect.runPromise(Effect.provide(rule.run, TestLayer));
 
     expect(violations).toHaveLength(1);
-    expect(violations[0]?.rule).toBe('pest');
-    expect(violations[0]?.severity).toBe('error');
-    expect(violations[0]?.message).toContain('it_can_subtract_numbers');
-    expect(violations[0]?.path).toBe('tests/Unit/MathTest.php');
+    expect(violations[0]?.rule).toBe("pest");
+    expect(violations[0]?.severity).toBe("error");
+    expect(violations[0]?.message).toContain("it_can_subtract_numbers");
+    expect(violations[0]?.path).toBe("tests/Unit/MathTest.php");
     expect(violations[0]?.line).toBe(20);
   });
 
-  it('returns empty array when all tests pass', async () => {
-    const tmpDir = '/tmp/gesetz-pest-test-2';
+  it("returns empty array when all tests pass", async () => {
+    const tmpDir = "/tmp/gesetz-pest-test-2";
     (nodeFs.mkdtempSync as ReturnType<typeof vi.fn>).mockReturnValue(tmpDir);
     (nodeFs.readFileSync as ReturnType<typeof vi.fn>).mockReturnValue(
       '<?xml version="1.0"?><testsuites><testsuite tests="1" failures="0"/></testsuites>',
     );
-    (childProcess.execFileSync as ReturnType<typeof vi.fn>).mockImplementation(() => '');
+    (childProcess.execFileSync as ReturnType<typeof vi.fn>).mockImplementation(() => "");
 
-    const rule = pest({ cwd: '/project' });
+    const rule = pest({ cwd: "/project" });
     const violations = await Effect.runPromise(Effect.provide(rule.run, TestLayer));
     expect(violations).toEqual([]);
   });
 
-  it('passes extra args and pattern', async () => {
-    const tmpDir = '/tmp/gesetz-pest-test-3';
+  it("passes extra args and pattern", async () => {
+    const tmpDir = "/tmp/gesetz-pest-test-3";
     (nodeFs.mkdtempSync as ReturnType<typeof vi.fn>).mockReturnValue(tmpDir);
     (nodeFs.readFileSync as ReturnType<typeof vi.fn>).mockReturnValue(
       '<?xml version="1.0"?><testsuites><testsuite tests="0" failures="0"/></testsuites>',
     );
     const spy = childProcess.execFileSync as ReturnType<typeof vi.fn>;
-    spy.mockImplementation(() => '');
+    spy.mockImplementation(() => "");
 
-    const rule = pest({ cwd: '/project', extraArgs: ['--parallel'], pattern: 'tests/Unit' });
+    const rule = pest({ cwd: "/project", extraArgs: ["--parallel"], pattern: "tests/Unit" });
     await Effect.runPromise(Effect.provide(rule.run, TestLayer));
 
     expect(spy).toHaveBeenCalledWith(
-      'vendor/bin/pest',
+      "vendor/bin/pest",
       expect.arrayContaining([
-        '--log-junit',
-        expect.stringContaining('junit.xml'),
-        '--no-progress',
-        '--parallel',
-        'tests/Unit',
+        "--log-junit",
+        expect.stringContaining("junit.xml"),
+        "--no-progress",
+        "--parallel",
+        "tests/Unit",
       ]),
       expect.any(Object),
     );
   });
 
-  it('returns empty array when JUnit file is unreadable', async () => {
-    const tmpDir = '/tmp/gesetz-pest-test-4';
+  it("returns empty array when JUnit file is unreadable", async () => {
+    const tmpDir = "/tmp/gesetz-pest-test-4";
     (nodeFs.mkdtempSync as ReturnType<typeof vi.fn>).mockReturnValue(tmpDir);
     (nodeFs.readFileSync as ReturnType<typeof vi.fn>).mockImplementation(() => {
-      throw new Error('ENOENT');
+      throw new Error("ENOENT");
     });
-    (childProcess.execFileSync as ReturnType<typeof vi.fn>).mockImplementation(() => '');
+    (childProcess.execFileSync as ReturnType<typeof vi.fn>).mockImplementation(() => "");
 
-    const rule = pest({ cwd: '/project' });
+    const rule = pest({ cwd: "/project" });
     const violations = await Effect.runPromise(Effect.provide(rule.run, TestLayer));
     expect(violations).toEqual([]);
   });
 
-  describe('FileFilter integration', () => {
-    it('passes FileFilter patterns to pest when --files is active', async () => {
-      const tmpDir = '/tmp/gesetz-pest-filefilter-1';
+  describe("FileFilter integration", () => {
+    it("passes FileFilter patterns to pest when --files is active", async () => {
+      const tmpDir = "/tmp/gesetz-pest-filefilter-1";
       (nodeFs.mkdtempSync as ReturnType<typeof vi.fn>).mockReturnValue(tmpDir);
       (nodeFs.readFileSync as ReturnType<typeof vi.fn>).mockReturnValue(
         '<?xml version="1.0"?><testsuites><testsuite tests="0" failures="0"/></testsuites>',
       );
       const spy = childProcess.execFileSync as ReturnType<typeof vi.fn>;
-      spy.mockImplementation(() => '');
+      spy.mockImplementation(() => "");
 
-      const rule = pest({ cwd: '/project' });
-      await Effect.runPromise(Effect.provide(rule.run,
-        Layer.mergeAll(
-          MemoryFileSystem({}), SyntaxTreeStub, ImportResolverDefault,
-          ProjectRootLive('/project'), FileFilterLive(['tests/Unit/**']),
+      const rule = pest({ cwd: "/project" });
+      await Effect.runPromise(
+        Effect.provide(
+          rule.run,
+          Layer.mergeAll(
+            MemoryFileSystem({}),
+            SyntaxTreeStub,
+            ImportResolverDefault,
+            ProjectRootLive("/project"),
+            FileFilterLive(["tests/Unit/**"]),
+          ),
         ),
-      ));
+      );
 
       expect(spy).toHaveBeenCalledWith(
-        'vendor/bin/pest',
-        expect.arrayContaining(['tests/Unit/**']),
+        "vendor/bin/pest",
+        expect.arrayContaining(["tests/Unit/**"]),
         expect.any(Object),
       );
     });
 
-    it('uses adapter pattern when FileFilter is null', async () => {
-      const tmpDir = '/tmp/gesetz-pest-filefilter-2';
+    it("uses adapter pattern when FileFilter is null", async () => {
+      const tmpDir = "/tmp/gesetz-pest-filefilter-2";
       (nodeFs.mkdtempSync as ReturnType<typeof vi.fn>).mockReturnValue(tmpDir);
       (nodeFs.readFileSync as ReturnType<typeof vi.fn>).mockReturnValue(
         '<?xml version="1.0"?><testsuites><testsuite tests="0" failures="0"/></testsuites>',
       );
       const spy = childProcess.execFileSync as ReturnType<typeof vi.fn>;
-      spy.mockImplementation(() => '');
+      spy.mockImplementation(() => "");
 
-      const rule = pest({ cwd: '/project', pattern: 'tests/Custom' });
+      const rule = pest({ cwd: "/project", pattern: "tests/Custom" });
       await Effect.runPromise(Effect.provide(rule.run, TestLayer));
 
       expect(spy).toHaveBeenCalledWith(
-        'vendor/bin/pest',
-        expect.arrayContaining(['tests/Custom']),
+        "vendor/bin/pest",
+        expect.arrayContaining(["tests/Custom"]),
         expect.any(Object),
       );
     });
 
-    it('runs full suite when no pattern and no FileFilter', async () => {
-      const tmpDir = '/tmp/gesetz-pest-filefilter-3';
+    it("runs full suite when no pattern and no FileFilter", async () => {
+      const tmpDir = "/tmp/gesetz-pest-filefilter-3";
       (nodeFs.mkdtempSync as ReturnType<typeof vi.fn>).mockReturnValue(tmpDir);
       (nodeFs.readFileSync as ReturnType<typeof vi.fn>).mockReturnValue(
         '<?xml version="1.0"?><testsuites><testsuite tests="0" failures="0"/></testsuites>',
       );
       const spy = childProcess.execFileSync as ReturnType<typeof vi.fn>;
-      spy.mockImplementation(() => '');
+      spy.mockImplementation(() => "");
 
-      const rule = pest({ cwd: '/project' });
+      const rule = pest({ cwd: "/project" });
       await Effect.runPromise(Effect.provide(rule.run, TestLayer));
 
       // Without patterns, pest runs its configured suite — no extra positional args
       const callArgs = spy.mock.calls[spy.mock.calls.length - 1]?.[1] as string[];
-      const positionalArgs = callArgs.filter((a) => !a.startsWith('--') && !a.startsWith('=') && a !== 'vendor/bin/pest' && !a.startsWith('/tmp/') && !a.includes('junit.xml'));
+      const positionalArgs = callArgs.filter(
+        (a) =>
+          !a.startsWith("--") &&
+          !a.startsWith("=") &&
+          a !== "vendor/bin/pest" &&
+          !a.startsWith("/tmp/") &&
+          !a.includes("junit.xml"),
+      );
       // Only --log-junit, --no-progress and the temp file path
       expect(positionalArgs.length).toBe(0);
     });
 
-    it('FileFilter patterns override adapter pattern', async () => {
-      const tmpDir = '/tmp/gesetz-pest-filefilter-4';
+    it("FileFilter patterns override adapter pattern", async () => {
+      const tmpDir = "/tmp/gesetz-pest-filefilter-4";
       (nodeFs.mkdtempSync as ReturnType<typeof vi.fn>).mockReturnValue(tmpDir);
       (nodeFs.readFileSync as ReturnType<typeof vi.fn>).mockReturnValue(
         '<?xml version="1.0"?><testsuites><testsuite tests="0" failures="0"/></testsuites>',
       );
       const spy = childProcess.execFileSync as ReturnType<typeof vi.fn>;
-      spy.mockImplementation(() => '');
+      spy.mockImplementation(() => "");
 
-      const rule = pest({ cwd: '/project', pattern: 'tests/Everything' });
-      await Effect.runPromise(Effect.provide(rule.run,
-        Layer.mergeAll(
-          MemoryFileSystem({}), SyntaxTreeStub, ImportResolverDefault,
-          ProjectRootLive('/project'), FileFilterLive(['tests/Subset']),
+      const rule = pest({ cwd: "/project", pattern: "tests/Everything" });
+      await Effect.runPromise(
+        Effect.provide(
+          rule.run,
+          Layer.mergeAll(
+            MemoryFileSystem({}),
+            SyntaxTreeStub,
+            ImportResolverDefault,
+            ProjectRootLive("/project"),
+            FileFilterLive(["tests/Subset"]),
+          ),
         ),
-      ));
+      );
 
       const callArgs = spy.mock.calls[spy.mock.calls.length - 1]?.[1] as string[];
-      expect(callArgs).toContain('tests/Subset');
-      expect(callArgs).not.toContain('tests/Everything');
+      expect(callArgs).toContain("tests/Subset");
+      expect(callArgs).not.toContain("tests/Everything");
     });
   });
 });

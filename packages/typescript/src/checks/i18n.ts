@@ -1,6 +1,6 @@
-import type { Check, Severity, Violation } from '@gesetz/core';
-import { parseFile, findByKind, startLine } from './shared';
-import type { SgNode } from '@ast-grep/napi';
+import type { Check, Severity, Violation } from "@gesetz/core";
+import { parseFile, findByKind, startLine } from "./shared";
+import type { SgNode } from "@ast-grep/napi";
 
 /**
  * Allowlist of JSX attributes known to carry user-visible, natural-language
@@ -15,18 +15,18 @@ import type { SgNode } from '@ast-grep/napi';
  * a prop actually carries user-facing natural language in real codebases.
  */
 export const DEFAULT_TEXT_ATTRIBUTES = [
-  'label',
-  'placeholder',
-  'title',
-  'aria-label',
-  'heading',
-  'subtitle',
-  'description',
-  'helperText',
-  'hint',
-  'emptyStateHeading',
-  'emptyStateDescription',
-  'modalHeading',
+  "label",
+  "placeholder",
+  "title",
+  "aria-label",
+  "heading",
+  "subtitle",
+  "description",
+  "helperText",
+  "hint",
+  "emptyStateHeading",
+  "emptyStateDescription",
+  "modalHeading",
 ] as const;
 
 export interface NoHardcodedStringsOptions {
@@ -50,9 +50,9 @@ export interface NoHardcodedStringsOptions {
 
 /** Returns the unquoted string value of a `string` node, or null. */
 function stringLiteralValue(node: SgNode): string | null {
-  if (node.kind() !== 'string') return null;
-  const frag = node.find({ rule: { kind: 'string_fragment' } });
-  return frag ? frag.text() : '';
+  if (node.kind() !== "string") return null;
+  const frag = node.find({ rule: { kind: "string_fragment" } });
+  return frag ? frag.text() : "";
 }
 
 /**
@@ -93,8 +93,8 @@ function stringLiteralValue(node: SgNode): string | null {
  */
 export function noHardcodedStrings(opts: NoHardcodedStringsOptions = {}): Check {
   const textAttributes = new Set(opts.textAttributes ?? DEFAULT_TEXT_ATTRIBUTES);
-  const attributeSeverity: Severity = opts.attributeSeverity ?? 'warn';
-  const textSeverity: Severity = opts.textSeverity ?? 'error';
+  const attributeSeverity: Severity = opts.attributeSeverity ?? "warn";
+  const textSeverity: Severity = opts.textSeverity ?? "error";
   const hasLetter = opts.hasLetterRegex ?? /[A-Za-zÄÖÜäöüßÀ-ÿ]/;
 
   return async (file) => {
@@ -108,12 +108,12 @@ export function noHardcodedStrings(opts: NoHardcodedStringsOptions = {}): Check 
     // Only flagged when it contains a letter, so whitespace-only and
     // punctuation-only text nodes (commonly used for JSX formatting) are
     // ignored.
-    for (const node of findByKind(root, 'jsx_text')) {
+    for (const node of findByKind(root, "jsx_text")) {
       const text = node.text();
       if (hasLetter.test(text)) {
         violations.push({
           severity: textSeverity,
-          source: 'core',
+          source: "core",
           message: `JSX text "${text.trim().slice(0, 40)}" must use a translation API`,
           path: file.path,
           line: startLine(node),
@@ -128,19 +128,19 @@ export function noHardcodedStrings(opts: NoHardcodedStringsOptions = {}): Check 
     // (className, href, to, variant, size, value, src, ...) are skipped.
     // Expression-container values ({m.foo()}) are skipped — only raw string
     // literals are flagged.
-    for (const attr of findByKind(root, 'jsx_attribute')) {
-      const name = attr.child(0)?.text() ?? '';
+    for (const attr of findByKind(root, "jsx_attribute")) {
+      const name = attr.child(0)?.text() ?? "";
       if (!textAttributes.has(name)) continue;
 
       // Only flag raw string literals, not expression containers like {m.foo()}
-      const valueNode = attr.children().find((c) => c.kind() === 'string');
+      const valueNode = attr.children().find((c) => c.kind() === "string");
       if (!valueNode) continue;
 
-      const value = stringLiteralValue(valueNode) ?? '';
+      const value = stringLiteralValue(valueNode) ?? "";
       if (hasLetter.test(value)) {
         violations.push({
           severity: attributeSeverity,
-          source: 'core',
+          source: "core",
           message: `Prop '${name}'="${value.slice(0, 40)}" should use a translation API`,
           path: file.path,
           line: startLine(attr),

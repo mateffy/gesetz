@@ -6,14 +6,14 @@
  *   gesetz list    — show rule catalog with guidance
  *   gesetz skill   — print agent skill markdown to stdout
  */
-import { pathToFileURL } from 'node:url';
-import * as nodeFs from 'node:fs';
-import { Command, Options } from '@effect/cli';
-import { NodeContext, NodeRuntime } from '@effect/platform-node';
-import { Console, Effect, Option } from 'effect';
-import * as nodePath from 'node:path';
-import { runAll } from '@gesetz/core';
-import { loadConfig } from './load-config';
+import { pathToFileURL } from "node:url";
+import * as nodeFs from "node:fs";
+import { Command, Options } from "@effect/cli";
+import { NodeContext, NodeRuntime } from "@effect/platform-node";
+import { Console, Effect, Option } from "effect";
+import * as nodePath from "node:path";
+import { runAll } from "@gesetz/core";
+import { loadConfig } from "./load-config";
 import {
   formatCategoryTable,
   formatViolations,
@@ -23,14 +23,14 @@ import {
   formatList,
   detectFormat,
   type OutputFormat,
-} from './format';
-import { SKILL_MARKDOWN } from './skill';
-import { initCommand } from './init';
+} from "./format";
+import { SKILL_MARKDOWN } from "./skill";
+import { initCommand } from "./init";
 
 // ─── Storage resolution ─────────────────────────────────────────────────────
 
 /** True when running under Bun (better-sqlite3 is unsupported there). */
-const isBun = typeof (globalThis as { Bun?: unknown }).Bun !== 'undefined';
+const isBun = typeof (globalThis as { Bun?: unknown }).Bun !== "undefined";
 
 /**
  * Default cache location; GESETZ_DB overrides. `--full` bypasses the cache.
@@ -40,56 +40,68 @@ const isBun = typeof (globalThis as { Bun?: unknown }).Bun !== 'undefined';
 const resolveStorage = (
   root: string,
   full: boolean,
-): import('@gesetz/core').GesetzStorageConfig => {
-  if (full || isBun) return { kind: 'memory' };
-  const dbPath = process.env.GESETZ_DB ?? nodePath.join(root, '.gesetz', 'cache.db');
+): import("@gesetz/core").GesetzStorageConfig => {
+  if (full || isBun) return { kind: "memory" };
+  const dbPath = process.env.GESETZ_DB ?? nodePath.join(root, ".gesetz", "cache.db");
   nodeFs.mkdirSync(nodePath.dirname(dbPath), { recursive: true });
-  return { kind: 'sqlite', path: dbPath };
+  return { kind: "sqlite", path: dbPath };
 };
 
 // ─── `gesetz check` ───────────────────────────────────────────────────────────
 
 const checkCommand = Command.make(
-  'check',
+  "check",
   {
-    since: Options.text('since').pipe(
-      Options.withDescription('Only report violations in files changed since this git ref (e.g. HEAD~5, main)'),
+    since: Options.text("since").pipe(
+      Options.withDescription(
+        "Only report violations in files changed since this git ref (e.g. HEAD~5, main)",
+      ),
       Options.optional,
     ),
-    category: Options.text('category').pipe(
-      Options.withDescription('Only run rules in this category (comma-separated)'),
+    category: Options.text("category").pipe(
+      Options.withDescription("Only run rules in this category (comma-separated)"),
       Options.optional,
     ),
-    format: Options.text('format').pipe(
-      Options.withDescription('Output format: pretty (default in a TTY), json (agents/CI), ci (GitHub Actions annotations)'),
+    format: Options.text("format").pipe(
+      Options.withDescription(
+        "Output format: pretty (default in a TTY), json (agents/CI), ci (GitHub Actions annotations)",
+      ),
       Options.optional,
     ),
-    all: Options.boolean('all').pipe(
-      Options.withDescription('Disable the 50-violation cap in JSON output'),
+    all: Options.boolean("all").pipe(
+      Options.withDescription("Disable the 50-violation cap in JSON output"),
       Options.withDefault(false),
     ),
-    threshold: Options.integer('threshold').pipe(
-      Options.withDescription('Minimum passing score per category (0-10). Default: 7'),
+    threshold: Options.integer("threshold").pipe(
+      Options.withDescription("Minimum passing score per category (0-10). Default: 7"),
       Options.optional,
     ),
-    projectRoot: Options.text('project-root').pipe(
-      Options.withDescription('Project root directory (default: cwd)'),
+    projectRoot: Options.text("project-root").pipe(
+      Options.withDescription("Project root directory (default: cwd)"),
       Options.optional,
     ),
-    config: Options.text('config').pipe(
-      Options.withDescription('Path to gesetz.config.ts (default: <project-root>/gesetz.config.ts)'),
+    config: Options.text("config").pipe(
+      Options.withDescription(
+        "Path to gesetz.config.ts (default: <project-root>/gesetz.config.ts)",
+      ),
       Options.optional,
     ),
-    files: Options.text('files').pipe(
-      Options.withDescription('Only check files matching these comma-separated globs (e.g. "src/components/**")'),
+    files: Options.text("files").pipe(
+      Options.withDescription(
+        'Only check files matching these comma-separated globs (e.g. "src/components/**")',
+      ),
       Options.optional,
     ),
-    full: Options.boolean('full').pipe(
-      Options.withDescription('Bypass the violation cache and re-check everything (no SQLite persistence)'),
+    full: Options.boolean("full").pipe(
+      Options.withDescription(
+        "Bypass the violation cache and re-check everything (no SQLite persistence)",
+      ),
       Options.withDefault(false),
     ),
-    watch: Options.boolean('watch').pipe(
-      Options.withDescription('Re-run checks when files change (incremental via the violation cache)'),
+    watch: Options.boolean("watch").pipe(
+      Options.withDescription(
+        "Re-run checks when files change (incremental via the violation cache)",
+      ),
       Options.withDefault(false),
     ),
   },
@@ -99,18 +111,18 @@ const checkCommand = Command.make(
       const changedSince = Option.getOrUndefined(opts.since);
       const configPath = Option.getOrUndefined(opts.config);
       const filesGlobs = Option.map(opts.files, (v) =>
-        v.split(',').map((s) => s.trim()).filter(Boolean),
+        v
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean),
       );
       const categoryFilter = Option.map(
         opts.category,
-        (v) => new Set(v.split(',').map((s) => s.trim())),
+        (v) => new Set(v.split(",").map((s) => s.trim())),
       );
 
-      const config = yield* loadConfig(
-        root,
-        { changedSince, configPath },
-      ).pipe(
-        Effect.catchTag('ConfigNotFoundError', (e) =>
+      const config = yield* loadConfig(root, { changedSince, configPath }).pipe(
+        Effect.catchTag("ConfigNotFoundError", (e) =>
           Effect.gen(function* () {
             yield* Console.error(e.message);
             return yield* Effect.fail(e);
@@ -138,9 +150,11 @@ const checkCommand = Command.make(
       });
 
       if (opts.full) {
-        yield* Console.error('(--full) cache bypassed — running without persistence.');
+        yield* Console.error("(--full) cache bypassed — running without persistence.");
       } else if (isBun) {
-        yield* Console.error('(bun) violation cache disabled — better-sqlite3 is unsupported under Bun.');
+        yield* Console.error(
+          "(bun) violation cache disabled — better-sqlite3 is unsupported under Bun.",
+        );
       }
       const format = detectFormat(Option.getOrUndefined(opts.format) as OutputFormat | undefined);
       const thresholdMap: Record<string, number> = {};
@@ -162,9 +176,11 @@ const checkCommand = Command.make(
         // Status banner to stderr — stdout stays a clean data contract.
         yield* Console.error(formatStatusBanner(result).trimEnd());
 
-        if (format === 'json') {
-          yield* Console.log(formatEnvelope(result, { all: opts.all, thresholds: thresholdMap }).trimEnd());
-        } else if (format === 'ci') {
+        if (format === "json") {
+          yield* Console.log(
+            formatEnvelope(result, { all: opts.all, thresholds: thresholdMap }).trimEnd(),
+          );
+        } else if (format === "ci") {
           yield* Console.log(formatCi(result).trimEnd());
         } else {
           yield* Console.log(formatCategoryTable(result).trimEnd());
@@ -184,7 +200,7 @@ const checkCommand = Command.make(
       }
 
       if (opts.watch) {
-        yield* Console.error('watching for changes… (Ctrl+C to stop)');
+        yield* Console.error("watching for changes… (Ctrl+C to stop)");
         // fs.watch + debounce + re-run runAll: each run is a fresh network,
         // but the SQLite marker cache makes re-runs incremental. Events
         // under the cache dir and VCS/dependency dirs are ignored so the
@@ -205,7 +221,7 @@ const checkCommand = Command.make(
               );
             }, 150);
           });
-          process.on('SIGINT', () => {
+          process.on("SIGINT", () => {
             watcher.close();
             process.exit(process.exitCode ?? 0);
           });
@@ -213,23 +229,23 @@ const checkCommand = Command.make(
         });
       }
     }),
-).pipe(Command.withDescription('Run all quality rules and show category scores'));
+).pipe(Command.withDescription("Run all quality rules and show category scores"));
 
 // ─── `gesetz list` ────────────────────────────────────────────────────────────
 
 const listCommand = Command.make(
-  'list',
+  "list",
   {
-    category: Options.text('category').pipe(
-      Options.withDescription('Filter by category (comma-separated)'),
+    category: Options.text("category").pipe(
+      Options.withDescription("Filter by category (comma-separated)"),
       Options.optional,
     ),
-    format: Options.text('format').pipe(
-      Options.withDescription('Output format: pretty (default in a TTY) or json'),
+    format: Options.text("format").pipe(
+      Options.withDescription("Output format: pretty (default in a TTY) or json"),
       Options.optional,
     ),
-    projectRoot: Options.text('project-root').pipe(
-      Options.withDescription('Project root directory (default: cwd)'),
+    projectRoot: Options.text("project-root").pipe(
+      Options.withDescription("Project root directory (default: cwd)"),
       Options.optional,
     ),
   },
@@ -238,11 +254,11 @@ const listCommand = Command.make(
       const root = nodePath.resolve(Option.getOrElse(opts.projectRoot, () => process.cwd()));
       const categoryFilter = Option.map(
         opts.category,
-        (v) => new Set(v.split(',').map((s) => s.trim())),
+        (v) => new Set(v.split(",").map((s) => s.trim())),
       );
 
       const config = yield* loadConfig(root).pipe(
-        Effect.catchTag('ConfigNotFoundError', (e) =>
+        Effect.catchTag("ConfigNotFoundError", (e) =>
           Effect.gen(function* () {
             yield* Console.error(e.message);
             return yield* Effect.fail(e);
@@ -266,30 +282,28 @@ const listCommand = Command.make(
       const format = detectFormat(Option.getOrUndefined(opts.format) as OutputFormat | undefined);
       yield* Console.log(formatList(entries, format).trimEnd());
     }),
-).pipe(Command.withDescription('List all quality rules with guidance'));
+).pipe(Command.withDescription("List all quality rules with guidance"));
 
 // ─── `gesetz skill` ───────────────────────────────────────────────────────────
 
-const skillCommand = Command.make(
-  'skill',
-  {},
-  () => Console.log(SKILL_MARKDOWN),
-).pipe(Command.withDescription('Print agent skill markdown to stdout'));
+const skillCommand = Command.make("skill", {}, () => Console.log(SKILL_MARKDOWN)).pipe(
+  Command.withDescription("Print agent skill markdown to stdout"),
+);
 
 // ─── Root command ─────────────────────────────────────────────────────────────
 
-const gesetzCommand = Command.make('gesetz', {}, () =>
-  Console.log('Run `gesetz --help` to see available commands.'),
+const gesetzCommand = Command.make("gesetz", {}, () =>
+  Console.log("Run `gesetz --help` to see available commands."),
 ).pipe(
-  Command.withDescription('Unified code quality gate \u2014 Gesetz v0.1.0'),
+  Command.withDescription("Unified code quality gate \u2014 Gesetz v0.1.0"),
   Command.withSubcommands([checkCommand, listCommand, skillCommand, initCommand]),
 );
 
 // ─── Entry point ─────────────────────────────────────────────────────────────
 
 const cli = Command.run(gesetzCommand, {
-  name: 'Gesetz',
-  version: 'v0.1.0',
+  name: "Gesetz",
+  version: "v0.1.0",
 });
 
 export function runGesetz(): void {
@@ -301,10 +315,9 @@ export function runGesetz(): void {
 // pointing at dist/main.js), otherwise process.argv[1] is the symlink path
 // while import.meta.url is the real file URL and the comparison fails —
 // silently making the CLI produce no output and exit 0.
-const entryArg = process.argv[1] ?? '';
+const entryArg = process.argv[1] ?? "";
 const isEntryPoint =
-  entryArg.length > 0 &&
-  import.meta.url === pathToFileURL(nodeFs.realpathSync(entryArg)).href;
+  entryArg.length > 0 && import.meta.url === pathToFileURL(nodeFs.realpathSync(entryArg)).href;
 if (isEntryPoint) {
   runGesetz();
 }

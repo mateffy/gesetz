@@ -1,5 +1,5 @@
-import type { Check, Violation } from '@gesetz/core';
-import { parseFile, findByKind, startLine } from './shared';
+import type { Check, Violation } from "@gesetz/core";
+import { parseFile, findByKind, startLine } from "./shared";
 
 export interface NoAsUnknownAsOptions {
   readonly message?: string;
@@ -22,20 +22,20 @@ export function noAsUnknownAs(opts: NoAsUnknownAsOptions = {}): Check {
     const violations: Violation[] = [];
     // An `as unknown as X` is an `as_expression` whose first child is
     // itself an `as_expression` whose final type is `unknown` or `any`.
-    const asExprs = findByKind(root, 'as_expression');
+    const asExprs = findByKind(root, "as_expression");
     for (const outer of asExprs) {
       const children = outer.children();
       const inner = children[0];
-      if (!inner || inner.kind() !== 'as_expression') continue;
+      if (!inner || inner.kind() !== "as_expression") continue;
       // inner's last child is the cast-away type (predefined_type: unknown/any)
       const innerChildren = inner.children();
       const innerType = innerChildren[innerChildren.length - 1];
       if (!innerType) continue;
       const typeText = innerType.text();
-      if (typeText === 'unknown' || typeText === 'any') {
+      if (typeText === "unknown" || typeText === "any") {
         violations.push({
-          severity: 'error',
-          source: 'core',
+          severity: "error",
+          source: "core",
           message:
             opts.message ??
             `Double cast \`as ${typeText} as X\` bypasses the type system — use a type guard`,

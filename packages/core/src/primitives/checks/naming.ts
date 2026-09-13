@@ -1,12 +1,12 @@
-import type { StructureItem } from '../../services/syntax-tree';
-import type { Check, Violation } from '../../engine/rule';
+import type { StructureItem } from "../../services/syntax-tree";
+import type { Check, Violation } from "../../engine/rule";
 
 export interface RequireNamingConventionOptions {
   /** e.g. ['function', 'class'] — if omitted, all kinds */
   readonly kinds?: readonly string[];
   readonly pattern: RegExp;
   readonly message?: string;
-  readonly severity?: Violation['severity'];
+  readonly severity?: Violation["severity"];
 }
 
 /**
@@ -30,8 +30,8 @@ export function requireNamingConvention(opts: RequireNamingConventionOptions): C
           const kindMatch = !opts.kinds || opts.kinds.includes(item.kind);
           if (kindMatch && !opts.pattern.test(item.name)) {
             violations.push({
-              severity: opts.severity ?? 'warn',
-              source: 'core',
+              severity: opts.severity ?? "warn",
+              source: "core",
               message:
                 opts.message ?? `'${item.name}' does not match naming convention ${opts.pattern}`,
               path: file.path,
@@ -53,7 +53,7 @@ export function requireNamingConvention(opts: RequireNamingConventionOptions): C
 export interface NoForbiddenNamesOptions {
   readonly kinds?: readonly string[];
   readonly message?: (name: string) => string;
-  readonly severity?: Violation['severity'];
+  readonly severity?: Violation["severity"];
 }
 
 /**
@@ -84,8 +84,8 @@ export function noForbiddenNames(
           const kindMatch = !opts.kinds || opts.kinds.includes(item.kind);
           if (kindMatch && matcher(item.name)) {
             violations.push({
-              severity: opts.severity ?? 'error',
-              source: 'core',
+              severity: opts.severity ?? "error",
+              source: "core",
               message: opts.message?.(item.name) ?? `Forbidden name: '${item.name}'`,
               path: file.path,
               line: item.startLine,

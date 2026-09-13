@@ -20,10 +20,10 @@ import type {
   ParsedCall,
   ParsedExport,
   StructureItem,
-} from '@gesetz/core';
-import { registerDynamicLanguage, parse } from '@ast-grep/napi';
-import type { SgNode } from '@ast-grep/napi';
-import { createRequire } from 'node:module';
+} from "@gesetz/core";
+import { registerDynamicLanguage, parse } from "@ast-grep/napi";
+import type { SgNode } from "@ast-grep/napi";
+import { createRequire } from "node:module";
 
 const moduleRequire = createRequire(import.meta.url);
 
@@ -33,7 +33,7 @@ function ensureRegistered(): boolean {
   if (phpRegistered) return true;
   try {
     // `@ast-grep/lang-php` is an optional peer dep -- degrade gracefully.
-    const phpLang = moduleRequire('@ast-grep/lang-php');
+    const phpLang = moduleRequire("@ast-grep/lang-php");
     registerDynamicLanguage({ php: phpLang });
     phpRegistered = true;
     return true;
@@ -49,7 +49,7 @@ function startLine(node: SgNode): number {
 /** Find a JSDoc/PHPDoc comment attached to a node (its previous sibling). */
 function findDocstring(node: SgNode): string | null {
   const prev = node.prev();
-  if (prev && prev.kind() === 'comment') {
+  if (prev && prev.kind() === "comment") {
     return prev.text();
   }
   return null;
@@ -58,14 +58,14 @@ function findDocstring(node: SgNode): string | null {
 function extractImports(content: string): ParsedImport[] {
   if (!ensureRegistered()) return [];
   try {
-    const root = parse('php', content).root();
+    const root = parse("php", content).root();
     const imports: ParsedImport[] = [];
-    for (const decl of root.findAll({ rule: { kind: 'namespace_use_declaration' } })) {
+    for (const decl of root.findAll({ rule: { kind: "namespace_use_declaration" } })) {
       const line = startLine(decl);
-      for (const clause of decl.findAll({ rule: { kind: 'namespace_use_clause' } })) {
+      for (const clause of decl.findAll({ rule: { kind: "namespace_use_clause" } })) {
         // Text may be "Illuminate\\Database\\Eloquent\\Model" or "HasUuid as Uuid"
         const text = clause.text();
-        const specifier = text.split(' as ')[0]?.trim() ?? text;
+        const specifier = text.split(" as ")[0]?.trim() ?? text;
         imports.push({ specifier, names: [], line });
       }
     }
@@ -78,14 +78,14 @@ function extractImports(content: string): ParsedImport[] {
 function extractCalls(content: string): ParsedCall[] {
   if (!ensureRegistered()) return [];
   try {
-    const root = parse('php', content).root();
+    const root = parse("php", content).root();
     return root
-      .findAll({ rule: { kind: 'function_call_expression' } })
+      .findAll({ rule: { kind: "function_call_expression" } })
       .map((n) => ({
-        name: n.child(0)?.text() ?? '',
+        name: n.child(0)?.text() ?? "",
         line: startLine(n),
       }))
-      .filter((c) => c.name !== '');
+      .filter((c) => c.name !== "");
   } catch {
     return [];
   }
@@ -103,21 +103,21 @@ function extractStructure(
 ): StructureItem[] {
   if (!ensureRegistered()) return [];
   try {
-    const root = parse('php', content).root();
+    const root = parse("php", content).root();
     const items: StructureItem[] = [];
 
     // Classes
-    for (const n of root.findAll({ rule: { kind: 'class_declaration' } })) {
-      const nameNode = n.find({ rule: { kind: 'name' } });
+    for (const n of root.findAll({ rule: { kind: "class_declaration" } })) {
+      const nameNode = n.find({ rule: { kind: "name" } });
       if (!nameNode) continue;
       const docstring = includeDocstrings ? findDocstring(n) : null;
       const children: StructureItem[] = n
-        .findAll({ rule: { kind: 'method_declaration' } })
+        .findAll({ rule: { kind: "method_declaration" } })
         .map((m): StructureItem => {
-          const mname = m.find({ rule: { kind: 'name' } })?.text() ?? '';
+          const mname = m.find({ rule: { kind: "name" } })?.text() ?? "";
           const mdoc = includeDocstrings ? findDocstring(m) : null;
           return {
-            kind: 'method',
+            kind: "method",
             name: mname,
             startLine: startLine(m),
             endLine: m.range().end.line + 1,
@@ -125,10 +125,10 @@ function extractStructure(
             children: [],
           };
         })
-        .filter((m) => m.name !== '');
+        .filter((m) => m.name !== "");
 
       items.push({
-        kind: 'class',
+        kind: "class",
         name: nameNode.text(),
         startLine: startLine(n),
         endLine: n.range().end.line + 1,
@@ -138,12 +138,12 @@ function extractStructure(
     }
 
     // Top-level functions
-    for (const n of root.findAll({ rule: { kind: 'function_definition' } })) {
-      const nameNode = n.find({ rule: { kind: 'name' } });
+    for (const n of root.findAll({ rule: { kind: "function_definition" } })) {
+      const nameNode = n.find({ rule: { kind: "name" } });
       if (!nameNode) continue;
       const docstring = includeDocstrings ? findDocstring(n) : null;
       items.push({
-        kind: 'function',
+        kind: "function",
         name: nameNode.text(),
         startLine: startLine(n),
         endLine: n.range().end.line + 1,
@@ -159,7 +159,7 @@ function extractStructure(
 }
 
 export const phpSyntaxBackend: SyntaxBackend = {
-  extensions: ['.php'],
+  extensions: [".php"],
   extractImports: (content) => extractImports(content),
   extractCalls: (content) => extractCalls(content),
   extractExports: (content) => extractExports(content),

@@ -1,5 +1,5 @@
-import type { Check, Violation } from '@gesetz/core';
-import { parseFile, findByKind, startLine } from './shared';
+import type { Check, Violation } from "@gesetz/core";
+import { parseFile, findByKind, startLine } from "./shared";
 
 /**
  * Checks that none of the listed function names are called in the file.
@@ -23,14 +23,14 @@ export function noFunctionCalls(
     if (root === null) return [];
 
     const violations: Violation[] = [];
-    const calls = findByKind(root, 'call_expression');
+    const calls = findByKind(root, "call_expression");
 
     for (const call of calls) {
-      const callName = call.child(0)?.text() ?? '';
+      const callName = call.child(0)?.text() ?? "";
       if (nameSet.has(callName)) {
         violations.push({
-          severity: 'error',
-          source: 'core',
+          severity: "error",
+          source: "core",
           message: opts.message?.(callName) ?? `Forbidden function call: ${callName}()`,
           path: file.path,
           line: startLine(call),

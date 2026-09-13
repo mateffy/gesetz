@@ -8,14 +8,14 @@
  * `--files`, `--since`, and `--category` stay aggregation-time filters that
  * never invalidate the marker cache.
  */
-import type { FileMarker } from 'netzwerk';
-import type { Violation } from '../engine/rule';
+import type { FileMarker } from "netzwerk";
+import type { Violation } from "../engine/rule";
 
 /** Extension namespace all gesetz-produced violation markers live under. */
-export const GESETZ_EXTENSION = 'gesetz';
+export const GESETZ_EXTENSION = "gesetz";
 
 /** Marker type within the gesetz namespace. */
-export const VIOLATION_TYPE = 'violation';
+export const VIOLATION_TYPE = "violation";
 
 /** Public, namespaced marker type: `gesetz.violation`. */
 export const VIOLATION_MARKER_TYPE = `${GESETZ_EXTENSION}.${VIOLATION_TYPE}`;
@@ -25,8 +25,8 @@ export interface ViolationMarkerData {
   readonly description: string;
   readonly category: string | null;
   readonly message: string;
-  readonly severity: 'error' | 'warn' | 'info';
-  readonly source: 'core' | 'eslint' | 'phpstan' | 'oxlint' | 'custom';
+  readonly severity: "error" | "warn" | "info";
+  readonly source: "core" | "eslint" | "phpstan" | "oxlint" | "custom";
   readonly column?: number;
   readonly context?: string;
   readonly fix?: string;
@@ -41,7 +41,7 @@ export type ViolationMarker = FileMarker<ViolationMarkerData>;
 export function violationToMarker(
   violation: Violation,
   rule: { id: string; description: string; category?: string | undefined },
-): { type: 'violation'; data: ViolationMarkerData; lines?: readonly [number] } {
+): { type: "violation"; data: ViolationMarkerData; lines?: readonly [number] } {
   const data: ViolationMarkerData = {
     rule: violation.rule ?? rule.id,
     description: rule.description,

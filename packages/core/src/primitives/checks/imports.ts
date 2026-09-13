@@ -1,4 +1,4 @@
-import type { Check, Violation } from '../../engine/rule';
+import type { Check, Violation } from "../../engine/rule";
 
 /**
  * Simple regex fallback for extracting import specifiers from JS/TS-like
@@ -34,14 +34,14 @@ function regexExtractImports(content: string): string[] {
  */
 export function noImportFrom(
   module: string | RegExp,
-  opts: { message?: string; severity?: Violation['severity'] } = {},
+  opts: { message?: string; severity?: Violation["severity"] } = {},
 ): Check {
   const matcher =
-    typeof module === 'string'
-      ? (specifier: string) => specifier === module || specifier.startsWith(module + '/')
+    typeof module === "string"
+      ? (specifier: string) => specifier === module || specifier.startsWith(module + "/")
       : (specifier: string) => module.test(specifier);
 
-  const label = typeof module === 'string' ? module : module.source;
+  const label = typeof module === "string" ? module : module.source;
 
   return async (file, { syntax }) => {
     const violations: Violation[] = [];
@@ -52,8 +52,8 @@ export function noImportFrom(
         for (const imp of result.imports) {
           if (matcher(imp.specifier)) {
             violations.push({
-              severity: opts.severity ?? 'error',
-              source: 'core',
+              severity: opts.severity ?? "error",
+              source: "core",
               message: opts.message ?? `Forbidden import from '${label}'`,
               path: file.path,
               line: imp.line,
@@ -70,8 +70,8 @@ export function noImportFrom(
     for (const specifier of regexExtractImports(file.content)) {
       if (matcher(specifier)) {
         violations.push({
-          severity: opts.severity ?? 'error',
-          source: 'core',
+          severity: opts.severity ?? "error",
+          source: "core",
           message: opts.message ?? `Forbidden import from '${label}'`,
           path: file.path,
         });
@@ -90,14 +90,14 @@ export function noImportFrom(
  */
 export function requireImportFrom(
   module: string | RegExp,
-  opts: { message?: string; severity?: Violation['severity'] } = {},
+  opts: { message?: string; severity?: Violation["severity"] } = {},
 ): Check {
   const matcher =
-    typeof module === 'string'
-      ? (specifier: string) => specifier === module || specifier.startsWith(module + '/')
+    typeof module === "string"
+      ? (specifier: string) => specifier === module || specifier.startsWith(module + "/")
       : (specifier: string) => module.test(specifier);
 
-  const label = typeof module === 'string' ? module : module.source;
+  const label = typeof module === "string" ? module : module.source;
 
   return async (file, { syntax }) => {
     let specifiers: string[];
@@ -116,8 +116,8 @@ export function requireImportFrom(
 
     return [
       {
-        severity: opts.severity ?? 'error',
-        source: 'core',
+        severity: opts.severity ?? "error",
+        source: "core",
         message: opts.message ?? `Missing required import from '${label}'`,
         path: file.path,
       },

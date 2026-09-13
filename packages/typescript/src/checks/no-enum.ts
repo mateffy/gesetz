@@ -1,5 +1,5 @@
-import type { Check, Violation } from '@gesetz/core';
-import { parseFile, findByKind, startLine } from './shared';
+import type { Check, Violation } from "@gesetz/core";
+import { parseFile, findByKind, startLine } from "./shared";
 
 export interface NoEnumOptions {
   readonly message?: string;
@@ -21,14 +21,13 @@ export function noEnum(opts: NoEnumOptions = {}): Check {
     if (root === null) return [];
 
     const violations: Violation[] = [];
-    const enumDecls = findByKind(root, 'enum_declaration');
+    const enumDecls = findByKind(root, "enum_declaration");
     for (const node of enumDecls) {
       violations.push({
-        severity: 'warn',
-        source: 'core',
+        severity: "warn",
+        source: "core",
         message:
-          opts.message ??
-          'Avoid TypeScript `enum` — use a union type or `as const` object map',
+          opts.message ?? "Avoid TypeScript `enum` — use a union type or `as const` object map",
         path: file.path,
         line: startLine(node),
       });

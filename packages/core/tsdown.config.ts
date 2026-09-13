@@ -1,4 +1,4 @@
-import { defineConfig } from 'tsdown';
+import { defineConfig } from "tsdown";
 
 /**
  * @gesetz/core — standard build plus the ./reporters subpath export.
@@ -13,10 +13,10 @@ import { defineConfig } from 'tsdown';
  * provide them when they opt into those helpers.
  */
 export default defineConfig({
-  entry: ['src/index.ts', 'src/reporters/index.ts'],
-  format: ['esm'],
+  entry: ["src/index.ts", "src/reporters/index.ts"],
+  format: ["esm"],
   dts: true,
   clean: false,
-  outExtensions: () => ({ js: '.js', dts: '.d.ts' }),
-  external: ['vitest', 'bun:test'],
+  outExtensions: () => ({ js: ".js", dts: ".d.ts" }),
+  external: ["vitest", "bun:test"],
 });

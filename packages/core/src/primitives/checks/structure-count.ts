@@ -1,9 +1,9 @@
-import type { StructureItem } from '../../services/syntax-tree';
-import type { Check, Violation } from '../../engine/rule';
+import type { StructureItem } from "../../services/syntax-tree";
+import type { Check, Violation } from "../../engine/rule";
 
 export interface RequireMinStructureCountOptions {
   readonly message?: string;
-  readonly severity?: Violation['severity'];
+  readonly severity?: Violation["severity"];
 }
 
 /**
@@ -38,8 +38,8 @@ export function requireMinStructureCount(
 
       return [
         {
-          severity: opts.severity ?? 'warn',
-          source: 'core',
+          severity: opts.severity ?? "warn",
+          source: "core",
           message:
             opts.message ??
             `Expected at least ${minCount} '${kind}' declaration(s), found ${count}`,

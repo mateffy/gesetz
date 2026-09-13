@@ -9,33 +9,33 @@
  * marked in their description. The suggested preset is the default choice.
  * On `QuitException` (Ctrl-C) the Effect fails cleanly → exit 1.
  */
-import { Prompt } from '@effect/cli';
-import type { QuitException, Terminal } from '@effect/platform/Terminal';
-import { Console, Effect } from 'effect';
-import type { ProjectProfile, ToolId, PresetId } from './detect';
-import type { Plan } from './rules';
-import { toolsForPreset, blueprintsForPreset } from './rules';
-import { PRESET_CHOICES } from './presets';
-import type { InitFlags } from './write';
+import { Prompt } from "@effect/cli";
+import type { QuitException, Terminal } from "@effect/platform/Terminal";
+import { Console, Effect } from "effect";
+import type { ProjectProfile, ToolId, PresetId } from "./detect";
+import type { Plan } from "./rules";
+import { toolsForPreset, blueprintsForPreset } from "./rules";
+import { PRESET_CHOICES } from "./presets";
+import type { InitFlags } from "./write";
 
 const ALL_TOOLS: ToolId[] = [
-  'oxlint',
-  'oxfmt',
-  'prettier',
-  'eslint',
-  'vitest',
-  'bun-test',
-  'storybook',
-  'phpstan',
-  'pest',
-  'phpunit',
+  "oxlint",
+  "oxfmt",
+  "prettier",
+  "eslint",
+  "vitest",
+  "bun-test",
+  "storybook",
+  "phpstan",
+  "pest",
+  "phpunit",
 ];
 
 type PromptErr = QuitException | Error;
 
 function runOverwriteGate(): Effect.Effect<boolean, PromptErr, Terminal> {
   return Prompt.confirm({
-    message: 'gesetz.config.ts exists \u2014 overwrite it?',
+    message: "gesetz.config.ts exists \u2014 overwrite it?",
     initial: false,
   });
 }
@@ -58,32 +58,28 @@ function runToolsPrompt(
 ): Effect.Effect<ToolId[], PromptErr, Terminal> {
   const detected = new Set(profile.detectedTools.map((t) => t.tool));
   const suggested = new Set(toolsForPreset(preset));
-  const isLaravel = preset === 'laravel';
+  const isLaravel = preset === "laravel";
   const choices = ALL_TOOLS.filter((t) => {
-    const isPhp = t === 'phpstan' || t === 'pest' || t === 'phpunit';
+    const isPhp = t === "phpstan" || t === "pest" || t === "phpunit";
     return isLaravel ? isPhp : !isPhp;
   }).map((t) => ({
     title: String(t),
     value: t,
     description: detected.has(t)
-      ? '\u2713 detected'
+      ? "\u2713 detected"
       : suggested.has(t)
-        ? 'recommended'
-        : 'not detected',
+        ? "recommended"
+        : "not detected",
   }));
   const detectedList = [...detected].filter((t) =>
     isLaravel
-      ? t === 'phpstan' || t === 'pest' || t === 'phpunit'
-      : !(t === 'phpstan' || t === 'pest' || t === 'phpunit'),
+      ? t === "phpstan" || t === "pest" || t === "phpunit"
+      : !(t === "phpstan" || t === "pest" || t === "phpunit"),
   );
   return Prompt.multiSelect({
-    message: `Select QA tools to wire in (detected: ${detectedList.join(', ') || 'none'} \u2014 press space to toggle)`,
+    message: `Select QA tools to wire in (detected: ${detectedList.join(", ") || "none"} \u2014 press space to toggle)`,
     choices,
-  }).pipe(
-    Effect.map((arr) =>
-      arr.filter((s): s is ToolId => ALL_TOOLS.includes(s as ToolId)),
-    ),
-  );
+  }).pipe(Effect.map((arr) => arr.filter((s): s is ToolId => ALL_TOOLS.includes(s as ToolId))));
 }
 
 function runRulesPrompt(
@@ -133,8 +129,8 @@ export function runWizard(
     if (profile.hasExistingConfig && !flags.force) {
       const overwrite = yield* runOverwriteGate();
       if (!overwrite) {
-        yield* Console.log('Cancelled \u2014 no changes made.');
-        return yield* Effect.fail(new Error('cancelled'));
+        yield* Console.log("Cancelled \u2014 no changes made.");
+        return yield* Effect.fail(new Error("cancelled"));
       }
     }
 
@@ -142,12 +138,8 @@ export function runWizard(
     const toolsArr = yield* runToolsPrompt(profile, preset);
     const tools = new Set(toolsArr);
     const rulesArr = yield* runRulesPrompt(profile, preset, tools);
-    const install = flags.install
-      ? yield* runInstallPrompt(profile.packageManager)
-      : false;
-    const qaScript = flags.qaScript
-      ? yield* runQaScriptPrompt()
-      : false;
+    const install = flags.install ? yield* runInstallPrompt(profile.packageManager) : false;
+    const qaScript = flags.qaScript ? yield* runQaScriptPrompt() : false;
 
     return {
       preset,

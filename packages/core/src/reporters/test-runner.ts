@@ -1,10 +1,10 @@
-import { Effect, Layer } from 'effect';
-import { Reporter } from './reporter';
-import { ReporterError } from '../engine/errors';
-import type { RunResult } from '../engine/runner';
-import type { FileSystem, ProjectRoot, FileFilter } from '../services/fs';
-import type { SyntaxTree } from '../services/syntax-tree';
-import type { ImportResolver } from '../services/import-resolver';
+import { Effect, Layer } from "effect";
+import { Reporter } from "./reporter";
+import { ReporterError } from "../engine/errors";
+import type { RunResult } from "../engine/runner";
+import type { FileSystem, ProjectRoot, FileFilter } from "../services/fs";
+import type { SyntaxTree } from "../services/syntax-tree";
+import type { ImportResolver } from "../services/import-resolver";
 
 /**
  * Minimal interface required from a test runner.
@@ -36,11 +36,11 @@ export function TestRunnerReporter(runner: TestRunnerAPI): Layer.Layer<Reporter>
       Effect.sync(() => {
         const { describe, it, expect } = runner;
 
-        describe('Quality Assurance', () => {
+        describe("Quality Assurance", () => {
           for (const { ruleId, description, violations } of result.byRule) {
             it(description || ruleId, () => {
               const messages = violations.map(
-                (v) => `${v.path}:${v.line ?? '?'} \u2014 ${v.message}`,
+                (v) => `${v.path}:${v.line ?? "?"} \u2014 ${v.message}`,
               );
               expect(messages).toEqual([]);
             });
@@ -82,12 +82,12 @@ type ServicesLayer = Layer.Layer<
  * await defineQualityTests(config, { describe, it, expect }, services);
  */
 export async function defineQualityTests(
-  config: import('../engine/config').ResolvedConfig,
+  config: import("../engine/config").ResolvedConfig,
   runner: TestRunnerAPI,
   servicesLayer: ServicesLayer,
 ): Promise<void> {
-  const { runAll } = await import('../engine/runner');
-  const { ProjectRootLive, FileFilterLive } = await import('../services/fs');
+  const { runAll } = await import("../engine/runner");
+  const { ProjectRootLive, FileFilterLive } = await import("../services/fs");
 
   const program = Effect.gen(function* () {
     const result = yield* runAll(config);
@@ -119,10 +119,10 @@ export async function defineQualityTests(
  * await defineQualityTestsVitest(config, services);
  */
 export async function defineQualityTestsVitest(
-  config: import('../engine/config').ResolvedConfig,
+  config: import("../engine/config").ResolvedConfig,
   servicesLayer: ServicesLayer,
 ): Promise<void> {
-  const { describe, it, expect } = await import('vitest');
+  const { describe, it, expect } = await import("vitest");
   await defineQualityTests(config, { describe, it, expect }, servicesLayer);
 }
 
@@ -139,16 +139,14 @@ export async function defineQualityTestsVitest(
  * await defineQualityTestsBunTest(config, services);
  */
 export async function defineQualityTestsBunTest(
-  config: import('../engine/config').ResolvedConfig,
+  config: import("../engine/config").ResolvedConfig,
   servicesLayer: ServicesLayer,
 ): Promise<void> {
   // @ts-expect-error — bun:test is only available in the Bun runtime; the
   // module is untyped in non-Bun environments. The catch below handles absence.
-  const bunTest: typeof import('bun:test') | null = await import('bun:test').catch(
-    () => null,
-  );
+  const bunTest: typeof import("bun:test") | null = await import("bun:test").catch(() => null);
   if (bunTest === null) {
-    return Promise.reject(new Error('bun:test is not available — run this file with Bun'));
+    return Promise.reject(new Error("bun:test is not available — run this file with Bun"));
   }
   const { describe, it, expect } = bunTest;
   await defineQualityTests(config, { describe, it, expect }, servicesLayer);

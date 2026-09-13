@@ -1,5 +1,5 @@
-import * as nodePath from 'node:path';
-import type { Check, Violation } from '@gesetz/core';
+import * as nodePath from "node:path";
+import type { Check, Violation } from "@gesetz/core";
 
 /**
  * Checks that all relative imports in the file resolve to existing files.
@@ -22,13 +22,13 @@ export function relativeImports(opts: { message?: (imp: string) => string } = {}
       if (imp === undefined) continue;
 
       const base = nodePath.resolve(nodePath.dirname(file.absolutePath), imp);
-      const cleanBase = base.replace(/\.[jt]sx?$/, '');
+      const cleanBase = base.replace(/\.[jt]sx?$/, "");
 
       const candidates = [
-        cleanBase + '.ts',
-        cleanBase + '.tsx',
-        cleanBase + '/index.ts',
-        cleanBase + '/index.tsx',
+        cleanBase + ".ts",
+        cleanBase + ".tsx",
+        cleanBase + "/index.ts",
+        cleanBase + "/index.tsx",
         base, // bare path (rare)
       ];
 
@@ -43,11 +43,10 @@ export function relativeImports(opts: { message?: (imp: string) => string } = {}
 
       if (!found) {
         violations.push({
-          severity: 'error',
-          source: 'core',
+          severity: "error",
+          source: "core",
           message:
-            opts.message?.(imp) ??
-            `Relative import '${imp}' does not resolve to an existing file`,
+            opts.message?.(imp) ?? `Relative import '${imp}' does not resolve to an existing file`,
           path: file.path,
         });
       }

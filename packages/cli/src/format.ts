@@ -11,11 +11,11 @@
  * decoration behind `isTTY` (ASCII fallback when piped) so the output is
  * never mojibake-prone.
  */
-import type { CategoryScore, RunResult, RuleResult, Violation } from '@gesetz/core';
+import type { CategoryScore, RunResult, RuleResult, Violation } from "@gesetz/core";
 
 // ─── Output format ──────────────────────────────────────────────────────────
 
-export type OutputFormat = 'pretty' | 'json' | 'ci';
+export type OutputFormat = "pretty" | "json" | "ci";
 
 /**
  * Environment variables that signal gesetz is running inside an AI agent.
@@ -23,14 +23,14 @@ export type OutputFormat = 'pretty' | 'json' | 'ci';
  * Mirrors Laravel PAO's detection approach.
  */
 export const AGENT_ENV_VARS = [
-  'CLAUDE_CODE',
-  'CLAUDECODE',
-  'CURSOR',
-  'CURSOR_TRACE_ID',
-  'DEVIN',
-  'GEMINI_CLI',
-  'AGENT_TASK_ID',
-  'AIDER_CHAT',
+  "CLAUDE_CODE",
+  "CLAUDECODE",
+  "CURSOR",
+  "CURSOR_TRACE_ID",
+  "DEVIN",
+  "GEMINI_CLI",
+  "AGENT_TASK_ID",
+  "AIDER_CHAT",
 ] as const;
 
 /**
@@ -42,23 +42,23 @@ export const AGENT_ENV_VARS = [
  */
 export function detectFormat(explicit?: OutputFormat | undefined): OutputFormat {
   if (explicit !== undefined) return explicit;
-  if (!process.stdout.isTTY) return 'json';
-  if (AGENT_ENV_VARS.some((k) => process.env[k])) return 'json';
-  return 'pretty';
+  if (!process.stdout.isTTY) return "json";
+  if (AGENT_ENV_VARS.some((k) => process.env[k])) return "json";
+  return "pretty";
 }
 
 // ─── ANSI colours ────────────────────────────────────────────────────────────
 
 const C = {
-  reset: '\x1b[0m',
-  bold: '\x1b[1m',
-  dim: '\x1b[2m',
-  red: '\x1b[31m',
-  green: '\x1b[32m',
-  yellow: '\x1b[33m',
-  blue: '\x1b[34m',
-  cyan: '\x1b[36m',
-  white: '\x1b[37m',
+  reset: "\x1b[0m",
+  bold: "\x1b[1m",
+  dim: "\x1b[2m",
+  red: "\x1b[31m",
+  green: "\x1b[32m",
+  yellow: "\x1b[33m",
+  blue: "\x1b[34m",
+  cyan: "\x1b[36m",
+  white: "\x1b[37m",
 } as const;
 
 function isTty(): boolean {
@@ -68,7 +68,7 @@ function isTty(): boolean {
 /** Wraps text in ANSI codes only when stdout is a TTY; otherwise returns it bare. */
 function color(text: string, ...codes: string[]): string {
   if (!isTty()) return text;
-  return `${codes.join('')}${text}${C.reset}`;
+  return `${codes.join("")}${text}${C.reset}`;
 }
 
 function scoreColor(score: number): string {
@@ -100,11 +100,11 @@ const PRETTY_GLYPHS: Glyphs = {
 };
 
 const ASCII_GLYPHS: Glyphs = {
-  hLine: '-',
-  fill: '#',
-  empty: '.',
-  pass: '+',
-  fail: 'x',
+  hLine: "-",
+  fill: "#",
+  empty: ".",
+  pass: "+",
+  fail: "x",
 };
 
 function glyphs(): Glyphs {
@@ -132,9 +132,9 @@ export function formatCategoryTable(result: RunResult): string {
 
   const header =
     color(
-      `  ${'Category'.padEnd(colWidths.category)}  ${'Score'.padEnd(colWidths.bar + 4)}  ${'Errors'.padStart(colWidths.errors)}  ${'Warnings'.padStart(colWidths.warnings)}  Status`,
+      `  ${"Category".padEnd(colWidths.category)}  ${"Score".padEnd(colWidths.bar + 4)}  ${"Errors".padStart(colWidths.errors)}  ${"Warnings".padStart(colWidths.warnings)}  Status`,
       C.bold,
-    ) + '\n';
+    ) + "\n";
 
   const divider = color(`  ${g.hLine.repeat(72)}\n`, C.dim);
 
@@ -151,10 +151,10 @@ export function formatCategoryTable(result: RunResult): string {
       const scoreCol = scoreColor(cat.score);
       return `  ${color(catName, C.bold)}  ${bar(cat.score)}  ${color(scoreStr, scoreCol)}  ${errStr}  ${warnStr}${status}`;
     })
-    .join('\n');
+    .join("\n");
 
-  const total = `\n  ${color('Total violations:', C.bold)} ${color(result.totalViolations.toString(), result.totalViolations > 0 ? C.red : C.green)}`;
-  const overall = `\n  ${color('Overall:', C.bold)} ${result.passing ? color('PASS', C.green + C.bold) : color('FAIL', C.red + C.bold)}`;
+  const total = `\n  ${color("Total violations:", C.bold)} ${color(result.totalViolations.toString(), result.totalViolations > 0 ? C.red : C.green)}`;
+  const overall = `\n  ${color("Overall:", C.bold)} ${result.passing ? color("PASS", C.green + C.bold) : color("FAIL", C.red + C.bold)}`;
 
   return `\n${header}${divider}${rows}\n${divider}${total}${overall}\n`;
 }
@@ -175,7 +175,7 @@ export function formatViolations(byRule: RuleResult[]): string {
       flat.push({ ruleId: result.ruleId, v });
     }
   }
-  if (flat.length === 0) return '';
+  if (flat.length === 0) return "";
 
   // Group by path, then sort lines numerically (line-less first).
   const byFile = new Map<string, { ruleId: string; v: Violation }[]>();
@@ -200,14 +200,14 @@ export function formatViolations(byRule: RuleResult[]): string {
     const fileViolations = byFile.get(path);
     if (!fileViolations) continue;
     for (const { ruleId, v } of fileViolations) {
-      const loc = v.line != null ? `L${v.line}${v.column != null ? `:${v.column}` : ''}` : '      ';
-      const sevColor = v.severity === 'error' ? C.red : v.severity === 'warn' ? C.yellow : C.blue;
+      const loc = v.line != null ? `L${v.line}${v.column != null ? `:${v.column}` : ""}` : "      ";
+      const sevColor = v.severity === "error" ? C.red : v.severity === "warn" ? C.yellow : C.blue;
       const sev = color(`[${v.severity}]`, sevColor);
       lines.push(`    ${sev} ${color(loc.padEnd(7), C.dim)} ${color(ruleId, C.dim)}  ${v.message}`);
     }
   }
   void g; // (glyphs reserved for future per-row use)
-  return lines.join('\n') + '\n';
+  return lines.join("\n") + "\n";
 }
 
 // ─── JSON envelope (agents / machines) ──────────────────────────────────────
@@ -219,7 +219,7 @@ export function formatViolations(byRule: RuleResult[]): string {
 export const MAX_VIOLATIONS = 50;
 
 interface EnvelopeViolation {
-  sev: 'error' | 'warn' | 'info';
+  sev: "error" | "warn" | "info";
   rule: string;
   path: string;
   line: number | null;
@@ -239,7 +239,7 @@ interface EnvelopeCategory {
 
 interface Envelope {
   v: 1;
-  status: 'pass' | 'fail';
+  status: "pass" | "fail";
   passing: boolean;
   total: number;
   summary: Record<string, number>;
@@ -295,7 +295,7 @@ export function buildEnvelope(
 
   return {
     v: 1,
-    status: result.passing ? 'pass' : 'fail',
+    status: result.passing ? "pass" : "fail",
     passing: result.passing,
     total: result.totalViolations,
     summary,
@@ -311,7 +311,7 @@ export function formatEnvelope(
   result: RunResult,
   opts: { all?: boolean; thresholds?: Record<string, number> } = {},
 ): string {
-  return JSON.stringify(buildEnvelope(result, opts)) + '\n';
+  return JSON.stringify(buildEnvelope(result, opts)) + "\n";
 }
 
 // ─── CI annotations (GitHub Actions) ─────────────────────────────────────────
@@ -324,14 +324,14 @@ export function formatCi(result: RunResult): string {
   const lines: string[] = [];
   for (const r of result.byRule) {
     for (const v of r.violations) {
-      const level = v.severity === 'warn' ? 'warning' : v.severity === 'error' ? 'error' : 'notice';
+      const level = v.severity === "warn" ? "warning" : v.severity === "error" ? "error" : "notice";
       const parts = [`file=${v.path}`];
       if (v.line !== undefined) parts.push(`line=${v.line}`);
       if (v.column !== undefined) parts.push(`col=${v.column}`);
-      lines.push(`::${level} ${parts.join(',')}::${v.message} [${r.ruleId}]`);
+      lines.push(`::${level} ${parts.join(",")}::${v.message} [${r.ruleId}]`);
     }
   }
-  return lines.join('\n') + (lines.length > 0 ? '\n' : '');
+  return lines.join("\n") + (lines.length > 0 ? "\n" : "");
 }
 
 // ─── Status banner (stderr, all modes) ───────────────────────────────────────
@@ -341,8 +341,8 @@ export function formatCi(result: RunResult): string {
  * contract in every mode.
  */
 export function formatStatusBanner(result: RunResult): string {
-  const verdict = result.passing ? 'pass' : 'fail';
-  return `gesetz: ${verdict} (${result.totalViolations} violation${result.totalViolations === 1 ? '' : 's'})\n`;
+  const verdict = result.passing ? "pass" : "fail";
+  return `gesetz: ${verdict} (${result.totalViolations} violation${result.totalViolations === 1 ? "" : "s"})\n`;
 }
 
 // ─── List output (rule catalog) ───────────────────────────────────────────────
@@ -355,18 +355,18 @@ export interface ListEntry {
 }
 
 export function formatList(entries: ListEntry[], format: OutputFormat): string {
-  if (format === 'json') return JSON.stringify(entries) + '\n';
+  if (format === "json") return JSON.stringify(entries) + "\n";
 
   const lines: string[] = [];
   for (const e of entries) {
     lines.push(`\n${color(e.id, C.bold + C.cyan)}`);
-    if (e.category) lines.push(`  ${color('Category:', C.dim)} ${e.category}`);
+    if (e.category) lines.push(`  ${color("Category:", C.dim)} ${e.category}`);
     lines.push(`  ${e.description}`);
     if (e.guidance) {
-      lines.push(`  ${color('What:', C.bold)} ${e.guidance.what}`);
-      lines.push(`  ${color('Do:', C.bold + C.green)} ${e.guidance.do}`);
+      lines.push(`  ${color("What:", C.bold)} ${e.guidance.what}`);
+      lines.push(`  ${color("Do:", C.bold + C.green)} ${e.guidance.do}`);
       lines.push(`  ${color("Don't:", C.bold + C.red)} ${e.guidance.dont}`);
     }
   }
-  return lines.join('\n') + '\n';
+  return lines.join("\n") + "\n";
 }

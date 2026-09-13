@@ -1,8 +1,8 @@
-import * as nodeFs from 'node:fs';
-import { Effect, Layer } from 'effect';
-import { Reporter } from './reporter';
-import { ReporterError } from '../engine/errors';
-import type { RunResult } from '../engine/runner';
+import * as nodeFs from "node:fs";
+import { Effect, Layer } from "effect";
+import { Reporter } from "./reporter";
+import { ReporterError } from "../engine/errors";
+import type { RunResult } from "../engine/runner";
 
 /**
  * Writes JUnit XML output. Compatible with phpunit, Pest, and any CI system.
@@ -24,10 +24,10 @@ export const JUnitReporter = (outputPath?: string): Layer.Layer<Reporter> =>
               .map(
                 (v) =>
                   `      <failure message="${escapeXml(v.message)}">${escapeXml(
-                    `${v.path}:${v.line ?? '?'} \u2014 ${v.message}`,
+                    `${v.path}:${v.line ?? "?"} \u2014 ${v.message}`,
                   )}</failure>`,
               )
-              .join('\n');
+              .join("\n");
 
             const lines = [
               `    <testcase name="${escapeXml(r.description || r.ruleId)}" classname="QualityAssurance">`,
@@ -35,20 +35,20 @@ export const JUnitReporter = (outputPath?: string): Layer.Layer<Reporter> =>
               `    </testcase>`,
             ];
 
-            return lines.join('\n');
+            return lines.join("\n");
           });
 
           const xml = [
             '<?xml version="1.0" encoding="UTF-8"?>',
             `<testsuite name="Quality Assurance" tests="${totalTests}" failures="${totalFailures}" errors="0">`,
             ...testCases,
-            '</testsuite>',
-          ].join('\n');
+            "</testsuite>",
+          ].join("\n");
 
           if (outputPath) {
-            nodeFs.writeFileSync(outputPath, xml, 'utf-8');
+            nodeFs.writeFileSync(outputPath, xml, "utf-8");
           } else {
-            process.stdout.write(xml + '\n');
+            process.stdout.write(xml + "\n");
           }
         },
         catch: (cause) => new ReporterError({ cause }),
@@ -57,9 +57,9 @@ export const JUnitReporter = (outputPath?: string): Layer.Layer<Reporter> =>
 
 function escapeXml(str: string): string {
   return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
 }

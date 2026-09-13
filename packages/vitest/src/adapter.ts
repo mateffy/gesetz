@@ -1,7 +1,7 @@
-import * as nodePath from 'node:path';
-import { Effect } from 'effect';
-import type { Rule, Violation } from '@gesetz/core';
-import { execTool, extractLocation, FileFilter } from '@gesetz/core';
+import * as nodePath from "node:path";
+import { Effect } from "effect";
+import type { Rule, Violation } from "@gesetz/core";
+import { execTool, extractLocation, FileFilter } from "@gesetz/core";
 
 export interface VitestOptions {
   /**
@@ -36,7 +36,7 @@ interface VitestJsonResult {
     readonly assertionResults: ReadonlyArray<{
       readonly fullName: string;
       readonly title: string;
-      readonly status: 'passed' | 'failed' | 'skipped' | 'todo' | 'unknown';
+      readonly status: "passed" | "failed" | "skipped" | "todo" | "unknown";
       readonly failureMessages: readonly string[];
     }>;
   }>;
@@ -56,20 +56,20 @@ function parseVitestJson(stdout: string, cwd: string, ruleId: string): Violation
     const testFile = nodePath.relative(cwd, fileResult.name);
 
     for (const assertion of fileResult.assertionResults ?? []) {
-      if (assertion.status !== 'failed') continue;
+      if (assertion.status !== "failed") continue;
 
-      const failure = assertion.failureMessages[0] ?? '';
+      const failure = assertion.failureMessages[0] ?? "";
       const { path: stackPath, line } = extractLocation(failure);
-      const message = failure.split('\n')[0] ?? `${assertion.fullName} failed`;
+      const message = failure.split("\n")[0] ?? `${assertion.fullName} failed`;
 
       violations.push({
         rule: ruleId,
         message: `${assertion.fullName}: ${message}`,
         path: stackPath ? nodePath.relative(cwd, stackPath) || testFile : testFile,
         line,
-        severity: 'error',
-        source: 'custom',
-        context: failure.split('\n').slice(0, 6).join('\n') || undefined,
+        severity: "error",
+        source: "custom",
+        context: failure.split("\n").slice(0, 6).join("\n") || undefined,
       });
     }
   }
@@ -94,37 +94,38 @@ async function executeVitest(
   cwd: string,
   patterns: readonly string[] | null,
 ): Promise<Violation[]> {
-  const args: string[] = ['run', '--reporter=json'];
+  const args: string[] = ["run", "--reporter=json"];
 
-  if (opts.configFile) args.push('--config', opts.configFile);
+  if (opts.configFile) args.push("--config", opts.configFile);
   if (opts.project) {
     const projects = Array.isArray(opts.project) ? opts.project : [opts.project];
-    for (const p of projects) args.push('--project', p);
+    for (const p of projects) args.push("--project", p);
   }
   if (patterns) args.push(...patterns);
 
-  const stdout = await Effect.runPromise(execTool(bin, args, cwd, 'vitest'));
+  const stdout = await Effect.runPromise(execTool(bin, args, cwd, "vitest"));
 
   if (!stdout) return [];
   return parseVitestJson(stdout, cwd, id);
 }
 
 export function vitest(opts: VitestOptions = {}): Rule {
-  const id = opts.id ?? 'vitest';
-  const description = opts.label ?? 'Vitest test suite';
+  const id = opts.id ?? "vitest";
+  const description = opts.label ?? "Vitest test suite";
   const cwd = nodePath.resolve(opts.cwd ?? process.cwd());
-  const bin = opts.bin ?? nodePath.join('node_modules', '.bin', 'vitest');
+  const bin = opts.bin ?? nodePath.join("node_modules", ".bin", "vitest");
   const defaultPatterns: string[] | null = opts.pattern
     ? Array.isArray(opts.pattern)
       ? [...opts.pattern]
       : [opts.pattern]
     : null;
 
-  const run: Rule['run'] = Effect.gen(function* () {
+  const run: Rule["run"] = Effect.gen(function* () {
     const fileFilter = yield* FileFilter;
-    const patterns = fileFilter.patterns !== null && fileFilter.patterns.length > 0
-      ? [...fileFilter.patterns]
-      : defaultPatterns;
+    const patterns =
+      fileFilter.patterns !== null && fileFilter.patterns.length > 0
+        ? [...fileFilter.patterns]
+        : defaultPatterns;
 
     return yield* Effect.promise(() => executeVitest(opts, id, bin, cwd, patterns));
   });
@@ -137,7 +138,7 @@ export function vitest(opts: VitestOptions = {}): Rule {
     project: {
       // Test outcomes depend on any source change — conservative: re-run
       // whenever anything changed, skip only zero-change runs.
-      patterns: defaultPatterns ?? ['**/*'],
+      patterns: defaultPatterns ?? ["**/*"],
       run: () => executeVitest(opts, id, bin, cwd, defaultPatterns),
     },
   };

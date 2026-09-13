@@ -7,27 +7,22 @@
  * The public API (exported function names + options) is unchanged from the
  * ts-morph version.
  */
-import type { SgNode } from '@ast-grep/napi';
-import type { Check, Violation } from '@gesetz/core';
+import type { SgNode } from "@ast-grep/napi";
+import type { Check, Violation } from "@gesetz/core";
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
 
-function makeViolation(
-  rule: string,
-  message: string,
-  path: string,
-  line: number,
-): Violation {
-  return { rule, message, path, line, severity: 'error', source: 'core' };
+function makeViolation(rule: string, message: string, path: string, line: number): Violation {
+  return { rule, message, path, line, severity: "error", source: "core" };
 }
 
 function parseFile(content: string, filePath: string): SgNode | null {
   try {
-    const ext = '.' + (filePath.split('.').pop() ?? '');
+    const ext = "." + (filePath.split(".").pop() ?? "");
     // We need to dynamically import ast-grep parsers. Since this is an adapter
     // package, we assume @ast-grep/napi is available.
-    const { ts, tsx } = require('@ast-grep/napi');
-    const parser = ext === '.tsx' ? tsx : ts;
+    const { ts, tsx } = require("@ast-grep/napi");
+    const parser = ext === ".tsx" ? tsx : ts;
     return parser.parse(content).root();
   } catch {
     return null;
@@ -44,7 +39,7 @@ function startLine(node: SgNode): number {
 
 /** Returns the actual argument nodes of a call_expression (excludes parens). */
 function getCallArgs(call: SgNode): SgNode[] {
-  const args = call.field('arguments');
+  const args = call.field("arguments");
   if (!args) return [];
   return [...args.children()].filter((n) => n.isNamed());
 }
@@ -52,10 +47,10 @@ function getCallArgs(call: SgNode): SgNode[] {
 /** True if `call` is `Effect.<method>` or `E.<method>`. */
 function isEffectCall(call: SgNode, method: string): boolean {
   const fn = call.child(0);
-  if (!fn || fn.kind() !== 'member_expression') return false;
+  if (!fn || fn.kind() !== "member_expression") return false;
   const obj = fn.child(0)?.text();
   const prop = fn.child(2)?.text();
-  return (obj === 'Effect' || obj === 'E') && prop === method;
+  return (obj === "Effect" || obj === "E") && prop === method;
 }
 
 // ─── noRunPromiseScattered ────────────────────────────────────────────────────
@@ -70,7 +65,7 @@ export interface NoRunPromiseScatteredOptions {
   readonly message?: string | undefined;
 }
 
-const RUN_METHODS = new Set(['runPromise', 'runSync', 'runFork', 'runCallback', 'runPromiseExit']);
+const RUN_METHODS = new Set(["runPromise", "runSync", "runFork", "runCallback", "runPromiseExit"]);
 
 /**
  * Flags Effect.runPromise / runSync / runFork outside designated entry-point files.
@@ -84,15 +79,15 @@ export function noRunPromiseScattered(options: NoRunPromiseScatteredOptions = {}
     if (root === null) return [];
 
     const violations: Violation[] = [];
-    for (const call of findByKind(root, 'call_expression')) {
+    for (const call of findByKind(root, "call_expression")) {
       const fn = call.child(0);
-      if (!fn || fn.kind() !== 'member_expression') continue;
+      if (!fn || fn.kind() !== "member_expression") continue;
       const obj = fn.child(0)?.text();
       const prop = fn.child(2)?.text();
-      if ((obj === 'Effect' || obj === 'E') && RUN_METHODS.has(prop ?? '')) {
+      if ((obj === "Effect" || obj === "E") && RUN_METHODS.has(prop ?? "")) {
         violations.push(
           makeViolation(
-            'no-run-promise-scattered',
+            "no-run-promise-scattered",
             options.message ??
               `Effect.${prop}() should only be called at program entry points. Use yield* inside Effect.gen() to compose.`,
             file.path,
@@ -113,7 +108,7 @@ export interface NoThrowInEffectGenOptions {
 
 /** True if `call` is Effect.gen / Effect.fn / Effect.fnUntraced. */
 function isEffectGenLike(call: SgNode): boolean {
-  return isEffectCall(call, 'gen') || isEffectCall(call, 'fn') || isEffectCall(call, 'fnUntraced');
+  return isEffectCall(call, "gen") || isEffectCall(call, "fn") || isEffectCall(call, "fnUntraced");
 }
 
 /**
@@ -125,14 +120,14 @@ export function noThrowInEffectGen(options: NoThrowInEffectGenOptions = {}): Che
     if (root === null) return [];
 
     const violations: Violation[] = [];
-    for (const call of findByKind(root, 'call_expression')) {
+    for (const call of findByKind(root, "call_expression")) {
       if (!isEffectGenLike(call)) continue;
-      for (const node of call.findAll({ rule: { kind: 'throw_statement' } })) {
+      for (const node of call.findAll({ rule: { kind: "throw_statement" } })) {
         violations.push(
           makeViolation(
-            'no-throw-in-effect-gen',
+            "no-throw-in-effect-gen",
             options.message ??
-              '`throw` inside Effect.gen() creates an untyped Defect. Use `yield* Effect.fail(new MyError())` instead.',
+              "`throw` inside Effect.gen() creates an untyped Defect. Use `yield* Effect.fail(new MyError())` instead.",
             file.path,
             startLine(node),
           ),
@@ -158,18 +153,18 @@ export function noYieldWithoutStar(options: NoYieldWithoutStarOptions = {}): Che
     if (root === null) return [];
 
     const violations: Violation[] = [];
-    for (const call of findByKind(root, 'call_expression')) {
+    for (const call of findByKind(root, "call_expression")) {
       if (!isEffectGenLike(call)) continue;
-      for (const node of call.findAll({ rule: { kind: 'yield_expression' } })) {
+      for (const node of call.findAll({ rule: { kind: "yield_expression" } })) {
         // `yield*` vs `yield`: ast-grep's yield_expression text starts with
         // "yield*" when starred, "yield " (or "yield\n") when not.
         const text = node.text();
-        if (!text.startsWith('yield*')) {
+        if (!text.startsWith("yield*")) {
           violations.push(
             makeViolation(
-              'no-yield-without-star',
+              "no-yield-without-star",
               options.message ??
-                '`yield` inside Effect.gen() does not unwrap the Effect. Write `yield*` (with asterisk) instead.',
+                "`yield` inside Effect.gen() does not unwrap the Effect. Write `yield*` (with asterisk) instead.",
               file.path,
               startLine(node),
             ),
@@ -196,15 +191,15 @@ export function noUnboundedEffectAll(options: NoUnboundedEffectAllOptions = {}):
     if (root === null) return [];
 
     const violations: Violation[] = [];
-    for (const call of findByKind(root, 'call_expression')) {
-      if (!isEffectCall(call, 'all')) continue;
+    for (const call of findByKind(root, "call_expression")) {
+      if (!isEffectCall(call, "all")) continue;
       const args = getCallArgs(call);
       if (args.length < 2) {
         violations.push(
           makeViolation(
-            'no-unbounded-effect-all',
+            "no-unbounded-effect-all",
             options.message ??
-              'Effect.all() is missing a concurrency option. Add `{ concurrency: N }` to make intent explicit.',
+              "Effect.all() is missing a concurrency option. Add `{ concurrency: N }` to make intent explicit.",
             file.path,
             startLine(call),
           ),

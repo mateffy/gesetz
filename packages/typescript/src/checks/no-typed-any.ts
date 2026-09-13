@@ -1,5 +1,5 @@
-import type { Check, Violation } from '@gesetz/core';
-import { parseFile, findByKind, startLine } from './shared';
+import type { Check, Violation } from "@gesetz/core";
+import { parseFile, findByKind, startLine } from "./shared";
 
 export interface NoTypedAnyOptions {
   readonly message?: string;
@@ -20,13 +20,14 @@ export function noTypedAny(opts: NoTypedAnyOptions = {}): Check {
 
     const violations: Violation[] = [];
     // `any` shows up as a `predefined_type` node with text "any".
-    const predefs = findByKind(root, 'predefined_type');
+    const predefs = findByKind(root, "predefined_type");
     for (const node of predefs) {
-      if (node.text() === 'any') {
+      if (node.text() === "any") {
         violations.push({
-          severity: 'error',
-          source: 'core',
-          message: opts.message ?? 'Unexpected `any` type annotation — use `unknown` or a concrete type',
+          severity: "error",
+          source: "core",
+          message:
+            opts.message ?? "Unexpected `any` type annotation — use `unknown` or a concrete type",
           path: file.path,
           line: startLine(node),
         });
