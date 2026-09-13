@@ -1,2 +1,2 @@
-export { phpstan } from './adapter';
-export type { PhpstanOptions } from './adapter';
+export { phpstan } from "./adapter";
+export type { PhpstanOptions } from "./adapter";

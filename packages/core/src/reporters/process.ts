@@ -1,7 +1,7 @@
-import { Effect, Layer } from 'effect';
-import { Reporter } from './reporter';
-import { ReporterError } from '../engine/errors';
-import type { RunResult } from '../engine/runner';
+import { Effect, Layer } from "effect";
+import { Reporter } from "./reporter";
+import { ReporterError } from "../engine/errors";
+import type { RunResult } from "../engine/runner";
 
 /**
  * Writes the status banner to stderr and sets exit code 1 when there are
@@ -11,9 +11,9 @@ import type { RunResult } from '../engine/runner';
 export const ProcessReporter: Layer.Layer<Reporter> = Layer.succeed(Reporter, {
   report: (result: RunResult): Effect.Effect<void, ReporterError> =>
     Effect.sync(() => {
-      const verdict = result.passing ? 'pass' : 'fail';
+      const verdict = result.passing ? "pass" : "fail";
       process.stderr.write(
-        `gesetz: ${verdict} (${result.totalViolations} violation${result.totalViolations === 1 ? '' : 's'})\n`,
+        `gesetz: ${verdict} (${result.totalViolations} violation${result.totalViolations === 1 ? "" : "s"})\n`,
       );
       // Set exit code without short-circuiting finalizers — lets the Effect
       // runtime finish cleanup before the process exits.

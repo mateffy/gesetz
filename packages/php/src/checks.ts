@@ -1,4 +1,4 @@
-import type { Check, Violation } from '@gesetz/core';
+import type { Check, Violation } from "@gesetz/core";
 
 /**
  * Checks that PHP files declare strict types.
@@ -14,8 +14,8 @@ export function strictTypes(opts: { message?: string } = {}): Check {
 
     return [
       {
-        severity: 'error',
-        source: 'core',
+        severity: "error",
+        source: "core",
         message: opts.message ?? `Missing declare(strict_types=1) in ${file.name}`,
         path: file.path,
       },
@@ -39,32 +39,30 @@ export function psrNamespace(opts: {
     const namespaceMatch = /^\s*namespace\s+([\w\\]+)\s*;/m.exec(file.content);
     if (!namespaceMatch) return [];
 
-    const declaredNamespace = namespaceMatch[1] ?? '';
-    const relativePath = file.dir.replace(/\\/g, '/');
+    const declaredNamespace = namespaceMatch[1] ?? "";
+    const relativePath = file.dir.replace(/\\/g, "/");
 
     // Remove basePath prefix
-    const normalizedBase = opts.basePath.replace(/^\/|\/$/g, '');
-    const normalizedDir = relativePath.replace(/^\/|\/$/g, '');
+    const normalizedBase = opts.basePath.replace(/^\/|\/$/g, "");
+    const normalizedDir = relativePath.replace(/^\/|\/$/g, "");
 
     let pathAfterBase = normalizedDir;
     if (normalizedBase && normalizedDir.startsWith(normalizedBase)) {
-      pathAfterBase = normalizedDir.slice(normalizedBase.length).replace(/^\//, '');
+      pathAfterBase = normalizedDir.slice(normalizedBase.length).replace(/^\//, "");
     } else if (normalizedBase && !normalizedDir.startsWith(normalizedBase)) {
       return []; // File is outside the base path — skip
     }
 
     // Construct expected namespace from path
-    const pathSegments = pathAfterBase ? pathAfterBase.split('/') : [];
-    const expectedNamespace = [opts.baseNamespace, ...pathSegments]
-      .filter(Boolean)
-      .join('\\');
+    const pathSegments = pathAfterBase ? pathAfterBase.split("/") : [];
+    const expectedNamespace = [opts.baseNamespace, ...pathSegments].filter(Boolean).join("\\");
 
     if (declaredNamespace === expectedNamespace) return [];
 
     return [
       {
-        severity: 'error',
-        source: 'core',
+        severity: "error",
+        source: "core",
         message:
           opts.message ??
           `Namespace '${declaredNamespace}' does not match expected '${expectedNamespace}'`,
@@ -90,19 +88,19 @@ export function psrNamespace(opts: {
  */
 export function noInlineQueries(
   patterns: string[],
-  opts: { message?: string; severity?: Violation['severity'] } = {},
+  opts: { message?: string; severity?: Violation["severity"] } = {},
 ): Check {
   return async (file) => {
     const violations: Violation[] = [];
-    const lines = file.content.split('\n');
+    const lines = file.content.split("\n");
 
     for (let i = 0; i < lines.length; i++) {
-      const line = lines[i] ?? '';
+      const line = lines[i] ?? "";
       const matched = patterns.find((pattern) => line.includes(pattern));
       if (matched) {
         violations.push({
-          severity: opts.severity ?? 'error',
-          source: 'core',
+          severity: opts.severity ?? "error",
+          source: "core",
           message: opts.message ?? `Forbidden call pattern: ${matched}`,
           path: file.path,
           line: i + 1,
@@ -128,24 +126,28 @@ export interface RequireTypeHintsOptions {
  */
 export function requireTypeHints(opts: RequireTypeHintsOptions = {}): Check {
   return async (file) => {
-    const lines = file.content.split('\n');
+    const lines = file.content.split("\n");
     const violations: Violation[] = [];
     for (let i = 0; i < lines.length; i++) {
-      const line = lines[i] ?? '';
+      const line = lines[i] ?? "";
       // Find function declarations: function name(params)
       const fnMatch = /\bfunction\s+\w+\s*\(([^)]*)\)/.exec(line);
       if (!fnMatch) continue;
-      const params = fnMatch[1]?.split(',') ?? [];
+      const params = fnMatch[1]?.split(",") ?? [];
       for (const param of params) {
         const trimmed = param.trim();
-        if (!trimmed || trimmed === '...') continue;
+        if (!trimmed || trimmed === "...") continue;
         // A typed param does NOT start with `$` (the type comes first).
         // Untyped: `$x`, `&$x`, `...$x`, `&$x = null`.
         if (/^[&.]*\$/.test(trimmed)) {
-          const paramName = trimmed.replace(/^[&.]+/, '').split('=')[0]?.trim() ?? trimmed;
+          const paramName =
+            trimmed
+              .replace(/^[&.]+/, "")
+              .split("=")[0]
+              ?.trim() ?? trimmed;
           violations.push({
-            severity: 'warn',
-            source: 'core',
+            severity: "warn",
+            source: "core",
             message: opts.message ?? `Function parameter '${paramName}' is missing a type hint`,
             path: file.path,
             line: i + 1,
@@ -169,19 +171,19 @@ export interface RequireReturnTypeOptions {
  */
 export function requireReturnType(opts: RequireReturnTypeOptions = {}): Check {
   return async (file) => {
-    const lines = file.content.split('\n');
+    const lines = file.content.split("\n");
     const violations: Violation[] = [];
     for (let i = 0; i < lines.length; i++) {
-      const line = lines[i] ?? '';
+      const line = lines[i] ?? "";
       // Match `function name(...) {` or `function name(...):` — we want to flag
       // those WITHOUT a `:` return type after the closing paren.
       const fnMatch = /\bfunction\s+\w+\s*\(([^)]*)\)\s*(:|\{)/.exec(line);
       if (!fnMatch) continue;
       const after = fnMatch[2];
-      if (after === ':') continue; // has a return type
+      if (after === ":") continue; // has a return type
       violations.push({
-        severity: 'warn',
-        source: 'core',
+        severity: "warn",
+        source: "core",
         message: opts.message ?? `Function is missing a return type declaration`,
         path: file.path,
         line: i + 1,
@@ -205,8 +207,8 @@ export function requireNamespace(opts: RequireNamespaceOptions = {}): Check {
     if (/^\s*namespace\s+[\w\\]+\s*;/m.test(file.content)) return [];
     return [
       {
-        severity: 'error',
-        source: 'core',
+        severity: "error",
+        source: "core",
         message: opts.message ?? `Missing namespace declaration`,
         path: file.path,
       },
@@ -226,13 +228,13 @@ export interface NoDieOrExitOptions {
 export function noDieOrExit(opts: NoDieOrExitOptions = {}): Check {
   return async (file) => {
     const violations: Violation[] = [];
-    const lines = file.content.split('\n');
+    const lines = file.content.split("\n");
     for (let i = 0; i < lines.length; i++) {
-      const line = lines[i] ?? '';
+      const line = lines[i] ?? "";
       if (/(?<![\w.])\b(?:die|exit)\s*\(/.test(line)) {
         violations.push({
-          severity: 'error',
-          source: 'core',
+          severity: "error",
+          source: "core",
           message: opts.message ?? `Avoid die()/exit() — handle errors explicitly`,
           path: file.path,
           line: i + 1,
@@ -255,13 +257,13 @@ export interface NoEvalOptions {
 export function noEval(opts: NoEvalOptions = {}): Check {
   return async (file) => {
     const violations: Violation[] = [];
-    const lines = file.content.split('\n');
+    const lines = file.content.split("\n");
     for (let i = 0; i < lines.length; i++) {
-      const line = lines[i] ?? '';
+      const line = lines[i] ?? "";
       if (/(?<![\w.])\beval\s*\(/.test(line)) {
         violations.push({
-          severity: 'error',
-          source: 'core',
+          severity: "error",
+          source: "core",
           message: opts.message ?? `Avoid eval() — it is unsafe and hard to reason about`,
           path: file.path,
           line: i + 1,
@@ -285,19 +287,19 @@ export interface RequireFinalClassesOptions {
 export function requireFinalClasses(opts: RequireFinalClassesOptions = {}): Check {
   return async (file) => {
     const violations: Violation[] = [];
-    const lines = file.content.split('\n');
+    const lines = file.content.split("\n");
     for (let i = 0; i < lines.length; i++) {
-      const line = lines[i] ?? '';
+      const line = lines[i] ?? "";
       // Match `class Name` declarations (not `new class`, not `abstract class`).
       const classMatch = /^\s*(?:(?:final|abstract)\s+)*class\s+(\w+)/.exec(line);
       if (!classMatch) continue;
       // Skip abstract classes (cannot be final) and anonymous classes.
       if (/\babstract\s+class\b/.test(line)) continue;
       if (/\bfinal\s+class\b/.test(line)) continue;
-      const name = classMatch[1] ?? '';
+      const name = classMatch[1] ?? "";
       violations.push({
-        severity: 'warn',
-        source: 'core',
+        severity: "warn",
+        source: "core",
         message: opts.message ?? `Class '${name}' should be declared final`,
         path: file.path,
         line: i + 1,

@@ -9,9 +9,9 @@
  * Language adapters can provide better implementations (tsconfig paths,
  * node_modules, PSR-4) but this is optional.
  */
-import * as nodePath from 'node:path';
-import { Context, Data, Layer } from 'effect';
-import type { File } from '../engine/rule';
+import * as nodePath from "node:path";
+import { Context, Data, Layer } from "effect";
+import type { File } from "../engine/rule";
 
 export interface ImportResolverService {
   /**
@@ -25,12 +25,12 @@ export interface ImportResolverService {
   resolve(fromFile: File, specifier: string): string | null;
 }
 
-export class ImportResolver extends Context.Tag('gesetz/ImportResolver')<
+export class ImportResolver extends Context.Tag("gesetz/ImportResolver")<
   ImportResolver,
   ImportResolverService
 >() {}
 
-export class ImportResolveError extends Data.TaggedError('ImportResolveError')<{
+export class ImportResolveError extends Data.TaggedError("ImportResolveError")<{
   readonly cause: string;
 }> {}
 
@@ -40,7 +40,7 @@ export class ImportResolveError extends Data.TaggedError('ImportResolveError')<{
  */
 export const ImportResolverDefault: Layer.Layer<ImportResolver> = Layer.succeed(ImportResolver, {
   resolve: (fromFile, specifier) => {
-    if (!specifier.startsWith('.') && !specifier.startsWith('/')) {
+    if (!specifier.startsWith(".") && !specifier.startsWith("/")) {
       return null; // external package
     }
     return nodePath.resolve(nodePath.dirname(fromFile.absolutePath), specifier);

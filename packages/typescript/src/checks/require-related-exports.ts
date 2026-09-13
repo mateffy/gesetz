@@ -1,4 +1,4 @@
-import type { Check, Violation } from '@gesetz/core';
+import type { Check, Violation } from "@gesetz/core";
 
 /**
  * For every exported function/variable named `X`, checks that ALL counterparts
@@ -35,11 +35,11 @@ export function requireRelatedExports(
         const missing = required.filter((r) => !exportNames.has(r));
         if (missing.length > 0) {
           violations.push({
-            severity: 'error',
-            source: 'core',
+            severity: "error",
+            source: "core",
             message:
               opts.message?.(exp.name, missing) ??
-              `Export '${exp.name}' requires related exports: ${missing.join(', ')}`,
+              `Export '${exp.name}' requires related exports: ${missing.join(", ")}`,
             path: file.path,
           });
         }
@@ -80,8 +80,8 @@ export function requireExportsMatching(
 
       return [
         {
-          severity: 'error',
-          source: 'core',
+          severity: "error",
+          source: "core",
           message:
             opts.message ??
             `Expected at least ${minCount} export(s) matching ${pattern.source}, found ${count}`,

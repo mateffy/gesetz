@@ -1,6 +1,6 @@
-import * as nodePath from 'node:path';
-import type { Rule, Exemption } from './rule';
-import type { SyntaxBackend } from '../services/syntax-tree';
+import * as nodePath from "node:path";
+import type { Rule, Exemption } from "./rule";
+import type { SyntaxBackend } from "../services/syntax-tree";
 
 /**
  * Where the violation-marker cache lives. Structurally identical to
@@ -9,8 +9,8 @@ import type { SyntaxBackend } from '../services/syntax-tree';
  * netzwerk's TS source).
  */
 export type GesetzStorageConfig =
-  | { readonly kind?: 'memory' | undefined }
-  | { readonly kind: 'sqlite'; readonly path: string; readonly dimensions?: number | undefined };
+  | { readonly kind?: "memory" | undefined }
+  | { readonly kind: "sqlite"; readonly path: string; readonly dimensions?: number | undefined };
 
 export interface CategoryThreshold {
   /** Category name matching `Rule.category` */
@@ -93,12 +93,12 @@ export function defineConfig(config: UserConfig): ResolvedConfig {
   const projectRoot = nodePath.resolve(config.projectRoot ?? process.cwd());
   return {
     projectRoot,
-    tsConfigPath: nodePath.resolve(projectRoot, config.tsConfigPath ?? 'tsconfig.json'),
+    tsConfigPath: nodePath.resolve(projectRoot, config.tsConfigPath ?? "tsconfig.json"),
     rules: config.rules,
     exemptions: config.exemptions ?? [],
     changedSince: config.changedSince,
     thresholds: config.thresholds ?? [],
     adapters: config.adapters ?? [],
-    storage: config.storage ?? { kind: 'memory' },
+    storage: config.storage ?? { kind: "memory" },
   };
 }

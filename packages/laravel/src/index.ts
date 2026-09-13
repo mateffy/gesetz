@@ -22,11 +22,11 @@ export {
   noDebugHelpers,
   noDd,
   noFacades,
-} from './checks';
-export type { NoDdOptions, NoFacadesOptions } from './checks';
+} from "./checks";
+export type { NoDdOptions, NoFacadesOptions } from "./checks";
 
 // Re-export phpstan() from /phpstan for convenience
-export { phpstan } from '@gesetz/phpstan';
+export { phpstan } from "@gesetz/phpstan";
 
 /** All Laravel rules as a ready-to-use array. */
 import {
@@ -35,8 +35,8 @@ import {
   noRawDbQueries,
   noEnvOutsideConfig,
   noDebugHelpers,
-} from './checks';
-import { phpstan } from '@gesetz/phpstan';
+} from "./checks";
+import { phpstan } from "@gesetz/phpstan";
 
 export const allRules = [
   requireStrictTypes,

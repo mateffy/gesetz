@@ -14,8 +14,8 @@
  *
  * Core has zero parser dependencies — it only defines the contract.
  */
-import { Context, Data, Effect, Layer } from 'effect';
-import type { File } from '../engine/rule';
+import { Context, Data, Effect, Layer } from "effect";
+import type { File } from "../engine/rule";
 
 // ─── Parsed data shapes ──────────────────────────────────────────────────────
 
@@ -105,9 +105,9 @@ export interface SyntaxTreeService {
   ): Effect.Effect<SyntaxBackendProcessResult, SyntaxTreeError>;
 }
 
-export class SyntaxTree extends Context.Tag('gesetz/SyntaxTree')<SyntaxTree, SyntaxTreeService>() {}
+export class SyntaxTree extends Context.Tag("gesetz/SyntaxTree")<SyntaxTree, SyntaxTreeService>() {}
 
-export class SyntaxTreeError extends Data.TaggedError('SyntaxTreeError')<{
+export class SyntaxTreeError extends Data.TaggedError("SyntaxTreeError")<{
   readonly cause: string;
 }> {}
 
@@ -164,5 +164,5 @@ export function SyntaxTreeLive(backends: readonly SyntaxBackend[]): Layer.Layer<
 export const SyntaxTreeStub: Layer.Layer<SyntaxTree> = Layer.succeed(SyntaxTree, {
   canProcess: () => false,
   process: (_file, _opts) =>
-    Effect.fail(new SyntaxTreeError({ cause: 'SyntaxTreeStub — register a backend' })),
+    Effect.fail(new SyntaxTreeError({ cause: "SyntaxTreeStub — register a backend" })),
 });

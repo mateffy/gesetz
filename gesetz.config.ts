@@ -17,33 +17,33 @@ import {
   requireSibling,
   noImportFrom,
   defineArchitecture,
-} from '@gesetz/core';
+} from "@gesetz/core";
 import {
   noConsoleLog,
   noEmptyCatch,
   noMagicNumbers,
   noTrivialComment,
   typescriptSyntaxBackend,
-} from '@gesetz/typescript';
+} from "@gesetz/typescript";
 
 // ─── Architecture: package import boundaries ──────────────────────────────────
 
 const arch = defineArchitecture({
   layers: [
     // Core is the foundation — every adapter depends on it
-    { name: 'core', pattern: 'packages/core/src/**/*', canImportFrom: [] },
+    { name: "core", pattern: "packages/core/src/**/*", canImportFrom: [] },
     // Adapters wrap external tools; they may import from core
-    { name: 'adapters', pattern: 'packages/*/src/adapter.ts' },
+    { name: "adapters", pattern: "packages/*/src/adapter.ts" },
     // CLI depends on core
-    { name: 'cli', pattern: 'packages/cli/src/**/*', canImportFrom: ['core'] },
+    { name: "cli", pattern: "packages/cli/src/**/*", canImportFrom: ["core"] },
     // Wrapper package depends only on core + cli
-    { name: 'wrapper', pattern: 'packages/gesetz/src/**/*', canImportFrom: ['core', 'cli'] },
+    { name: "wrapper", pattern: "packages/gesetz/src/**/*", canImportFrom: ["core", "cli"] },
   ],
   forbidden: [
     {
-      from: 'core',
-      to: 'adapters',
-      message: 'Core must not import from adapters — adapters depend on core, not vice versa',
+      from: "core",
+      to: "adapters",
+      message: "Core must not import from adapters — adapters depend on core, not vice versa",
     },
   ],
 });
@@ -60,100 +60,120 @@ export default defineConfig({
 
     // ─── Structure ──────────────────────────────────────────────────────────
 
-    select('packages/**/*.ts')
-      .exclude('**/*.test.ts', '**/tests/**', '**/node_modules/**')
-      .label('No god files')
-      .category('structure')
+    select("packages/**/*.ts")
+      .exclude("**/*.test.ts", "**/tests/**", "**/node_modules/**")
+      .label("No god files")
+      .category("structure")
       .check(noGodFile({ maxLines: 400 })),
 
-    select('packages/**/*.ts')
-      .exclude('**/*.test.ts', '**/tests/**', '**/node_modules/**')
-      .label('No deep nesting')
-      .category('structure')
+    select("packages/**/*.ts")
+      .exclude("**/*.test.ts", "**/tests/**", "**/node_modules/**")
+      .label("No deep nesting")
+      .category("structure")
       .check(noDeepNesting({ maxLevels: 5 })),
 
-    select('packages/**/*.ts')
-      .exclude('**/*.test.ts', '**/tests/**', '**/node_modules/**', '**/dist/**')
-      .label('No console.log in production')
-      .category('cleanup')
+    select("packages/**/*.ts")
+      .exclude("**/*.test.ts", "**/tests/**", "**/node_modules/**", "**/dist/**")
+      .label("No console.log in production")
+      .category("cleanup")
       .check(noConsoleLog({ allowWarnError: true })),
 
-    select('packages/**/*.ts')
-      .exclude('**/*.test.ts', '**/tests/**', '**/node_modules/**', '**/dist/**')
-      .label('No empty catch blocks')
-      .category('strictness')
+    select("packages/**/*.ts")
+      .exclude("**/*.test.ts", "**/tests/**", "**/node_modules/**", "**/dist/**")
+      .label("No empty catch blocks")
+      .category("strictness")
       .check(noEmptyCatch()),
 
-    select('packages/**/*.ts')
-      .exclude('**/*.test.ts', '**/tests/**', '**/node_modules/**', '**/dist/**', 'packages/cli/src/init/rules.ts')
-      .label('No magic numbers')
-      .category('strictness')
+    select("packages/**/*.ts")
+      .exclude(
+        "**/*.test.ts",
+        "**/tests/**",
+        "**/node_modules/**",
+        "**/dist/**",
+        "packages/cli/src/init/rules.ts",
+      )
+      .label("No magic numbers")
+      .category("strictness")
       .check(noMagicNumbers({ ignore: [0, 1, -1, 2, 10, 100] })),
 
-    select('packages/**/*.ts')
-      .exclude('**/*.test.ts', '**/tests/**', '**/node_modules/**', '**/dist/**')
-      .label('No trivial comments')
-      .category('cleanup')
+    select("packages/**/*.ts")
+      .exclude("**/*.test.ts", "**/tests/**", "**/node_modules/**", "**/dist/**")
+      .label("No trivial comments")
+      .category("cleanup")
       .check(noTrivialComment()),
 
     // ─── Security ───────────────────────────────────────────────────────────
 
-    select('packages/**/*.ts')
-      .exclude('**/*.test.ts', '**/tests/**', '**/node_modules/**', '**/dist/**')
-      .label('No hardcoded secrets')
-      .category('security')
+    select("packages/**/*.ts")
+      .exclude("**/*.test.ts", "**/tests/**", "**/node_modules/**", "**/dist/**")
+      .label("No hardcoded secrets")
+      .category("security")
       .check(noHardcodedSecret()),
 
     // ─── File naming ────────────────────────────────────────────────────────
 
-    select('packages/**/*')
-      .exclude('**/node_modules/**', '**/dist/**', '**/.git/**')
-      .label('No debugging residue files')
-      .category('cleanup')
+    select("packages/**/*")
+      .exclude("**/node_modules/**", "**/dist/**", "**/.git/**")
+      .label("No debugging residue files")
+      .category("cleanup")
       .check(noDebuggingResidueFiles()),
 
     // ─── Tests must exist for adapters ──────────────────────────────────────
 
-    select('packages/vitest/src/adapter.ts').label('vitest needs tests').check(
-      requireSibling('.test.ts', { message: 'Adapter files must have a matching test file' }),
-    ),
+    select("packages/vitest/src/adapter.ts")
+      .label("vitest needs tests")
+      .check(
+        requireSibling(".test.ts", { message: "Adapter files must have a matching test file" }),
+      ),
 
-    select('packages/prettier/src/adapter.ts').label('prettier needs tests').check(
-      requireSibling('.test.ts', { message: 'Adapter files must have a matching test file' }),
-    ),
+    select("packages/prettier/src/adapter.ts")
+      .label("prettier needs tests")
+      .check(
+        requireSibling(".test.ts", { message: "Adapter files must have a matching test file" }),
+      ),
 
-    select('packages/eslint/src/adapter.ts').label('eslint needs tests').check(
-      requireSibling('.test.ts', { message: 'Adapter files must have a matching test file' }),
-    ),
+    select("packages/eslint/src/adapter.ts")
+      .label("eslint needs tests")
+      .check(
+        requireSibling(".test.ts", { message: "Adapter files must have a matching test file" }),
+      ),
 
-    select('packages/bun-test/src/adapter.ts').label('bun-test needs tests').check(
-      requireSibling('.test.ts', { message: 'Adapter files must have a matching test file' }),
-    ),
+    select("packages/bun-test/src/adapter.ts")
+      .label("bun-test needs tests")
+      .check(
+        requireSibling(".test.ts", { message: "Adapter files must have a matching test file" }),
+      ),
 
-    select('packages/pest/src/adapter.ts').label('pest needs tests').check(
-      requireSibling('.test.ts', { message: 'Adapter files must have a matching test file' }),
-    ),
+    select("packages/pest/src/adapter.ts")
+      .label("pest needs tests")
+      .check(
+        requireSibling(".test.ts", { message: "Adapter files must have a matching test file" }),
+      ),
 
-    select('packages/phpstan/src/adapter.ts').label('phpstan needs tests').check(
-      requireSibling('.test.ts', { message: 'Adapter files must have a matching test file' }),
-    ),
+    select("packages/phpstan/src/adapter.ts")
+      .label("phpstan needs tests")
+      .check(
+        requireSibling(".test.ts", { message: "Adapter files must have a matching test file" }),
+      ),
 
-    select('packages/oxfmt/src/adapter.ts').label('oxfmt needs tests').check(
-      requireSibling('.test.ts', { message: 'Adapter files must have a matching test file' }),
-    ),
+    select("packages/oxfmt/src/adapter.ts")
+      .label("oxfmt needs tests")
+      .check(
+        requireSibling(".test.ts", { message: "Adapter files must have a matching test file" }),
+      ),
 
     // ─── Patterns ───────────────────────────────────────────────────────────
 
-    select('packages/**/*.ts')
-      .exclude('**/*.test.ts', '**/tests/**', '**/node_modules/**')
-      .label('No TODO(urgent) markers')
-      .category('cleanup')
+    select("packages/**/*.ts")
+      .exclude("**/*.test.ts", "**/tests/**", "**/node_modules/**")
+      .label("No TODO(urgent) markers")
+      .category("cleanup")
       .check(noPattern(/TODO\(urgent\)/)),
 
     // ─── README must stay current ─────────────────────────────────────────
 
-    select('README.md').label('README must mention gesetz').check(
-      requirePattern(/gesetz/, { message: 'README.md must mention the project name' }),
-    ),
+    select("README.md")
+      .label("README must mention gesetz")
+      .check(requirePattern(/gesetz/, { message: "README.md must mention the project name" })),
   ],
 });

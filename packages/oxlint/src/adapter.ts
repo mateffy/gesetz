@@ -1,7 +1,7 @@
-import * as nodePath from 'node:path';
-import { Effect } from 'effect';
-import type { Rule, Violation } from '@gesetz/core';
-import { execTool, FileFilter } from '@gesetz/core';
+import * as nodePath from "node:path";
+import { Effect } from "effect";
+import type { Rule, Violation } from "@gesetz/core";
+import { execTool, FileFilter } from "@gesetz/core";
 
 export interface OxlintOptions {
   pattern?: string | string[];
@@ -26,7 +26,7 @@ interface OxlintDiagnostic {
   message: string;
   code?: string;
   filename: string;
-  severity?: 'error' | 'warning' | 'advice';
+  severity?: "error" | "warning" | "advice";
   labels?: OxlintLabel[];
 }
 
@@ -48,10 +48,10 @@ async function executeOxlint(
   cwd: string,
   patterns: readonly string[],
 ): Promise<Violation[]> {
-  const args = ['--format=json', ...patterns];
-  if (opts.configFile) args.push('--config', opts.configFile);
+  const args = ["--format=json", ...patterns];
+  if (opts.configFile) args.push("--config", opts.configFile);
 
-  const stdout = await Effect.runPromise(execTool(bin, args, cwd, 'oxlint'));
+  const stdout = await Effect.runPromise(execTool(bin, args, cwd, "oxlint"));
 
   if (!stdout.trim()) return [];
 
@@ -66,10 +66,9 @@ async function executeOxlint(
 
   return diagnostics.map((diag): Violation => {
     const span = diag.labels?.[0]?.span;
-    const severity: Violation['severity'] =
-      diag.severity === 'warning' ? 'warn' : 'error';
+    const severity: Violation["severity"] = diag.severity === "warning" ? "warn" : "error";
 
-    const ruleCode = diag.code ?? 'oxlint';
+    const ruleCode = diag.code ?? "oxlint";
 
     // oxlint reports filenames relative to cwd — resolve to absolute first.
     const absFilename = nodePath.isAbsolute(diag.filename)
@@ -83,28 +82,29 @@ async function executeOxlint(
       line: span?.line,
       column: span?.column,
       severity,
-      source: 'oxlint',
+      source: "oxlint",
     };
   });
 }
 
 export function oxlint(opts: OxlintOptions = {}): Rule {
-  const id = opts.id ?? 'oxlint';
-  const description = opts.label ?? 'oxlint';
-  const bin = opts.bin ?? 'oxlint';
+  const id = opts.id ?? "oxlint";
+  const description = opts.label ?? "oxlint";
+  const bin = opts.bin ?? "oxlint";
   const cwd = nodePath.resolve(opts.cwd ?? process.cwd());
   const defaultPatterns: string[] = opts.pattern
     ? Array.isArray(opts.pattern)
       ? [...opts.pattern]
       : [opts.pattern]
-    : ['.'];
+    : ["."];
 
-  const run: Rule['run'] = Effect.gen(function* () {
+  const run: Rule["run"] = Effect.gen(function* () {
     const fileFilter = yield* FileFilter;
 
-    const patterns: string[] = fileFilter.patterns !== null && fileFilter.patterns.length > 0
-      ? [...fileFilter.patterns]
-      : defaultPatterns;
+    const patterns: string[] =
+      fileFilter.patterns !== null && fileFilter.patterns.length > 0
+        ? [...fileFilter.patterns]
+        : defaultPatterns;
 
     return yield* Effect.promise(() => executeOxlint(opts, id, bin, cwd, patterns));
   });
@@ -115,9 +115,10 @@ export function oxlint(opts: OxlintOptions = {}): Rule {
     run,
     category: opts.category,
     project: {
-      patterns: opts.pattern !== undefined
-        ? defaultPatterns
-        : ['**/*.{js,jsx,ts,tsx,mjs,cjs,mts,cts}', '.oxlintrc*', 'oxlint.config.*'],
+      patterns:
+        opts.pattern !== undefined
+          ? defaultPatterns
+          : ["**/*.{js,jsx,ts,tsx,mjs,cjs,mts,cts}", ".oxlintrc*", "oxlint.config.*"],
       run: () => executeOxlint(opts, id, bin, cwd, defaultPatterns),
     },
   };

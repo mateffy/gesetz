@@ -8,24 +8,24 @@
 
 Every codebase has conventions that no generic linter knows about:
 
-- *"Every module in `src/` must have a `README.md`"*
-- *"No file should exceed 400 lines"*
-- *"No one should import from `src/legacy/` — we're migrating away"*
-- *"Every API endpoint file needs a sibling `.test.ts`"*
-- *"Console logs left in production code break our log pipeline"*
-- *"Feature A must not import internals from Feature B"*
+- _"Every module in `src/` must have a `README.md`"_
+- _"No file should exceed 400 lines"_
+- _"No one should import from `src/legacy/` — we're migrating away"_
+- _"Every API endpoint file needs a sibling `.test.ts`"_
+- _"Console logs left in production code break our log pipeline"_
+- _"Feature A must not import internals from Feature B"_
 
-ESLint, PHPStan, and Vitest are excellent at what they do. But they don't know *your* architecture. Gesetz bridges that gap: **you write project-specific rules in plain TypeScript, and Gesetz runs them alongside your existing tools in a single, scored report.**
+ESLint, PHPStan, and Vitest are excellent at what they do. But they don't know _your_ architecture. Gesetz bridges that gap: **you write project-specific rules in plain TypeScript, and Gesetz runs them alongside your existing tools in a single, scored report.**
 
 **Gesetz does not replace your linters.** It wraps them. You still run ESLint, Vitest, PHPStan — but their output and your custom rules all feed into one unified `Violation` format, one category score, one CLI. Because the rule engine is language-agnostic, the same `gesetz check` covers your TypeScript frontend, your PHP backend, and whatever else lives in the repo.
 
-| Category | What it measures |
-|---|---|
-| **strictness** | Type safety, `any`, `as`, non-null assertions, floating promises |
-| **structure** | Code shape: file/function size, nesting, magic numbers, empty catch blocks |
+| Category         | What it measures                                                           |
+| ---------------- | -------------------------------------------------------------------------- |
+| **strictness**   | Type safety, `any`, `as`, non-null assertions, floating promises           |
+| **structure**    | Code shape: file/function size, nesting, magic numbers, empty catch blocks |
 | **organization** | Monorepo health: cycles, layer violations, import discipline, file pairing |
-| **cleanup** | Dead code, AI residue: console logs, trivial comments, debugging files |
-| **security** | Secrets, SQL injection, unsafe innerHTML, hardcoded tokens |
+| **cleanup**      | Dead code, AI residue: console logs, trivial comments, debugging files     |
+| **security**     | Secrets, SQL injection, unsafe innerHTML, hardcoded tokens                 |
 
 Categories are extensible — `category` is just a string, so you can define your own (e.g. `category: 'api-conventions'` or `category: 'react'`).
 
@@ -69,7 +69,6 @@ Output (TTY):
 └─────────────┴───────┴────────┴─────────┴─────────┘
 ✅ All categories above threshold
 ```
-
 
 ## License
 

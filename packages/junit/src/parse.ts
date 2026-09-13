@@ -16,21 +16,21 @@
  * by bun:test and Pest. When absent, we fall back to the parent `<testsuite>`
  * `file` attribute and leave the line undefined.
  */
-import * as nodePath from 'node:path';
-import type { Violation } from '@gesetz/core';
+import * as nodePath from "node:path";
+import type { Violation } from "@gesetz/core";
 
 export interface ParsedTestCase {
   readonly name: string;
   readonly classname: string;
   readonly file: string;
   readonly line: number | undefined;
-  readonly status: 'passed' | 'failed' | 'skipped' | 'errored';
+  readonly status: "passed" | "failed" | "skipped" | "errored";
   readonly message: string;
   readonly stack: string;
 }
 
 function extractAttr(tag: string, name: string): string | undefined {
-  const match = new RegExp(`\\b${name}\\s*=\\s*"([^"]*)"`, 'i').exec(tag);
+  const match = new RegExp(`\\b${name}\\s*=\\s*"([^"]*)"`, "i").exec(tag);
   return match?.[1];
 }
 
@@ -52,19 +52,18 @@ export function parseJUnitXml(xml: string, cwd: string): ParsedTestCase[] {
 
   // Find each <testcase ...> block — either self-closing or with a body
   // up to </testcase>.
-  const caseRe =
-    /<testcase\b([^>]*?)(?:\/>|>([\s\S]*?)<\/testcase>)/gi;
+  const caseRe = /<testcase\b([^>]*?)(?:\/>|>([\s\S]*?)<\/testcase>)/gi;
 
   // Build a map of testcase positions to the nearest preceding suite file.
   // Walk through suite openings and testcase matches in order.
-  let suiteFile = '';
+  let suiteFile = "";
 
   // Collect suite file changes with their positions
   const suiteFiles: Array<{ pos: number; file: string }> = [];
   let suiteMatch: RegExpExecArray | null;
   while ((suiteMatch = suiteOpenRe.exec(xml)) !== null) {
-    const attrs = suiteMatch[1] ?? '';
-    const file = extractAttr(attrs, 'file');
+    const attrs = suiteMatch[1] ?? "";
+    const file = extractAttr(attrs, "file");
     if (file) {
       suiteFiles.push({ pos: suiteMatch.index, file });
     }
@@ -82,39 +81,39 @@ export function parseJUnitXml(xml: string, cwd: string): ParsedTestCase[] {
       suiteIdx++;
     }
 
-    const attrs = caseMatch[1] ?? '';
-    const body = caseMatch[2] ?? '';
+    const attrs = caseMatch[1] ?? "";
+    const body = caseMatch[2] ?? "";
 
-    const name = extractAttr(attrs, 'name') ?? 'unknown';
-    const classname = extractAttr(attrs, 'classname') ?? '';
-    const file = extractAttr(attrs, 'file') ?? suiteFile;
-    const lineStr = extractAttr(attrs, 'line');
+    const name = extractAttr(attrs, "name") ?? "unknown";
+    const classname = extractAttr(attrs, "classname") ?? "";
+    const file = extractAttr(attrs, "file") ?? suiteFile;
+    const lineStr = extractAttr(attrs, "line");
     const line = lineStr !== undefined ? Number(lineStr) : undefined;
 
-    let status: ParsedTestCase['status'] = 'passed';
-    let message = '';
-    let stack = '';
+    let status: ParsedTestCase["status"] = "passed";
+    let message = "";
+    let stack = "";
 
-    const failureMatch = /<failure\b([^>]*)>([\s\S]*?)<\/failure>/i.exec(body)
-      ?? (/<failure\b([^>]*?)\/>/i.exec(body));
+    const failureMatch =
+      /<failure\b([^>]*)>([\s\S]*?)<\/failure>/i.exec(body) ?? /<failure\b([^>]*?)\/>/i.exec(body);
     if (failureMatch) {
-      status = 'failed';
-      message = extractAttr(failureMatch[1] ?? '', 'message') ?? '';
-      stack = (failureMatch[2] ?? '').trim();
+      status = "failed";
+      message = extractAttr(failureMatch[1] ?? "", "message") ?? "";
+      stack = (failureMatch[2] ?? "").trim();
     }
 
-    if (status === 'passed') {
-      const errorMatch = /<error\b([^>]*)>([\s\S]*?)<\/error>/i.exec(body)
-        ?? (/<error\b([^>]*?)\/>/i.exec(body));
+    if (status === "passed") {
+      const errorMatch =
+        /<error\b([^>]*)>([\s\S]*?)<\/error>/i.exec(body) ?? /<error\b([^>]*?)\/>/i.exec(body);
       if (errorMatch) {
-        status = 'errored';
-        message = extractAttr(errorMatch[1] ?? '', 'message') ?? '';
-        stack = (errorMatch[2] ?? '').trim();
+        status = "errored";
+        message = extractAttr(errorMatch[1] ?? "", "message") ?? "";
+        stack = (errorMatch[2] ?? "").trim();
       }
     }
 
-    if (status === 'passed' && /<skipped\b/i.test(body)) {
-      status = 'skipped';
+    if (status === "passed" && /<skipped\b/i.test(body)) {
+      status = "skipped";
     }
 
     const relativePath = file ? nodePath.relative(cwd, nodePath.resolve(cwd, file)) : cwd;
@@ -124,7 +123,7 @@ export function parseJUnitXml(xml: string, cwd: string): ParsedTestCase[] {
       file: relativePath || file || cwd,
       line: Number.isFinite(line) ? line : undefined,
       status,
-      message: message || (status === 'failed' ? `${classname} > ${name} failed` : ''),
+      message: message || (status === "failed" ? `${classname} > ${name} failed` : ""),
       stack,
     });
   }
@@ -136,12 +135,9 @@ export function parseJUnitXml(xml: string, cwd: string): ParsedTestCase[] {
  * Converts parsed JUnit test cases to Violations.
  * Only failed and errored tests produce violations.
  */
-export function junitToViolations(
-  cases: readonly ParsedTestCase[],
-  ruleId: string,
-): Violation[] {
+export function junitToViolations(cases: readonly ParsedTestCase[], ruleId: string): Violation[] {
   return cases
-    .filter((c) => c.status === 'failed' || c.status === 'errored')
+    .filter((c) => c.status === "failed" || c.status === "errored")
     .map((c): Violation => {
       const detail = c.message || `${c.classname} > ${c.name} failed`;
       return {
@@ -149,9 +145,9 @@ export function junitToViolations(
         message: `${c.name}: ${detail}`,
         path: c.file,
         line: c.line,
-        severity: 'error',
-        source: 'custom',
-        context: c.stack ? c.stack.split('\n').slice(0, 5).join('\n') : undefined,
+        severity: "error",
+        source: "custom",
+        context: c.stack ? c.stack.split("\n").slice(0, 5).join("\n") : undefined,
       };
     });
 }

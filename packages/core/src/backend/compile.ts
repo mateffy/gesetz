@@ -20,20 +20,20 @@
  * Every rule is its own extension (name = rule.id) so netzwerk's per-
  * (extension, file) marker replacement gives rule-scoped idempotency.
  */
-import { createHash } from 'node:crypto';
-import * as nodePath from 'node:path';
-import { readFile } from 'node:fs/promises';
-import { Effect, Layer } from 'effect';
-import micromatch from 'micromatch';
-import { globMatch } from 'netzwerk';
-import type { ExtensionContext, NetworkExtension, NetworkFile, SourceFile } from 'netzwerk';
-import type { ResolvedConfig } from '../engine/config';
-import type { CheckServices, File, ProjectRuleContext, Rule, Violation } from '../engine/rule';
-import { FileSystem, FileFilter, FileFilterLive, ProjectRoot } from '../services/fs';
-import { ImportResolver } from '../services/import-resolver';
-import { SyntaxTree, SyntaxTreeError } from '../services/syntax-tree';
-import { syntaxExtension } from './syntax-extension';
-import { violationToMarker } from './violation-markers';
+import { createHash } from "node:crypto";
+import * as nodePath from "node:path";
+import { readFile } from "node:fs/promises";
+import { Effect, Layer } from "effect";
+import micromatch from "micromatch";
+import { globMatch } from "netzwerk";
+import type { ExtensionContext, NetworkExtension, NetworkFile, SourceFile } from "netzwerk";
+import type { ResolvedConfig } from "../engine/config";
+import type { CheckServices, File, ProjectRuleContext, Rule, Violation } from "../engine/rule";
+import { FileSystem, FileFilter, FileFilterLive, ProjectRoot } from "../services/fs";
+import { ImportResolver } from "../services/import-resolver";
+import { SyntaxTree, SyntaxTreeError } from "../services/syntax-tree";
+import { syntaxExtension } from "./syntax-extension";
+import { violationToMarker } from "./violation-markers";
 
 export interface CompileContext {
   readonly rootDir: string;
@@ -57,7 +57,7 @@ export interface CompileContext {
 }
 
 function hash(material: unknown): string {
-  return createHash('sha256').update(JSON.stringify(material)).digest('hex');
+  return createHash("sha256").update(JSON.stringify(material)).digest("hex");
 }
 
 function ruleFingerprint(rule: Rule): string {
@@ -77,17 +77,17 @@ function ruleFingerprint(rule: Rule): string {
 
 function gesetzFileFromSource(file: SourceFile, content: string): File {
   const relativePath = file.relativePath;
-  const name = relativePath.slice(relativePath.lastIndexOf('/') + 1);
+  const name = relativePath.slice(relativePath.lastIndexOf("/") + 1);
   const ext = file.extension;
-  const stem = ext === '' ? name : name.slice(0, name.length - ext.length);
-  const slash = relativePath.lastIndexOf('/');
+  const stem = ext === "" ? name : name.slice(0, name.length - ext.length);
+  const slash = relativePath.lastIndexOf("/");
   return {
     path: relativePath,
     absolutePath: file.absolutePath,
     name,
     stem,
     ext,
-    dir: slash === -1 ? '' : relativePath.slice(0, slash),
+    dir: slash === -1 ? "" : relativePath.slice(0, slash),
     content,
     size: file.byteSize,
     mtimeMs: 0,
@@ -136,9 +136,9 @@ function groupByPath(
   for (const violation of violations) {
     let rel = violation.path;
     if (nodePath.isAbsolute(violation.path)) {
-      rel = nodePath.relative(rootDir, violation.path).split(nodePath.sep).join('/');
+      rel = nodePath.relative(rootDir, violation.path).split(nodePath.sep).join("/");
     }
-    if (rel === '' || rel.startsWith('..')) {
+    if (rel === "" || rel.startsWith("..")) {
       orphaned.push(violation);
       continue;
     }
@@ -155,7 +155,7 @@ function groupByPath(
  * empty set when the violation disappeared), and new paths are stored.
  */
 async function storeProjectViolations(
-  storage: ExtensionContext['storage'],
+  storage: ExtensionContext["storage"],
   rule: Rule,
   violations: readonly Violation[],
   ctx: CompileContext,
@@ -167,7 +167,7 @@ async function storeProjectViolations(
     }
   }
   for (const [path, pathViolations] of byPath) {
-    if (await storage.getFile(path) === undefined) {
+    if ((await storage.getFile(path)) === undefined) {
       orphaned.push(...pathViolations);
       continue;
     }
@@ -211,7 +211,7 @@ function shimLayers(
 
 /** Storage-backed NetworkFile facade for project rules. */
 async function networkFileFromStorage(
-  storage: ExtensionContext['storage'],
+  storage: ExtensionContext["storage"],
   rootDir: string,
   path: string,
 ): Promise<NetworkFile> {
@@ -230,7 +230,7 @@ async function networkFileFromStorage(
     markersOf<D>(type: string) {
       return markers.filter((m) => m.type === type) as never;
     },
-    content: () => readFile(nodePath.join(rootDir, path), 'utf8'),
+    content: () => readFile(nodePath.join(rootDir, path), "utf8"),
   };
 }
 
@@ -242,17 +242,17 @@ function projectRuleContext(
   return {
     network: {
       glob: async (pattern: string) => {
-          const records = await extCtx.storage.listFiles();
-          return Promise.all(
-            records
-              .filter((record) => globMatch(pattern, record.path))
-              .map((record) => networkFileFromStorage(extCtx.storage, ctx.rootDir, record.path)),
-          );
-        },
+        const records = await extCtx.storage.listFiles();
+        return Promise.all(
+          records
+            .filter((record) => globMatch(pattern, record.path))
+            .map((record) => networkFileFromStorage(extCtx.storage, ctx.rootDir, record.path)),
+        );
+      },
       file: async (path: string) => {
-          if (await extCtx.storage.getFile(path) === undefined) return null;
-          return networkFileFromStorage(extCtx.storage, ctx.rootDir, path);
-        },
+        if ((await extCtx.storage.getFile(path)) === undefined) return null;
+        return networkFileFromStorage(extCtx.storage, ctx.rootDir, path);
+      },
     },
     changedFiles,
     rootDir: ctx.rootDir,
@@ -280,8 +280,8 @@ function compileRunOnlyRule(rule: Rule, ctx: CompileContext): NetworkExtension {
             rule: rule.id,
             message: `Rule threw an unexpected error: ${String(cause)}`,
             path: ctx.rootDir,
-            severity: 'error',
-            source: 'core',
+            severity: "error",
+            source: "core",
           },
         ];
       }
@@ -307,7 +307,7 @@ function compileProjectRule(rule: Rule, ctx: CompileContext): NetworkExtension {
         [...project.patterns],
         { dot: true },
       );
-      if (!relevant && await hasStoredMarkers(extCtx.storage, rule.id)) return;
+      if (!relevant && (await hasStoredMarkers(extCtx.storage, rule.id))) return;
 
       await refreshSharedPaths(ctx, extCtx);
       const violations = await project.run(projectRuleContext(extCtx, ctx, changed));
@@ -323,7 +323,10 @@ async function refreshSharedPaths(ctx: CompileContext, extCtx: ExtensionContext)
   for (const record of await extCtx.storage.listFiles()) ctx.sharedPaths.add(record.path);
 }
 
-async function hasStoredMarkers(storage: ExtensionContext['storage'], ruleId: string): Promise<boolean> {
+async function hasStoredMarkers(
+  storage: ExtensionContext["storage"],
+  ruleId: string,
+): Promise<boolean> {
   for (const [, markers] of await storage.allMarkers()) {
     if (markers.some((m) => m.extension === ruleId)) return true;
   }
@@ -343,8 +346,5 @@ export function compileRule(rule: Rule, ctx: CompileContext): NetworkExtension {
  * per rule.
  */
 export function compileConfig(config: ResolvedConfig, ctx: CompileContext): NetworkExtension[] {
-  return [
-    syntaxExtension(config.adapters),
-    ...config.rules.map((rule) => compileRule(rule, ctx)),
-  ];
+  return [syntaxExtension(config.adapters), ...config.rules.map((rule) => compileRule(rule, ctx))];
 }

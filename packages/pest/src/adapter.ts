@@ -1,9 +1,9 @@
-import * as nodePath from 'node:path';
-import * as nodeFs from 'node:fs';
-import { Effect } from 'effect';
-import type { Rule, Violation } from '@gesetz/core';
-import { execTool, runWithTempFile, FileFilter } from '@gesetz/core';
-import { parseJUnitXml, junitToViolations } from '@gesetz/junit';
+import * as nodePath from "node:path";
+import * as nodeFs from "node:fs";
+import { Effect } from "effect";
+import type { Rule, Violation } from "@gesetz/core";
+import { execTool, runWithTempFile, FileFilter } from "@gesetz/core";
+import { parseJUnitXml, junitToViolations } from "@gesetz/junit";
 
 export interface PestOptions {
   /**
@@ -46,21 +46,21 @@ async function executePest(
   cwd: string,
   patterns: readonly string[] | null,
 ): Promise<Violation[]> {
-  const baseArgs = ['--log-junit', '__TMP__', '--no-progress'];
+  const baseArgs = ["--log-junit", "__TMP__", "--no-progress"];
   if (opts.extraArgs) baseArgs.push(...opts.extraArgs);
   if (patterns) baseArgs.push(...patterns);
 
   return Effect.runPromise(
-    runWithTempFile('gesetz-pest-', 'junit.xml', (tmpFile) =>
+    runWithTempFile("gesetz-pest-", "junit.xml", (tmpFile) =>
       Effect.gen(function* () {
-        const args = baseArgs.map((a) => (a === '__TMP__' ? `--log-junit=${tmpFile}` : a));
+        const args = baseArgs.map((a) => (a === "__TMP__" ? `--log-junit=${tmpFile}` : a));
 
-        yield* execTool(bin, args, cwd, 'pest').pipe(Effect.ignore);
+        yield* execTool(bin, args, cwd, "pest").pipe(Effect.ignore);
 
         const xml = yield* Effect.try({
-          try: () => nodeFs.readFileSync(tmpFile, 'utf-8'),
+          try: () => nodeFs.readFileSync(tmpFile, "utf-8"),
           catch: (cause) => cause,
-        }).pipe(Effect.catchAll(() => Effect.succeed('')));
+        }).pipe(Effect.catchAll(() => Effect.succeed("")));
 
         if (!xml) return [];
 
@@ -72,21 +72,22 @@ async function executePest(
 }
 
 export function pest(opts: PestOptions = {}): Rule {
-  const id = opts.id ?? 'pest';
-  const description = opts.label ?? 'Pest test suite';
+  const id = opts.id ?? "pest";
+  const description = opts.label ?? "Pest test suite";
   const cwd = nodePath.resolve(opts.cwd ?? process.cwd());
-  const bin = opts.bin ?? 'vendor/bin/pest';
+  const bin = opts.bin ?? "vendor/bin/pest";
   const defaultPatterns: string[] | null = opts.pattern
     ? Array.isArray(opts.pattern)
       ? [...opts.pattern]
       : [opts.pattern]
     : null;
 
-  const run: Rule['run'] = Effect.gen(function* () {
+  const run: Rule["run"] = Effect.gen(function* () {
     const fileFilter = yield* FileFilter;
-    const patterns = fileFilter.patterns !== null && fileFilter.patterns.length > 0
-      ? [...fileFilter.patterns]
-      : defaultPatterns;
+    const patterns =
+      fileFilter.patterns !== null && fileFilter.patterns.length > 0
+        ? [...fileFilter.patterns]
+        : defaultPatterns;
 
     return yield* Effect.promise(() => executePest(opts, id, bin, cwd, patterns));
   });
@@ -98,7 +99,7 @@ export function pest(opts: PestOptions = {}): Rule {
     category: opts.category,
     project: {
       // Test outcomes depend on any source change — conservative.
-      patterns: defaultPatterns ?? ['**/*'],
+      patterns: defaultPatterns ?? ["**/*"],
       run: () => executePest(opts, id, bin, cwd, defaultPatterns),
     },
   };

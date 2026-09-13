@@ -25,8 +25,8 @@ A Gesetz rule is not a YAML file or a JSON schema. It is a TypeScript function y
 
 Gesetz separates **what to scan** from **what to enforce**.
 
-- **`select(pattern)`** says *which files* the rule looks at.
-- **`.check(...)`** says *what must be true* about each file.
+- **`select(pattern)`** says _which files_ the rule looks at.
+- **`.check(...)`** says _what must be true_ about each file.
 - The result is a **`Rule`**, which the runner executes.
 
 A `Rule` is an object with an id, description, category, optional guidance, and a run descriptor. Rules built with `select()` automatically get a `perFile` descriptor — the runner compiles them to incremental scans so unchanged files are served from cache. Raw rules use the `project` descriptor for full-control access to the file network.
@@ -40,18 +40,18 @@ This is **incremental by default**: rules declare what files they depend on, and
 The `select` function creates a fluent selector. Chain methods, then terminate with `.check(...)` to produce a `Rule`.
 
 ```ts
-import { select, requireSibling } from 'gesetz';
+import { select, requireSibling } from "gesetz";
 
-export const everyPageNeedsMeta = select('app/**/*.tsx')
-  .exclude('**/*.test.tsx', '**/layout.tsx')
-  .label('Every page needs a metadata file')
-  .category('organization')
+export const everyPageNeedsMeta = select("app/**/*.tsx")
+  .exclude("**/*.test.tsx", "**/layout.tsx")
+  .label("Every page needs a metadata file")
+  .category("organization")
   .guidance({
-    what: 'Pages must declare SEO metadata in a sibling .meta.ts file.',
-    do: 'Create PageName.meta.ts next to the page component.',
-    dont: 'Inline metadata into the page component itself.',
+    what: "Pages must declare SEO metadata in a sibling .meta.ts file.",
+    do: "Create PageName.meta.ts next to the page component.",
+    dont: "Inline metadata into the page component itself.",
   })
-  .check(requireSibling('.meta.ts'));
+  .check(requireSibling(".meta.ts"));
 ```
 
 Let us unpack every call:
@@ -79,15 +79,15 @@ The `File` object carries everything you need:
 
 ```ts
 interface File {
-  path: string;         // repo-relative, e.g. "src/components/Foo.tsx"
+  path: string; // repo-relative, e.g. "src/components/Foo.tsx"
   absolutePath: string; // absolute on disk
-  name: string;         // "Foo.tsx"
-  stem: string;         // "Foo"
-  ext: string;          // ".tsx"
-  dir: string;          // "src/components"
-  content: string;      // full UTF-8 source
-  size: number;         // bytes
-  mtimeMs: number;      // last modified
+  name: string; // "Foo.tsx"
+  stem: string; // "Foo"
+  ext: string; // ".tsx"
+  dir: string; // "src/components"
+  content: string; // full UTF-8 source
+  size: number; // bytes
+  mtimeMs: number; // last modified
 }
 ```
 
@@ -131,14 +131,14 @@ A `Violation` is a plain object:
 
 ```ts
 interface Violation {
-  message: string;       // human-readable
-  path: string;         // repo-relative path
-  line?: number;        // 1-indexed, optional
-  column?: number;      // optional
-  severity: 'error' | 'warn' | 'info';
-  context?: string;     // optional extra detail
-  fix?: string;         // optional suggested replacement
-  source: 'core' | 'eslint' | 'phpstan' | 'oxlint' | 'custom';
+  message: string; // human-readable
+  path: string; // repo-relative path
+  line?: number; // 1-indexed, optional
+  column?: number; // optional
+  severity: "error" | "warn" | "info";
+  context?: string; // optional extra detail
+  fix?: string; // optional suggested replacement
+  source: "core" | "eslint" | "phpstan" | "oxlint" | "custom";
 }
 ```
 
@@ -147,11 +147,9 @@ When you use `.check()` inside `select`, the rule ID is automatically injected i
 A `Check` is a function from one `File` to an `Effect` that produces `Violation[]`:
 
 ```ts
-type Check = (file: File) => Effect.Effect<
-  Violation[],
-  never,
-  FileSystem | SyntaxTree | ImportResolver | ProjectRoot
->;
+type Check = (
+  file: File,
+) => Effect.Effect<Violation[], never, FileSystem | SyntaxTree | ImportResolver | ProjectRoot>;
 ```
 
 Notice the error channel is `never`. Checks must not throw. They absorb internal failures and convert them into violations or empty arrays. This is a hard contract: a broken check must not crash the runner.
@@ -160,15 +158,15 @@ The `File` object carries everything you need:
 
 ```ts
 interface File {
-  path: string;         // repo-relative, e.g. "src/components/Foo.tsx"
+  path: string; // repo-relative, e.g. "src/components/Foo.tsx"
   absolutePath: string; // absolute on disk
-  name: string;         // "Foo.tsx"
-  stem: string;         // "Foo"
-  ext: string;          // ".tsx"
-  dir: string;          // "src/components"
-  content: string;      // full UTF-8 source
-  size: number;         // bytes
-  mtimeMs: number;      // last modified
+  name: string; // "Foo.tsx"
+  stem: string; // "Foo"
+  ext: string; // ".tsx"
+  dir: string; // "src/components"
+  content: string; // full UTF-8 source
+  size: number; // bytes
+  mtimeMs: number; // last modified
 }
 ```
 
@@ -176,15 +174,15 @@ A `Violation` is a plain object:
 
 ```ts
 interface Violation {
-  rule: string;         // rule ID (auto-filled by select)
-  message: string;       // human-readable
-  path: string;         // repo-relative path
-  line?: number;        // 1-indexed, optional
-  column?: number;      // optional
-  severity: 'error' | 'warn' | 'info';
-  context?: string;     // optional extra detail
-  fix?: string;         // optional suggested replacement
-  source: 'core' | 'eslint' | 'phpstan' | 'oxlint' | 'custom';
+  rule: string; // rule ID (auto-filled by select)
+  message: string; // human-readable
+  path: string; // repo-relative path
+  line?: number; // 1-indexed, optional
+  column?: number; // optional
+  severity: "error" | "warn" | "info";
+  context?: string; // optional extra detail
+  fix?: string; // optional suggested replacement
+  source: "core" | "eslint" | "phpstan" | "oxlint" | "custom";
 }
 ```
 
@@ -201,10 +199,10 @@ These checks read neighboring files and directories. They do not parse source co
 Ensures a file with the same stem and a given suffix exists in the same directory.
 
 ```ts
-select('src/components/**/*.tsx')
-  .exclude('**/*.stories.tsx', '**/*.test.tsx')
-  .label('Components need stories')
-  .check(requireSibling('.stories.tsx'));
+select("src/components/**/*.tsx")
+  .exclude("**/*.stories.tsx", "**/*.test.tsx")
+  .label("Components need stories")
+  .check(requireSibling(".stories.tsx"));
 ```
 
 If `src/components/Button.tsx` exists but `src/components/Button.stories.tsx` does not, the violation message is:
@@ -218,9 +216,9 @@ Missing sibling file: Button.stories.tsx
 Ensures the directory containing the matched file also contains specific files. Applied per-file, so if you target `src/modules/**/index.ts`, every module's `index.ts` triggers a check that the module directory has the required children.
 
 ```ts
-select('src/modules/**/index.ts')
-  .label('Modules must have standard structure')
-  .check(requireChildren(['types.ts', 'hooks.ts']));
+select("src/modules/**/index.ts")
+  .label("Modules must have standard structure")
+  .check(requireChildren(["types.ts", "hooks.ts"]));
 ```
 
 ### `forbidFile()`
@@ -228,9 +226,7 @@ select('src/modules/**/index.ts')
 Flags any matched file as a violation. Use this with an inverted glob to ban files by pattern.
 
 ```ts
-select('src/**/node_modules/**')
-  .label('No nested node_modules')
-  .check(forbidFile());
+select("src/**/node_modules/**").label("No nested node_modules").check(forbidFile());
 ```
 
 ### `relativeImports()`
@@ -238,9 +234,7 @@ select('src/**/node_modules/**')
 Verifies that every relative import in the file resolves to an existing file. It tries `.ts`, `.tsx`, `/index.ts`, and `/index.tsx` variants.
 
 ```ts
-select('src/**/*.{ts,tsx}')
-  .label('Relative imports must resolve')
-  .check(relativeImports());
+select("src/**/*.{ts,tsx}").label("Relative imports must resolve").check(relativeImports());
 ```
 
 ---
@@ -254,11 +248,13 @@ These are the simplest checks: scan the file content with a regular expression. 
 Fails when the file contains a match.
 
 ```ts
-select('src/**/*.php')
-  .label('No legacy helper calls')
-  .check(noPattern(/legacy_helper\(/, {
-    message: 'Use modern_helper() instead of legacy_helper().',
-  }));
+select("src/**/*.php")
+  .label("No legacy helper calls")
+  .check(
+    noPattern(/legacy_helper\(/, {
+      message: "Use modern_helper() instead of legacy_helper().",
+    }),
+  );
 ```
 
 By default it scans line-by-line and reports line numbers. Pass `fullFile: true` for whole-file matching (useful for multi-line patterns) — in that case, no line number is reported.
@@ -268,11 +264,13 @@ By default it scans line-by-line and reports line numbers. Pass `fullFile: true`
 Fails when the file does **not** contain a match.
 
 ```ts
-select('src/**/*.php')
-  .label('PHP files must declare strict types')
-  .check(requirePattern(/declare\(strict_types=1\)/, {
-    message: 'Add declare(strict_types=1) at the top of the file.',
-  }));
+select("src/**/*.php")
+  .label("PHP files must declare strict types")
+  .check(
+    requirePattern(/declare\(strict_types=1\)/, {
+      message: "Add declare(strict_types=1) at the top of the file.",
+    }),
+  );
 ```
 
 ---
@@ -286,9 +284,9 @@ These checks analyze text-level properties. They do not use a parser, so they wo
 Flags files exceeding a line count. Default max is 400.
 
 ```ts
-select('src/**/*.{ts,tsx,php,py}')
-  .label('Files should stay under 400 lines')
-  .category('structure')
+select("src/**/*.{ts,tsx,php,py}")
+  .label("Files should stay under 400 lines")
+  .category("structure")
   .check(noGodFile({ maxLines: 400 }));
 ```
 
@@ -297,8 +295,8 @@ select('src/**/*.{ts,tsx,php,py}')
 Heuristic nesting detector. Counts indentation (spaces / tabs) and flags lines deeper than `maxLevels`. Default is 4. This is a heuristic, not an AST analysis — it catches visual nesting including object literals and chained calls, but may misclassify heavily-indented data definitions.
 
 ```ts
-select('src/**/*.ts')
-  .label('Avoid deep nesting')
+select("src/**/*.ts")
+  .label("Avoid deep nesting")
   .check(noDeepNesting({ maxLevels: 4 }));
 ```
 
@@ -306,20 +304,20 @@ select('src/**/*.ts')
 
 Extension-aware debug function detector. It maps file extensions to known debug calls:
 
-| Extension | Functions flagged |
-|---|---|
+| Extension                                    | Functions flagged                                                                                                                |
+| -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
 | `.ts`, `.tsx`, `.js`, `.jsx`, `.mjs`, `.cjs` | `console.log`, `console.debug`, `console.info`, `console.warn`, `console.error`, `console.dir`, `console.table`, `console.trace` |
-| `.py` | `print`, `pprint`, `breakpoint` |
-| `.php` | `var_dump`, `print_r`, `dd`, `dump`, `debug` |
-| `.go` | `fmt.Println`, `fmt.Printf`, `log.Println`, `log.Printf` |
-| `.rs` | `println!`, `eprintln!`, `dbg!` |
-| `.rb` | `puts`, `p`, `pp` |
+| `.py`                                        | `print`, `pprint`, `breakpoint`                                                                                                  |
+| `.php`                                       | `var_dump`, `print_r`, `dd`, `dump`, `debug`                                                                                     |
+| `.go`                                        | `fmt.Println`, `fmt.Printf`, `log.Println`, `log.Printf`                                                                         |
+| `.rs`                                        | `println!`, `eprintln!`, `dbg!`                                                                                                  |
+| `.rb`                                        | `puts`, `p`, `pp`                                                                                                                |
 
 ```ts
-select('src/**/*')
-  .label('No debug logging in production')
-  .category('cleanup')
-  .check(noDebugLogging({ severity: 'warn' }));
+select("src/**/*")
+  .label("No debug logging in production")
+  .category("cleanup")
+  .check(noDebugLogging({ severity: "warn" }));
 ```
 
 Unknown extensions silently pass (no violations). Use `extraNames` to add custom functions for all extensions.
@@ -333,8 +331,8 @@ TypeScript-specific regex checks. These live in `@gesetz/core` for historical re
 Flags numeric literals that are not assigned to `SCREAMING_SNAKE_CASE` constants. Default allowed numbers: `0, 1, -1, 2, 100`.
 
 ```ts
-select('src/**/*.ts')
-  .label('Avoid magic numbers')
+select("src/**/*.ts")
+  .label("Avoid magic numbers")
   .check(noMagicNumbers({ ignore: [0, 1, 100, 1000] }));
 ```
 
@@ -343,9 +341,9 @@ select('src/**/*.ts')
 Flags narrative comments that restate the code (`// Import React`, `// Define the component`, `// Return JSX`). These are common AI-generated residue.
 
 ```ts
-select('src/**/*.{ts,tsx}')
-  .label('Remove trivial comments')
-  .category('cleanup')
+select("src/**/*.{ts,tsx}")
+  .label("Remove trivial comments")
+  .category("cleanup")
   .check(noTrivialComment());
 ```
 
@@ -354,8 +352,8 @@ select('src/**/*.{ts,tsx}')
 Flags file names that look like debug artefacts: `*_v2.ts`, `*_backup.ts`, `*_fixed.ts`, `*_copy.ts`, `*_old.ts`, `*_new.ts`, `*_temp.ts`, etc.
 
 ```ts
-select('src/**/*.{ts,tsx,js,jsx,php,py}')
-  .label('Clean up debugging artefacts')
+select("src/**/*.{ts,tsx,js,jsx,php,py}")
+  .label("Clean up debugging artefacts")
   .check(noDebuggingResidueFiles());
 ```
 
@@ -364,10 +362,7 @@ select('src/**/*.{ts,tsx,js,jsx,php,py}')
 Heuristic secret detector. Matches patterns like `api_key = "..."`, `token: "..."`, `password = "..."`. This is a coarse net, not a replacement for `git-secrets` or TruffleHog. Use it to catch obvious accidents during development.
 
 ```ts
-select('src/**/*')
-  .label('No hardcoded secrets')
-  .category('security')
-  .check(noHardcodedSecret());
+select("src/**/*").label("No hardcoded secrets").category("security").check(noHardcodedSecret());
 ```
 
 ---
@@ -381,18 +376,20 @@ These checks use the `SyntaxTree` service when a backend is registered, falling 
 Bans importing from a specific module (exact match or prefix).
 
 ```ts
-select('src/**/*.tsx')
-  .label('Use SDK hooks instead of react-query directly')
-  .check(noImportFrom('@tanstack/react-query', {
-    message: 'Import from @internal/sdk-hooks instead.',
-  }));
+select("src/**/*.tsx")
+  .label("Use SDK hooks instead of react-query directly")
+  .check(
+    noImportFrom("@tanstack/react-query", {
+      message: "Import from @internal/sdk-hooks instead.",
+    }),
+  );
 ```
 
 Also accepts a RegExp:
 
 ```ts
-select('src/**/*.ts')
-  .label('No generated SDK internals')
+select("src/**/*.ts")
+  .label("No generated SDK internals")
   .check(noImportFrom(/sdk\/generated/));
 ```
 
@@ -401,9 +398,7 @@ select('src/**/*.ts')
 Requires that a file imports from a specific module at least once.
 
 ```ts
-select('src/**/*.test.ts')
-  .label('Tests must import vitest')
-  .check(requireImportFrom('vitest'));
+select("src/**/*.test.ts").label("Tests must import vitest").check(requireImportFrom("vitest"));
 ```
 
 ### `noDirectCalls(names)`
@@ -411,10 +406,10 @@ select('src/**/*.test.ts')
 Bans specific function calls by name. **Requires a SyntaxBackend** for the file's extension. Uses `SyntaxTree.extractCalls` to get precise call names including member access (`console.log`, `dd`).
 
 ```ts
-select('src/**/*.{ts,tsx}')
-  .label('No eval or dangerous calls')
-  .category('security')
-  .check(noDirectCalls(['eval', 'Function', 'setInnerHTML']));
+select("src/**/*.{ts,tsx}")
+  .label("No eval or dangerous calls")
+  .category("security")
+  .check(noDirectCalls(["eval", "Function", "setInnerHTML"]));
 ```
 
 If no backend is registered, `canProcess(file)` returns `false` and the check returns an empty array. This means the rule does not run — it does not silently pass or fail. If you want to ensure the rule always runs, register the right adapters.
@@ -428,19 +423,19 @@ If the built-in checks do not cover your convention, write your own. A check is 
 ### The simplest possible check
 
 ```ts
-import type { Check, Violation } from 'gesetz';
+import type { Check, Violation } from "gesetz";
 
 export function noFooInComments(): Check {
   return async (file) => {
     const violations: Violation[] = [];
-    const lines = file.content.split('\n');
+    const lines = file.content.split("\n");
 
     for (let i = 0; i < lines.length; i++) {
-      const line = lines[i] ?? '';
-      if (line.includes('//') && line.toLowerCase().includes('foo')) {
+      const line = lines[i] ?? "";
+      if (line.includes("//") && line.toLowerCase().includes("foo")) {
         violations.push({
-          severity: 'warn',
-          source: 'core',
+          severity: "warn",
+          source: "core",
           message: `Do not mention 'foo' in comments: ${line.trim()}`,
           path: file.path,
           line: i + 1,
@@ -456,31 +451,31 @@ export function noFooInComments(): Check {
 Use it:
 
 ```ts
-select('src/**/*.ts')
-  .label('No foo in comments')
-  .check(noFooInComments());
+select("src/**/*.ts").label("No foo in comments").check(noFooInComments());
 ```
 
 ### A check that reads the file system
 
 ```ts
-import * as nodePath from 'node:path';
-import type { Check, Violation } from 'gesetz';
+import * as nodePath from "node:path";
+import type { Check, Violation } from "gesetz";
 
 export function requireReadme(): Check {
   return async (file, { fs }) => {
     const dir = nodePath.dirname(file.absolutePath);
-    const readmePath = nodePath.join(dir, 'README.md');
+    const readmePath = nodePath.join(dir, "README.md");
     const exists = await fs.exists(readmePath);
 
     if (exists) return [];
 
-    return [{
-      severity: 'error',
-      source: 'core',
-      message: `Directory missing README.md: ${file.dir}`,
-      path: file.path,
-    }];
+    return [
+      {
+        severity: "error",
+        source: "core",
+        message: `Directory missing README.md: ${file.dir}`,
+        path: file.path,
+      },
+    ];
   };
 }
 ```
@@ -505,24 +500,24 @@ When you need precise AST analysis — imports, exports, function calls, class s
 
 ```ts
 interface ParsedImport {
-  specifier: string;   // "react", "./foo", "Illuminate\\Models\\User"
-  names: string[];     // ["useState", "useEffect"]
-  line: number;        // 1-indexed
+  specifier: string; // "react", "./foo", "Illuminate\\Models\\User"
+  names: string[]; // ["useState", "useEffect"]
+  line: number; // 1-indexed
 }
 
 interface ParsedCall {
-  name: string;        // "console.log", "dd", "fmt.Println"
+  name: string; // "console.log", "dd", "fmt.Println"
   line: number;
 }
 
 interface ParsedExport {
-  name: string;        // "doThing", "UserService"
-  kind: string;        // "function", "class", "const", "type", "interface", "enum"
+  name: string; // "doThing", "UserService"
+  kind: string; // "function", "class", "const", "type", "interface", "enum"
   line: number;
 }
 
 interface StructureItem {
-  kind: string;        // "function", "class", "method", "interface"
+  kind: string; // "function", "class", "method", "interface"
   name: string;
   startLine: number;
   endLine: number;
@@ -534,9 +529,9 @@ interface StructureItem {
 ### Example: custom import whitelist
 
 ```ts
-import type { Check, Violation } from 'gesetz';
+import type { Check, Violation } from "gesetz";
 
-const ALLOWED_INTERNAL = new Set(['@internal/core', '@internal/ui']);
+const ALLOWED_INTERNAL = new Set(["@internal/core", "@internal/ui"]);
 
 export function onlyAllowedInternalImports(): Check {
   return async (file, { syntax }) => {
@@ -547,10 +542,10 @@ export function onlyAllowedInternalImports(): Check {
 
       const violations: Violation[] = [];
       for (const imp of result.imports) {
-        if (imp.specifier.startsWith('@internal/') && !ALLOWED_INTERNAL.has(imp.specifier)) {
+        if (imp.specifier.startsWith("@internal/") && !ALLOWED_INTERNAL.has(imp.specifier)) {
           violations.push({
-            severity: 'error',
-            source: 'core',
+            severity: "error",
+            source: "core",
             message: `Unauthorized internal import: ${imp.specifier}`,
             path: file.path,
             line: imp.line,
@@ -568,9 +563,7 @@ export function onlyAllowedInternalImports(): Check {
 Use it:
 
 ```ts
-select('src/**/*.ts')
-  .label('Only approved internal packages')
-  .check(onlyAllowedInternalImports());
+select("src/**/*.ts").label("Only approved internal packages").check(onlyAllowedInternalImports());
 ```
 
 ### Important: always catch syntax failures
@@ -579,24 +572,24 @@ select('src/**/*.ts')
 
 ```ts
 interface ParsedImport {
-  specifier: string;   // "react", "./foo", "Illuminate\\Models\\User"
-  names: string[];     // ["useState", "useEffect"]
-  line: number;        // 1-indexed
+  specifier: string; // "react", "./foo", "Illuminate\\Models\\User"
+  names: string[]; // ["useState", "useEffect"]
+  line: number; // 1-indexed
 }
 
 interface ParsedCall {
-  name: string;        // "console.log", "dd", "fmt.Println"
+  name: string; // "console.log", "dd", "fmt.Println"
   line: number;
 }
 
 interface ParsedExport {
-  name: string;        // "doThing", "UserService"
-  kind: string;        // "function", "class", "const", "type", "interface", "enum"
+  name: string; // "doThing", "UserService"
+  kind: string; // "function", "class", "const", "type", "interface", "enum"
   line: number;
 }
 
 interface StructureItem {
-  kind: string;        // "function", "class", "method", "interface"
+  kind: string; // "function", "class", "method", "interface"
   name: string;
   startLine: number;
   endLine: number;
@@ -616,21 +609,22 @@ Beyond per-file checks, Gesetz can enforce **layered architecture** constraints:
 ### Define layers
 
 ```ts
-import { defineArchitecture } from 'gesetz';
+import { defineArchitecture } from "gesetz";
 
 const arch = defineArchitecture({
   layers: [
-    { name: 'entry',  pattern: 'src/cli/**',       canImportFrom: ['core', 'util'] },
-    { name: 'core',   pattern: 'src/core/**',      canImportFrom: ['util'] },
-    { name: 'util',   pattern: 'src/utils/**',     canImportFrom: [] },
+    { name: "entry", pattern: "src/cli/**", canImportFrom: ["core", "util"] },
+    { name: "core", pattern: "src/core/**", canImportFrom: ["util"] },
+    { name: "util", pattern: "src/utils/**", canImportFrom: [] },
   ],
   bannedExternals: {
-    util: ['react', 'react-dom'],
+    util: ["react", "react-dom"],
   },
 });
 ```
 
 This means:
+
 - CLI entry points may import from `core` and `util`.
 - Core may import from `util` only.
 - Utils may not import from anything inside `src/` (they are the bottom layer).
@@ -643,12 +637,12 @@ For one-off exceptions, use explicit forbidden pairs:
 ```ts
 const arch = defineArchitecture({
   layers: [
-    { name: 'ui',     pattern: 'src/ui/**',        canImportFrom: ['domain', 'infra'] },
-    { name: 'domain', pattern: 'src/domain/**',    canImportFrom: ['infra'] },
-    { name: 'infra',  pattern: 'src/infra/**',     canImportFrom: [] },
+    { name: "ui", pattern: "src/ui/**", canImportFrom: ["domain", "infra"] },
+    { name: "domain", pattern: "src/domain/**", canImportFrom: ["infra"] },
+    { name: "infra", pattern: "src/infra/**", canImportFrom: [] },
   ],
   forbidden: [
-    { from: 'domain', to: 'ui', message: 'Domain must not depend on UI presentation layer.' },
+    { from: "domain", to: "ui", message: "Domain must not depend on UI presentation layer." },
   ],
 });
 ```
@@ -668,22 +662,22 @@ Gesetz ships plain testing helpers — `makeFile`, `makeCheckServices`, and `run
 ### Testing a regex-based check
 
 ```ts
-import { describe, it, expect } from 'vitest';
-import { makeFile, makeCheckServices, runCheck } from '@gesetz/core';
-import { noGodFile } from 'gesetz';
+import { describe, it, expect } from "vitest";
+import { makeFile, makeCheckServices, runCheck } from "@gesetz/core";
+import { noGodFile } from "gesetz";
 
-describe('noGodFile', () => {
-  it('passes when file is under the limit', async () => {
-    const file = makeFile('src/foo.ts', 'line\n'.repeat(399));
+describe("noGodFile", () => {
+  it("passes when file is under the limit", async () => {
+    const file = makeFile("src/foo.ts", "line\n".repeat(399));
     const violations = await runCheck(noGodFile({ maxLines: 400 }), file, makeCheckServices());
     expect(violations).toHaveLength(0);
   });
 
-  it('fails when file exceeds the limit', async () => {
-    const file = makeFile('src/foo.ts', 'line\n'.repeat(400));
+  it("fails when file exceeds the limit", async () => {
+    const file = makeFile("src/foo.ts", "line\n".repeat(400));
     const violations = await runCheck(noGodFile({ maxLines: 400 }), file, makeCheckServices());
     expect(violations).toHaveLength(1);
-    expect(violations[0]?.message).toContain('400');
+    expect(violations[0]?.message).toContain("400");
   });
 });
 ```
@@ -693,27 +687,27 @@ describe('noGodFile', () => {
 For checks that use `syntax.process`, provide mock data via `makeCheckServices`:
 
 ```ts
-import { describe, it, expect } from 'vitest';
-import { makeFile, makeCheckServices, runCheck } from '@gesetz/core';
-import { noDirectCalls } from 'gesetz';
+import { describe, it, expect } from "vitest";
+import { makeFile, makeCheckServices, runCheck } from "@gesetz/core";
+import { noDirectCalls } from "gesetz";
 
-describe('noDirectCalls', () => {
-  it('flags banned calls', async () => {
+describe("noDirectCalls", () => {
+  it("flags banned calls", async () => {
     const services = makeCheckServices({
-      syntax: { calls: [{ name: 'eval', line: 3 }] },
+      syntax: { calls: [{ name: "eval", line: 3 }] },
     });
-    const file = makeFile('src/foo.ts');
-    const violations = await runCheck(noDirectCalls(['eval']), file, services);
+    const file = makeFile("src/foo.ts");
+    const violations = await runCheck(noDirectCalls(["eval"]), file, services);
     expect(violations).toHaveLength(1);
     expect(violations[0]?.line).toBe(3);
   });
 
-  it('returns nothing when no backend is registered', async () => {
+  it("returns nothing when no backend is registered", async () => {
     const services = makeCheckServices({
       overrides: { syntax: { canProcess: () => false } },
     });
-    const file = makeFile('src/foo.rb');
-    const violations = await runCheck(noDirectCalls(['eval']), file, services);
+    const file = makeFile("src/foo.rb");
+    const violations = await runCheck(noDirectCalls(["eval"]), file, services);
     expect(violations).toHaveLength(0);
   });
 });
@@ -726,28 +720,28 @@ This is fast: no real parser runs, no file system touches. You control the AST o
 For checks that call `fs.exists`, pass a virtual filesystem:
 
 ```ts
-import nodePath from 'node:path';
-import { describe, it, expect } from 'vitest';
-import { makeFile, makeCheckServices, runCheck } from '@gesetz/core';
-import { requireSibling } from 'gesetz';
+import nodePath from "node:path";
+import { describe, it, expect } from "vitest";
+import { makeFile, makeCheckServices, runCheck } from "@gesetz/core";
+import { requireSibling } from "gesetz";
 
 const CWD = process.cwd();
 
-describe('requireSibling', () => {
-  it('passes when the sibling exists', async () => {
+describe("requireSibling", () => {
+  it("passes when the sibling exists", async () => {
     const services = makeCheckServices({
       projectRoot: CWD,
-      files: { [nodePath.resolve(CWD, 'src/Button.stories.tsx')]: '' },
+      files: { [nodePath.resolve(CWD, "src/Button.stories.tsx")]: "" },
     });
-    const file = makeFile('src/Button.tsx');
-    const violations = await runCheck(requireSibling('.stories.tsx'), file, services);
+    const file = makeFile("src/Button.tsx");
+    const violations = await runCheck(requireSibling(".stories.tsx"), file, services);
     expect(violations).toHaveLength(0);
   });
 
-  it('fails when the sibling is missing', async () => {
+  it("fails when the sibling is missing", async () => {
     const services = makeCheckServices({ projectRoot: CWD });
-    const file = makeFile('src/Button.tsx');
-    const violations = await runCheck(requireSibling('.stories.tsx'), file, services);
+    const file = makeFile("src/Button.tsx");
+    const violations = await runCheck(requireSibling(".stories.tsx"), file, services);
     expect(violations).toHaveLength(1);
   });
 });
@@ -763,7 +757,7 @@ Let us write a complete rule from scratch: **"Every `useFoo` hook must have a ma
 
 ```ts
 // rules/require-related-hooks.ts
-import type { Check, Violation } from 'gesetz';
+import type { Check, Violation } from "gesetz";
 
 export function requireRelatedHooks(): Check {
   return async (file, { syntax }) => {
@@ -777,10 +771,10 @@ export function requireRelatedHooks(): Check {
     }
 
     // Only consider function exports whose name starts with "use"
-    const hooks = result.exports.filter(e => e.kind === 'function' && e.name.startsWith('use'));
+    const hooks = result.exports.filter((e) => e.kind === "function" && e.name.startsWith("use"));
     if (hooks.length === 0) return [];
 
-    const exportNames = new Set(result.exports.map(e => e.name));
+    const exportNames = new Set(result.exports.map((e) => e.name));
     const violations: Violation[] = [];
 
     for (const hook of hooks) {
@@ -790,8 +784,8 @@ export function requireRelatedHooks(): Check {
 
       if (!exportNames.has(suspenseName)) {
         violations.push({
-          severity: 'error',
-          source: 'core',
+          severity: "error",
+          source: "core",
           message: `Hook '${hook.name}' is missing related export '${suspenseName}'`,
           path: file.path,
           line: hook.line,
@@ -799,8 +793,8 @@ export function requireRelatedHooks(): Check {
       }
       if (!exportNames.has(cachedName)) {
         violations.push({
-          severity: 'error',
-          source: 'core',
+          severity: "error",
+          source: "core",
           message: `Hook '${hook.name}' is missing related export '${cachedName}'`,
           path: file.path,
           line: hook.line,
@@ -817,21 +811,21 @@ export function requireRelatedHooks(): Check {
 
 ```ts
 // gesetz.config.ts
-import { defineConfig, select } from 'gesetz';
-import { typescriptSyntaxBackend } from '@gesetz/typescript';
-import { requireRelatedHooks } from './rules/require-related-hooks';
+import { defineConfig, select } from "gesetz";
+import { typescriptSyntaxBackend } from "@gesetz/typescript";
+import { requireRelatedHooks } from "./rules/require-related-hooks";
 
 export default defineConfig({
   adapters: [typescriptSyntaxBackend],
   rules: [
-    select('src/hooks/**/*.ts')
-      .exclude('**/*.test.ts', '**/index.ts')
-      .label('Every useX hook needs useSuspenseX and useCachedX')
-      .category('organization')
+    select("src/hooks/**/*.ts")
+      .exclude("**/*.test.ts", "**/index.ts")
+      .label("Every useX hook needs useSuspenseX and useCachedX")
+      .category("organization")
       .guidance({
-        what: 'Data hooks must expose three variants: eager, suspense, and cached.',
-        do: 'Export useSuspenseFoo and useCachedFoo alongside useFoo.',
-        dont: 'Export only the eager hook and leave callers without async options.',
+        what: "Data hooks must expose three variants: eager, suspense, and cached.",
+        do: "Export useSuspenseFoo and useCachedFoo alongside useFoo.",
+        dont: "Export only the eager hook and leave callers without async options.",
       })
       .check(requireRelatedHooks()),
   ],
@@ -842,39 +836,39 @@ export default defineConfig({
 
 ```ts
 // rules/require-related-hooks.test.ts
-import { describe, it, expect } from 'vitest';
-import { makeFile, makeCheckServices, runCheck } from '@gesetz/core';
-import { requireRelatedHooks } from './require-related-hooks';
+import { describe, it, expect } from "vitest";
+import { makeFile, makeCheckServices, runCheck } from "@gesetz/core";
+import { requireRelatedHooks } from "./require-related-hooks";
 
-describe('requireRelatedHooks', () => {
-  it('passes when all related hooks exist', async () => {
+describe("requireRelatedHooks", () => {
+  it("passes when all related hooks exist", async () => {
     const services = makeCheckServices({
       syntax: {
         exports: [
-          { name: 'useUser', kind: 'function', line: 1 },
-          { name: 'useSuspenseUser', kind: 'function', line: 10 },
-          { name: 'useCachedUser', kind: 'function', line: 20 },
+          { name: "useUser", kind: "function", line: 1 },
+          { name: "useSuspenseUser", kind: "function", line: 10 },
+          { name: "useCachedUser", kind: "function", line: 20 },
         ],
       },
     });
-    const file = makeFile('src/hooks/useUser.ts');
+    const file = makeFile("src/hooks/useUser.ts");
     const violations = await runCheck(requireRelatedHooks(), file, services);
     expect(violations).toHaveLength(0);
   });
 
-  it('fails when suspense hook is missing', async () => {
+  it("fails when suspense hook is missing", async () => {
     const services = makeCheckServices({
       syntax: {
         exports: [
-          { name: 'useUser', kind: 'function', line: 1 },
-          { name: 'useCachedUser', kind: 'function', line: 20 },
+          { name: "useUser", kind: "function", line: 1 },
+          { name: "useCachedUser", kind: "function", line: 20 },
         ],
       },
     });
-    const file = makeFile('src/hooks/useUser.ts');
+    const file = makeFile("src/hooks/useUser.ts");
     const violations = await runCheck(requireRelatedHooks(), file, services);
     expect(violations).toHaveLength(1);
-    expect(violations[0]?.message).toContain('useSuspenseUser');
+    expect(violations[0]?.message).toContain("useSuspenseUser");
   });
 });
 ```
@@ -882,6 +876,7 @@ describe('requireRelatedHooks', () => {
 ### What we just built
 
 A rule that:
+
 - Targets only hook files (`src/hooks/**/*.ts`).
 - Parses exports via the TypeScript backend.
 - Enforces a team convention (three hook variants).
@@ -894,20 +889,20 @@ This pattern generalizes to any convention you can express as "for every X, chec
 
 ## Summary
 
-| If you want to... | Use |
-|---|---|
-| Ban files by name or path | `forbidFile()` with an inverted glob |
-| Require sibling files | `requireSibling()` |
-| Require directory contents | `requireChildren()` |
-| Match / ban regex patterns | `noPattern()`, `requirePattern()` |
-| Check file size or nesting | `noGodFile()`, `noDeepNesting()` |
-| Ban debug calls by extension | `noDebugLogging()` |
-| Ban imports from a module | `noImportFrom()` |
-| Require imports from a module | `requireImportFrom()` |
-| Ban specific function calls | `noDirectCalls()` (needs adapter) |
-| Enforce export relationships | `requireRelatedExports()` (needs adapter) |
-| Enforce naming conventions | `requireNamingConvention()` (needs adapter) |
-| Check layer architecture | `defineArchitecture()` |
-| Anything else | Write a custom `Check` function |
+| If you want to...             | Use                                         |
+| ----------------------------- | ------------------------------------------- |
+| Ban files by name or path     | `forbidFile()` with an inverted glob        |
+| Require sibling files         | `requireSibling()`                          |
+| Require directory contents    | `requireChildren()`                         |
+| Match / ban regex patterns    | `noPattern()`, `requirePattern()`           |
+| Check file size or nesting    | `noGodFile()`, `noDeepNesting()`            |
+| Ban debug calls by extension  | `noDebugLogging()`                          |
+| Ban imports from a module     | `noImportFrom()`                            |
+| Require imports from a module | `requireImportFrom()`                       |
+| Ban specific function calls   | `noDirectCalls()` (needs adapter)           |
+| Enforce export relationships  | `requireRelatedExports()` (needs adapter)   |
+| Enforce naming conventions    | `requireNamingConvention()` (needs adapter) |
+| Check layer architecture      | `defineArchitecture()`                      |
+| Anything else                 | Write a custom `Check` function             |
 
 The boundary between "use a built-in" and "write custom" is simple: if you can describe it as a regex, file-system query, or one of the pre-defined AST queries, use the built-in. If your convention is domain-specific (like the three-variant hook rule above), write a custom check. Both compile to the same `Rule` type and run in the same pipeline.

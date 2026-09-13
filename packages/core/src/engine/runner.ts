@@ -1,12 +1,12 @@
-import * as childProcess from 'node:child_process';
-import { Effect } from 'effect';
-import micromatch from 'micromatch';
-import { createNetwork } from 'netzwerk';
-import type { Violation, Exemption, CheckServices } from './rule';
-import type { ResolvedConfig } from './config';
-import { compileConfig, type CompileContext } from '../backend/compile';
-import { createCheckServices } from '../backend/check-services';
-import { isViolationMarker, markerToViolation } from '../backend/violation-markers';
+import * as childProcess from "node:child_process";
+import { Effect } from "effect";
+import micromatch from "micromatch";
+import { createNetwork } from "netzwerk";
+import type { Violation, Exemption, CheckServices } from "./rule";
+import type { ResolvedConfig } from "./config";
+import { compileConfig, type CompileContext } from "../backend/compile";
+import { createCheckServices } from "../backend/check-services";
+import { isViolationMarker, markerToViolation } from "../backend/violation-markers";
 
 export interface RuleResult {
   readonly ruleId: string;
@@ -76,13 +76,18 @@ function resolveChangedFiles(
   if (!changedSince) return null;
   try {
     const output = childProcess
-      .execFileSync('git', ['diff', '--name-only', changedSince], {
+      .execFileSync("git", ["diff", "--name-only", changedSince], {
         cwd: projectRoot,
-        encoding: 'utf-8',
+        encoding: "utf-8",
       })
       .trim();
     if (!output) return new Set();
-    return new Set(output.split('\n').map((p) => p.trim()).filter(Boolean));
+    return new Set(
+      output
+        .split("\n")
+        .map((p) => p.trim())
+        .filter(Boolean),
+    );
   } catch {
     // git not available or ref invalid — fall through to no filter
     return null;
@@ -94,16 +99,24 @@ function resolveChangedFiles(
  */
 function computeCategoryScores(
   results: RuleResult[],
-  thresholds: ResolvedConfig['thresholds'],
+  thresholds: ResolvedConfig["thresholds"],
 ): CategoryScore[] {
-  const byCategory = new Map<string, { errors: number; warnings: number; infos: number; ruleIds: string[] }>();
+  const byCategory = new Map<
+    string,
+    { errors: number; warnings: number; infos: number; ruleIds: string[] }
+  >();
 
   for (const result of results) {
     if (!result.category) continue;
-    const existing = byCategory.get(result.category) ?? { errors: 0, warnings: 0, infos: 0, ruleIds: [] };
+    const existing = byCategory.get(result.category) ?? {
+      errors: 0,
+      warnings: 0,
+      infos: 0,
+      ruleIds: [],
+    };
     for (const v of result.violations) {
-      if (v.severity === 'error') existing.errors++;
-      else if (v.severity === 'warn') existing.warnings++;
+      if (v.severity === "error") existing.errors++;
+      else if (v.severity === "warn") existing.warnings++;
       else existing.infos++;
     }
     existing.ruleIds.push(result.ruleId);
@@ -148,7 +161,7 @@ export function applyExemptions(
         return false; // Expired exemption — does not suppress
       }
       // Check rule match
-      const rulePattern = exemption.rule ?? '*';
+      const rulePattern = exemption.rule ?? "*";
       if (!micromatch.isMatch(ruleId, rulePattern)) {
         return false;
       }
@@ -185,7 +198,7 @@ export const runAll = (
       rootPath: config.projectRoot,
       extensions: compileConfig(config, compileCtx),
       // GesetzStorageConfig is structurally identical to NetworkStorageConfig.
-      storage: config.storage as import('netzwerk').NetworkStorageConfig,
+      storage: config.storage as import("netzwerk").NetworkStorageConfig,
     });
 
     try {
@@ -206,7 +219,7 @@ export const runAll = (
         for (const marker of entry.markers) {
           if (!isViolationMarker(marker)) continue;
           const violation = markerToViolation(entry.path, marker);
-          const ruleId = violation.rule ?? '';
+          const ruleId = violation.rule ?? "";
           const list = violationsByRule.get(ruleId) ?? [];
           list.push(violation);
           violationsByRule.set(ruleId, list);
@@ -222,7 +235,7 @@ export const runAll = (
       // Orphaned violations from after-hook rules (paths without a scanned
       // file record, e.g. the project root).
       for (const violation of pendingViolations) {
-        const ruleId = violation.rule ?? '';
+        const ruleId = violation.rule ?? "";
         const list = violationsByRule.get(ruleId) ?? [];
         list.push(violation);
         violationsByRule.set(ruleId, list);

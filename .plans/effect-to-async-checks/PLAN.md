@@ -39,10 +39,7 @@ export interface CheckServices {
   projectRoot: string;
 }
 
-export type Check = (
-  file: File,
-  services: CheckServices,
-) => Promise<Violation[]>;
+export type Check = (file: File, services: CheckServices) => Promise<Violation[]>;
 ```
 
 ### Bridge in `buildRule`
@@ -75,27 +72,27 @@ Each check is executed via `Effect.tryPromise(() => check(file, services))` with
 
 ### Core — type system
 
-| File | Change |
-|---|---|
-| `packages/core/src/engine/rule.ts` | New `CheckServices` interface; `Check` becomes `async (file, services) => Promise<Violation[]>` |
-| `packages/core/src/primitives/select.ts` | `buildRule` builds services bag + bridge; `.check()` accepts new `Check` type |
-| `packages/core/src/primitives/simple-check.ts` | **Delete** — no longer needed |
-| `packages/core/src/index.ts` | Remove `simpleCheck` and `Simple*` exports; add `CheckServices` |
+| File                                           | Change                                                                                          |
+| ---------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `packages/core/src/engine/rule.ts`             | New `CheckServices` interface; `Check` becomes `async (file, services) => Promise<Violation[]>` |
+| `packages/core/src/primitives/select.ts`       | `buildRule` builds services bag + bridge; `.check()` accepts new `Check` type                   |
+| `packages/core/src/primitives/simple-check.ts` | **Delete** — no longer needed                                                                   |
+| `packages/core/src/index.ts`                   | Remove `simpleCheck` and `Simple*` exports; add `CheckServices`                                 |
 
 ### Core — built-in checks (rewrite Effect → async)
 
-| File | Functions |
-|---|---|
-| `packages/core/src/primitives/checks/fs.ts` | `requireSibling`, `requireChildren`, `forbidFile`, `relativeImports` |
-| `packages/core/src/primitives/checks/patterns.ts` | `noPattern`, `requirePattern` |
-| `packages/core/src/primitives/checks/structure.ts` | `noGodFile`, `noDeepNesting`, `noConsoleLog`, `noEmptyCatch`, `noMagicNumbers`, `noTrivialComment`, `noDebuggingResidueFiles`, `noHardcodedSecret` |
-| `packages/core/src/primitives/checks/imports.ts` | `noImportFrom`, `requireImportFrom` |
-| `packages/core/src/primitives/checks/calls.ts` | `noDirectCalls` |
-| `packages/core/src/primitives/checks/debug-logging.ts` | `noDebugLogging` |
-| `packages/core/src/primitives/checks/docstrings.ts` | `requireDocstrings` |
-| `packages/core/src/primitives/checks/exports.ts` | `requireExportsMatching`, `requireRelatedExports` |
-| `packages/core/src/primitives/checks/naming.ts` | `requireNamingConvention`, `noForbiddenNames` |
-| `packages/core/src/primitives/checks/structure-count.ts` | `requireMinStructureCount` |
+| File                                                     | Functions                                                                                                                                          |
+| -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/core/src/primitives/checks/fs.ts`              | `requireSibling`, `requireChildren`, `forbidFile`, `relativeImports`                                                                               |
+| `packages/core/src/primitives/checks/patterns.ts`        | `noPattern`, `requirePattern`                                                                                                                      |
+| `packages/core/src/primitives/checks/structure.ts`       | `noGodFile`, `noDeepNesting`, `noConsoleLog`, `noEmptyCatch`, `noMagicNumbers`, `noTrivialComment`, `noDebuggingResidueFiles`, `noHardcodedSecret` |
+| `packages/core/src/primitives/checks/imports.ts`         | `noImportFrom`, `requireImportFrom`                                                                                                                |
+| `packages/core/src/primitives/checks/calls.ts`           | `noDirectCalls`                                                                                                                                    |
+| `packages/core/src/primitives/checks/debug-logging.ts`   | `noDebugLogging`                                                                                                                                   |
+| `packages/core/src/primitives/checks/docstrings.ts`      | `requireDocstrings`                                                                                                                                |
+| `packages/core/src/primitives/checks/exports.ts`         | `requireExportsMatching`, `requireRelatedExports`                                                                                                  |
+| `packages/core/src/primitives/checks/naming.ts`          | `requireNamingConvention`, `noForbiddenNames`                                                                                                      |
+| `packages/core/src/primitives/checks/structure-count.ts` | `requireMinStructureCount`                                                                                                                         |
 
 ### TypeScript adapter checks
 
@@ -110,6 +107,7 @@ All files under `packages/typescript/src/checks/` (~20 functions) — rewrite `E
 All test files that call `Effect.runPromise(check(file))` or `Effect.provide(check(file), layer)` must change to `await check(file, mockServices)`.
 
 Files:
+
 - `packages/core/tests/primitives/checks/*.test.ts` (8 files)
 - `packages/core/tests/primitives/simple-check.test.ts` → **Delete**
 - `packages/core/tests/primitives/select.test.ts`
@@ -124,23 +122,26 @@ Create a `makeCheckServices` helper in `packages/core/tests/helpers/` that build
 ## Migration pattern (per check)
 
 ### Before
+
 ```ts
 export function noGodFile(options = {}): Check {
-  return (file) => Effect.sync(() => {
-    const count = file.content.split('\n').length;
-    if (count <= maxLines) return [];
-    return [{ rule: '', severity: 'warn', source: 'core', message: '...', path: file.path }];
-  });
+  return (file) =>
+    Effect.sync(() => {
+      const count = file.content.split("\n").length;
+      if (count <= maxLines) return [];
+      return [{ rule: "", severity: "warn", source: "core", message: "...", path: file.path }];
+    });
 }
 ```
 
 ### After
+
 ```ts
 export function noGodFile(options = {}): Check {
   return async (file) => {
-    const count = file.content.split('\n').length;
+    const count = file.content.split("\n").length;
     if (count <= maxLines) return [];
-    return [{ severity: 'warn', source: 'core', message: '...', path: file.path }];
+    return [{ severity: "warn", source: "core", message: "...", path: file.path }];
   };
 }
 ```
@@ -148,17 +149,20 @@ export function noGodFile(options = {}): Check {
 Note: `rule` field is optional — builder injects it.
 
 ### Before (service-requiring)
+
 ```ts
 export function requireSibling(suffix): Check {
-  return (file) => Effect.gen(function* () {
-    const fs = yield* FileSystem;
-    const exists = yield* fs.exists(siblingPath);
-    // ...
-  });
+  return (file) =>
+    Effect.gen(function* () {
+      const fs = yield* FileSystem;
+      const exists = yield* fs.exists(siblingPath);
+      // ...
+    });
 }
 ```
 
 ### After (service-requiring)
+
 ```ts
 export function requireSibling(suffix): Check {
   return async (file, { fs }) => {

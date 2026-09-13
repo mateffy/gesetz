@@ -1,25 +1,25 @@
-import { describe, it, expect } from 'vitest';
-import { Effect, Exit, Cause, Layer } from 'effect';
-import { SyntaxTreeLive, SyntaxTreeError, SyntaxTree } from '../../src/services/syntax-tree';
-import type { SyntaxBackend } from '../../src/services/syntax-tree';
-import type { File } from '../../src/engine/rule';
+import { describe, it, expect } from "vitest";
+import { Effect, Exit, Cause, Layer } from "effect";
+import { SyntaxTreeLive, SyntaxTreeError, SyntaxTree } from "../../src/services/syntax-tree";
+import type { SyntaxBackend } from "../../src/services/syntax-tree";
+import type { File } from "../../src/engine/rule";
 
 function makeFile(ext: string): File {
   return {
     path: `src/foo${ext}`,
     absolutePath: `/abs/src/foo${ext}`,
     name: `foo${ext}`,
-    stem: 'foo',
+    stem: "foo",
     ext,
-    dir: 'src',
-    content: 'test content',
+    dir: "src",
+    content: "test content",
     size: 12,
     mtimeMs: 0,
   };
 }
 
 const dummyBackend: SyntaxBackend = {
-  extensions: ['.ts'],
+  extensions: [".ts"],
   extractImports: () => [],
   extractCalls: () => [],
   extractExports: () => [],
@@ -31,9 +31,9 @@ function runWithLayer(effect: Effect.Effect<unknown, unknown, SyntaxTree>) {
   return Effect.provide(effect, layer).pipe(Effect.runPromiseExit);
 }
 
-describe('SyntaxTreeLive', () => {
-  it('fails with SyntaxTreeError when no backend matches the file extension', async () => {
-    const file = makeFile('.unknown');
+describe("SyntaxTreeLive", () => {
+  it("fails with SyntaxTreeError when no backend matches the file extension", async () => {
+    const file = makeFile(".unknown");
     const effect = Effect.gen(function* () {
       const st = yield* SyntaxTree;
       return yield* st.process(file, { imports: true });
@@ -47,13 +47,13 @@ describe('SyntaxTreeLive', () => {
       if (Cause.isFailType(exit.cause)) {
         const err = exit.cause.error as SyntaxTreeError;
         expect(err).toBeInstanceOf(SyntaxTreeError);
-        expect(err.cause).toContain('.unknown');
+        expect(err.cause).toContain(".unknown");
       }
     }
   });
 
-  it('succeeds when a backend matches the file extension', async () => {
-    const file = makeFile('.ts');
+  it("succeeds when a backend matches the file extension", async () => {
+    const file = makeFile(".ts");
     const effect = Effect.gen(function* () {
       const st = yield* SyntaxTree;
       return yield* st.process(file, { imports: true });

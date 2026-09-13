@@ -1,10 +1,10 @@
-import * as nodeFs from 'node:fs';
-import * as nodePath from 'node:path';
-import { Context, Effect, Layer } from 'effect';
-import fastGlob from 'fast-glob';
-import micromatch from 'micromatch';
-import type { File } from '../engine/rule';
-import { FileReadError, GlobError } from '../engine/errors';
+import * as nodeFs from "node:fs";
+import * as nodePath from "node:path";
+import { Context, Effect, Layer } from "effect";
+import fastGlob from "fast-glob";
+import micromatch from "micromatch";
+import type { File } from "../engine/rule";
+import { FileReadError, GlobError } from "../engine/errors";
 
 export interface GlobOptions {
   cwd?: string | undefined;
@@ -18,7 +18,7 @@ export interface FileSystemService {
   exists(absolutePath: string): Effect.Effect<boolean, never>;
 }
 
-export class FileSystem extends Context.Tag('qa/FileSystem')<FileSystem, FileSystemService>() {}
+export class FileSystem extends Context.Tag("qa/FileSystem")<FileSystem, FileSystemService>() {}
 
 /**
  * The project root directory. Rules use this to resolve relative globs
@@ -26,7 +26,7 @@ export class FileSystem extends Context.Tag('qa/FileSystem')<FileSystem, FileSys
  *
  * Provided by the runner (from `ResolvedConfig.projectRoot`).
  */
-export class ProjectRoot extends Context.Tag('qa/ProjectRoot')<ProjectRoot, string>() {}
+export class ProjectRoot extends Context.Tag("qa/ProjectRoot")<ProjectRoot, string>() {}
 
 /** Layer that provides a fixed project root string. */
 export const ProjectRootLive = (root: string): Layer.Layer<ProjectRoot> =>
@@ -49,18 +49,14 @@ export interface FileFilterService {
   matches(path: string): boolean;
 }
 
-export class FileFilter extends Context.Tag('qa/FileFilter')<FileFilter, FileFilterService>() {}
+export class FileFilter extends Context.Tag("qa/FileFilter")<FileFilter, FileFilterService>() {}
 
 /** Layer that provides a file filter from the given globs. */
-export const FileFilterLive = (
-  patterns: readonly string[] | null,
-): Layer.Layer<FileFilter> =>
+export const FileFilterLive = (patterns: readonly string[] | null): Layer.Layer<FileFilter> =>
   Layer.succeed(FileFilter, {
     patterns,
     matches: (p) =>
-      patterns === null || patterns.length === 0
-        ? true
-        : micromatch.isMatch(p, patterns),
+      patterns === null || patterns.length === 0 ? true : micromatch.isMatch(p, patterns),
   });
 
 export const FileSystemLive: Layer.Layer<FileSystem> = Layer.effect(
@@ -69,7 +65,10 @@ export const FileSystemLive: Layer.Layer<FileSystem> = Layer.effect(
     const cwd = process.cwd();
 
     return {
-      glob: (pattern: string | string[], options?: GlobOptions): Effect.Effect<File[], GlobError> => {
+      glob: (
+        pattern: string | string[],
+        options?: GlobOptions,
+      ): Effect.Effect<File[], GlobError> => {
         const effectiveCwd = options?.cwd ?? cwd;
         const patterns = Array.isArray(pattern) ? pattern : [pattern];
         const globOptions: fastGlob.Options = {
@@ -81,9 +80,7 @@ export const FileSystemLive: Layer.Layer<FileSystem> = Layer.effect(
           // or VCS metadata even if the caller's pattern would match them.
           // Caller-supplied `ignore` overrides these defaults.
           ignore:
-            options?.ignore !== undefined
-              ? options.ignore
-              : ['**/node_modules/**', '**/.git/**'],
+            options?.ignore !== undefined ? options.ignore : ["**/node_modules/**", "**/.git/**"],
         };
         return Effect.tryPromise({
           try: () => fastGlob(patterns, globOptions),
@@ -107,7 +104,7 @@ export const FileSystemLive: Layer.Layer<FileSystem> = Layer.effect(
 
       readFile: (absolutePath: string): Effect.Effect<string, FileReadError> =>
         Effect.try({
-          try: () => nodeFs.readFileSync(absolutePath, 'utf-8'),
+          try: () => nodeFs.readFileSync(absolutePath, "utf-8"),
           catch: (cause) => new FileReadError({ path: absolutePath, cause }),
         }),
 
@@ -119,9 +116,9 @@ export const FileSystemLive: Layer.Layer<FileSystem> = Layer.effect(
 
 function readFileSafe(absolutePath: string): string {
   try {
-    return nodeFs.readFileSync(absolutePath, 'utf-8');
+    return nodeFs.readFileSync(absolutePath, "utf-8");
   } catch {
-    return '';
+    return "";
   }
 }
 
@@ -145,7 +142,7 @@ function buildFile(
     name,
     stem,
     ext,
-    dir: dir === '.' ? '' : dir,
+    dir: dir === "." ? "" : dir,
     get content(): string {
       if (cached === undefined) cached = contentLoader();
       return cached;
@@ -191,7 +188,10 @@ export const MemoryFileSystem = (files: Record<string, string>): Layer.Layer<Fil
       return content !== undefined
         ? Effect.succeed(content)
         : Effect.fail(
-            new FileReadError({ path: absolutePath, cause: `not found in memory: ${absolutePath}` }),
+            new FileReadError({
+              path: absolutePath,
+              cause: `not found in memory: ${absolutePath}`,
+            }),
           );
     },
 

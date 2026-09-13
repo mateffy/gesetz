@@ -18,9 +18,9 @@
  * ```
  */
 
-import nodePath from 'node:path';
-import type { File, Check, CheckServices, Violation } from './engine/rule';
-import type { SyntaxBackendProcessResult, SyntaxTreeProcessOptions } from './services/syntax-tree';
+import nodePath from "node:path";
+import type { File, Check, CheckServices, Violation } from "./engine/rule";
+import type { SyntaxBackendProcessResult, SyntaxTreeProcessOptions } from "./services/syntax-tree";
 
 // ─── makeFile ─────────────────────────────────────────────────────────────────
 
@@ -33,7 +33,7 @@ import type { SyntaxBackendProcessResult, SyntaxTreeProcessOptions } from './ser
  * @param path - Repository-relative path, e.g. `src/components/Button.tsx`
  * @param content - File content (defaults to empty string)
  */
-export function makeFile(path: string, content = ''): File {
+export function makeFile(path: string, content = ""): File {
   const absolutePath = nodePath.resolve(process.cwd(), path);
   const name = nodePath.basename(path);
   const ext = nodePath.extname(name);
@@ -140,9 +140,9 @@ export interface MakeCheckServicesOptions {
    * ```
    */
   readonly overrides?: {
-    readonly fs?: Partial<CheckServices['fs']>;
-    readonly syntax?: Partial<CheckServices['syntax']>;
-    readonly imports?: Partial<CheckServices['imports']>;
+    readonly fs?: Partial<CheckServices["fs"]>;
+    readonly syntax?: Partial<CheckServices["syntax"]>;
+    readonly imports?: Partial<CheckServices["imports"]>;
     readonly projectRoot?: string;
   };
 }
@@ -164,13 +164,16 @@ export function makeCheckServices(options: MakeCheckServicesOptions = {}): Check
   const base: CheckServices = {
     fs: {
       glob: async () => (options.glob ?? []) as File[],
-      readFile: async (absolutePath: string) => contentMap[absolutePath] ?? '',
+      readFile: async (absolutePath: string) => contentMap[absolutePath] ?? "",
       exists: async (absolutePath: string) => fileSet.has(absolutePath),
     },
     syntax: {
       canProcess: (file: File) =>
-        ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.php'].includes(file.ext),
-      process: async (_file: File, _options: SyntaxTreeProcessOptions): Promise<SyntaxBackendProcessResult> => ({
+        [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".php"].includes(file.ext),
+      process: async (
+        _file: File,
+        _options: SyntaxTreeProcessOptions,
+      ): Promise<SyntaxBackendProcessResult> => ({
         imports: [],
         calls: [],
         exports: [],
@@ -215,10 +218,6 @@ export function makeCheckServices(options: MakeCheckServicesOptions = {}): Check
  * const violations = await runCheck(noImportFrom('lodash'), file, services);
  * ```
  */
-export function runCheck(
-  check: Check,
-  file: File,
-  services: CheckServices,
-): Promise<Violation[]> {
+export function runCheck(check: Check, file: File, services: CheckServices): Promise<Violation[]> {
   return check(file, services);
 }

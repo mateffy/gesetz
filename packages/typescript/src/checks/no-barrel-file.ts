@@ -1,5 +1,5 @@
-import type { Check, Violation } from '@gesetz/core';
-import { parseFile, findByKind } from './shared';
+import type { Check, Violation } from "@gesetz/core";
+import { parseFile, findByKind } from "./shared";
 
 export interface NoBarrelFileOptions {
   /** Maximum number of re-exports allowed before the file is flagged. Default: 5 */
@@ -25,7 +25,7 @@ export function noBarrelFile(opts: NoBarrelFileOptions = {}): Check {
 
   return async (file) => {
     // Only consider index files
-    if (file.name !== 'index.ts' && file.name !== 'index.tsx') return [];
+    if (file.name !== "index.ts" && file.name !== "index.tsx") return [];
 
     const root = parseFile(file.content, file.path);
     if (root === null) return [];
@@ -33,17 +33,15 @@ export function noBarrelFile(opts: NoBarrelFileOptions = {}): Check {
     // Re-exports are `export_statement` nodes that contain a `from` keyword
     // (i.e. `export ... from '...'`). `export { a, b }` without `from` is
     // a local re-export, not a barrel re-export.
-    const exportStmts = findByKind(root, 'export_statement');
-    const reexports = exportStmts.filter((e) =>
-      e.children().some((c) => c.kind() === 'from'),
-    );
+    const exportStmts = findByKind(root, "export_statement");
+    const reexports = exportStmts.filter((e) => e.children().some((c) => c.kind() === "from"));
 
     if (reexports.length <= maxReexports) return [];
 
     return [
       {
-        severity: 'warn',
-        source: 'core',
+        severity: "warn",
+        source: "core",
         message:
           opts.message ??
           `Barrel file re-exports ${reexports.length} modules (max ${maxReexports}) — import from source files directly`,

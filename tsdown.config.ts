@@ -1,4 +1,4 @@
-import { defineConfig } from 'tsdown';
+import { defineConfig } from "tsdown";
 
 /**
  * Root workspace build config.
@@ -26,10 +26,10 @@ import { defineConfig } from 'tsdown';
  * packages/{core,cli}/tsdown.config.ts for the overrides.
  */
 export default defineConfig({
-  workspace: 'packages/*',
-  entry: ['src/index.ts'],
-  format: ['esm'],
+  workspace: "packages/*",
+  entry: ["src/index.ts"],
+  format: ["esm"],
   dts: true,
   clean: true,
-  outExtensions: () => ({ js: '.js', dts: '.d.ts' }),
+  outExtensions: () => ({ js: ".js", dts: ".d.ts" }),
 });

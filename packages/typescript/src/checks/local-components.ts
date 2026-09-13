@@ -1,5 +1,5 @@
-import type { Check, Violation } from '@gesetz/core';
-import { parseFile, findByKind, findChildText, startLine } from './shared';
+import type { Check, Violation } from "@gesetz/core";
+import { parseFile, findByKind, findChildText, startLine } from "./shared";
 
 /**
  * Checks that the file does not define local helper function components
@@ -35,11 +35,11 @@ export function noLocalFunctionComponents(
     }
 
     const violations: Violation[] = [];
-    const functions = findByKind(root, 'function_declaration');
+    const functions = findByKind(root, "function_declaration");
 
     for (const fn of functions) {
-      const name = findChildText(fn, 'identifier');
-      if (!name || name === 'default') continue;
+      const name = findChildText(fn, "identifier");
+      if (!name || name === "default") continue;
       if (opts.excludeExportedNames && exportedNames.has(name)) continue;
       if (exportedNames.has(name)) continue; // main export — skip
 
@@ -47,13 +47,13 @@ export function noLocalFunctionComponents(
       // `jsx_element` with an empty opening, so `jsx_element` +
       // `jsx_self_closing_element` covers all JSX forms.
       const hasJsx =
-        fn.findAll({ rule: { kind: 'jsx_element' } }).length > 0 ||
-        fn.findAll({ rule: { kind: 'jsx_self_closing_element' } }).length > 0;
+        fn.findAll({ rule: { kind: "jsx_element" } }).length > 0 ||
+        fn.findAll({ rule: { kind: "jsx_self_closing_element" } }).length > 0;
 
       if (hasJsx) {
         violations.push({
-          severity: 'error',
-          source: 'core',
+          severity: "error",
+          source: "core",
           message:
             opts.message?.(name) ??
             `Local function component '${name}' should be moved to its own file`,

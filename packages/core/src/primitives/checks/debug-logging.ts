@@ -8,32 +8,86 @@
  * For precise call detection of user-specified names, use `noDirectCalls()`
  * (which requires a SyntaxBackend). These serve different purposes.
  */
-import type { Check, Violation } from '../../engine/rule';
+import type { Check, Violation } from "../../engine/rule";
 
 const DEBUG_CALLS_BY_EXT: Record<string, readonly string[]> = {
-  '.ts': ['console.log', 'console.debug', 'console.info', 'console.warn', 'console.error', 'console.dir', 'console.table', 'console.trace'],
-  '.tsx': ['console.log', 'console.debug', 'console.info', 'console.warn', 'console.error', 'console.dir', 'console.table', 'console.trace'],
-  '.js': ['console.log', 'console.debug', 'console.info', 'console.warn', 'console.error', 'console.dir', 'console.table', 'console.trace'],
-  '.jsx': ['console.log', 'console.debug', 'console.info', 'console.warn', 'console.error', 'console.dir', 'console.table', 'console.trace'],
-  '.mjs': ['console.log', 'console.debug', 'console.info', 'console.warn', 'console.error', 'console.dir', 'console.table', 'console.trace'],
-  '.cjs': ['console.log', 'console.debug', 'console.info', 'console.warn', 'console.error', 'console.dir', 'console.table', 'console.trace'],
-  '.py': ['print', 'pprint', 'breakpoint'],
-  '.php': ['var_dump', 'print_r', 'dd', 'dump', 'debug'],
-  '.go': ['fmt.Println', 'fmt.Printf', 'log.Println', 'log.Printf'],
-  '.rs': ['println!', 'eprintln!', 'dbg!'],
-  '.rb': ['puts', 'p', 'pp'],
+  ".ts": [
+    "console.log",
+    "console.debug",
+    "console.info",
+    "console.warn",
+    "console.error",
+    "console.dir",
+    "console.table",
+    "console.trace",
+  ],
+  ".tsx": [
+    "console.log",
+    "console.debug",
+    "console.info",
+    "console.warn",
+    "console.error",
+    "console.dir",
+    "console.table",
+    "console.trace",
+  ],
+  ".js": [
+    "console.log",
+    "console.debug",
+    "console.info",
+    "console.warn",
+    "console.error",
+    "console.dir",
+    "console.table",
+    "console.trace",
+  ],
+  ".jsx": [
+    "console.log",
+    "console.debug",
+    "console.info",
+    "console.warn",
+    "console.error",
+    "console.dir",
+    "console.table",
+    "console.trace",
+  ],
+  ".mjs": [
+    "console.log",
+    "console.debug",
+    "console.info",
+    "console.warn",
+    "console.error",
+    "console.dir",
+    "console.table",
+    "console.trace",
+  ],
+  ".cjs": [
+    "console.log",
+    "console.debug",
+    "console.info",
+    "console.warn",
+    "console.error",
+    "console.dir",
+    "console.table",
+    "console.trace",
+  ],
+  ".py": ["print", "pprint", "breakpoint"],
+  ".php": ["var_dump", "print_r", "dd", "dump", "debug"],
+  ".go": ["fmt.Println", "fmt.Printf", "log.Println", "log.Printf"],
+  ".rs": ["println!", "eprintln!", "dbg!"],
+  ".rb": ["puts", "p", "pp"],
 };
 
 export interface NoDebugLoggingOptions {
   /** Additional function names to ban (applied to all extensions). */
   readonly extraNames?: readonly string[];
-  readonly severity?: Violation['severity'];
+  readonly severity?: Violation["severity"];
   readonly message?: string;
 }
 
 /** Escapes a name for use in a regex, handling `.` and `!`. */
 function escapeForRegex(name: string): string {
-  return name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 export function noDebugLogging(opts: NoDebugLoggingOptions = {}): Check {
@@ -45,19 +99,19 @@ export function noDebugLogging(opts: NoDebugLoggingOptions = {}): Check {
 
     const knownSet = new Set(knownForExt);
     const names = [...knownSet, ...extraSet];
-    const lines = file.content.split('\n');
+    const lines = file.content.split("\n");
     const violations: Violation[] = [];
 
     for (let i = 0; i < lines.length; i++) {
-      const line = lines[i] ?? '';
+      const line = lines[i] ?? "";
       for (const name of names) {
         // Match the name followed by ( or ! — avoid matching partial names
         // e.g. "console.log(" matches but "notconsole.log(" does not
         const pattern = new RegExp(`(?<![\\w.])${escapeForRegex(name)}\\s*[(!]`);
         if (pattern.test(line)) {
           violations.push({
-            severity: opts.severity ?? 'warn',
-            source: 'core',
+            severity: opts.severity ?? "warn",
+            source: "core",
             message: opts.message ?? `Remove debug logging: ${name}`,
             path: file.path,
             line: i + 1,

@@ -4,19 +4,19 @@
  * These wrap raw Node.js primitives in Effect so that errors hit the
  * error channel and temp files are cleaned up even on failure.
  */
-import * as childProcess from 'node:child_process';
-import * as nodeFs from 'node:fs';
-import * as nodeOs from 'node:os';
-import * as nodePath from 'node:path';
-import { Effect } from 'effect';
+import * as childProcess from "node:child_process";
+import * as nodeFs from "node:fs";
+import * as nodeOs from "node:os";
+import * as nodePath from "node:path";
+import { Effect } from "effect";
 
 // ─── execTool ─────────────────────────────────────────────────────────────────
 
 /** Extract stdout from a child-process exec error in a type-safe way. */
 function getExecStdout(e: unknown): string | undefined {
-  if (e instanceof Error && 'stdout' in e) {
+  if (e instanceof Error && "stdout" in e) {
     const out = (e as { stdout: unknown }).stdout;
-    if (typeof out === 'string') return out;
+    if (typeof out === "string") return out;
     if (Buffer.isBuffer(out)) return out.toString();
   }
   return undefined;
@@ -42,8 +42,8 @@ export function execTool(
         return childProcess
           .execFileSync(bin, args, {
             cwd,
-            encoding: 'utf-8',
-            stdio: ['ignore', 'pipe', 'pipe'],
+            encoding: "utf-8",
+            stdio: ["ignore", "pipe", "pipe"],
           })
           .toString();
       } catch (e: unknown) {
@@ -59,7 +59,7 @@ export function execTool(
         yield* Effect.logWarning(
           `[gesetz] ${toolName} failed (${String(cause)}) — ${toolName}() produced no violations.`,
         );
-        return '';
+        return "";
       }),
     ),
   );
@@ -104,10 +104,13 @@ export function runWithTempFile<T, R>(
  *   at /abs/path/file.test.ts:42:13
  *   at file:///abs/path/file.test.ts:42:13
  */
-export function extractLocation(failureMessage: string): { path: string; line: number | undefined } {
+export function extractLocation(failureMessage: string): {
+  path: string;
+  line: number | undefined;
+} {
   const match = /at\s+(?:file:\/\/)?([^\s]+):(\d+):\d+/.exec(failureMessage);
   if (match) {
-    return { path: match[1] ?? '', line: Number(match[2] ?? 0) };
+    return { path: match[1] ?? "", line: Number(match[2] ?? 0) };
   }
-  return { path: '', line: undefined };
+  return { path: "", line: undefined };
 }

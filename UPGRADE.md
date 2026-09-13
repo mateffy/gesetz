@@ -31,7 +31,7 @@ needed for configs, custom checks, or adapters.
 - Violations are now reported with repo-relative paths consistently
   (external-tool adapters that emitted absolute paths are normalized).
 - Files excluded by `.gitignore` (e.g. `dist/`) are no longer scanned —
-  the old backend globbed them in. This can *reduce* reported violations
+  the old backend globbed them in. This can _reduce_ reported violations
   in built artifacts; run `--full` and check your globs if unsure.
 
 ### What did NOT change
@@ -52,13 +52,13 @@ The `Check` type changed from returning `Effect.Effect<Violation[], never, ...>`
 
 ### Before and after
 
-| | Before | After |
-|---|---|---|
-| **Type** | `Check = (file) => Effect.Effect<Violation[], never, FileSystem \| SyntaxTree \| ImportResolver \| ProjectRoot>` | `Check = (file, services) => Promise<Violation[]>` |
-| **Services** | `yield* FileSystem`, `yield* SyntaxTree`, `yield* ImportResolver` | `services.fs`, `services.syntax`, `services.imports` |
-| **Sync check** | `Effect.sync(() => { ... })` | `async (file) => { ... }` |
-| **Async check** | `Effect.gen(function* () { ... })` | `async (file, services) => { ... }` |
-| **Violation.rule** | `rule: ''` required as placeholder | `rule` is optional — builder injects it |
+|                    | Before                                                                                                           | After                                                |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| **Type**           | `Check = (file) => Effect.Effect<Violation[], never, FileSystem \| SyntaxTree \| ImportResolver \| ProjectRoot>` | `Check = (file, services) => Promise<Violation[]>`   |
+| **Services**       | `yield* FileSystem`, `yield* SyntaxTree`, `yield* ImportResolver`                                                | `services.fs`, `services.syntax`, `services.imports` |
+| **Sync check**     | `Effect.sync(() => { ... })`                                                                                     | `async (file) => { ... }`                            |
+| **Async check**    | `Effect.gen(function* () { ... })`                                                                               | `async (file, services) => { ... }`                  |
+| **Violation.rule** | `rule: ''` required as placeholder                                                                               | `rule` is optional — builder injects it              |
 
 ### What did NOT change
 
@@ -78,23 +78,24 @@ Only **custom checks you wrote yourself** and **tests for those checks** need mi
 #### Pattern A — Pure sync check (no services needed)
 
 **Before:**
+
 ```ts
-import { Effect } from 'effect';
-import type { Check, Violation, File } from 'gesetz';
+import { Effect } from "effect";
+import type { Check, Violation, File } from "gesetz";
 
 export function noFooInComments(): Check {
   return (file) =>
     Effect.sync(() => {
       const violations: Violation[] = [];
-      const lines = file.content.split('\n');
+      const lines = file.content.split("\n");
 
       for (let i = 0; i < lines.length; i++) {
-        const line = lines[i] ?? '';
-        if (line.includes('//') && line.toLowerCase().includes('foo')) {
+        const line = lines[i] ?? "";
+        if (line.includes("//") && line.toLowerCase().includes("foo")) {
           violations.push({
-            rule: '',
-            severity: 'warn',
-            source: 'core',
+            rule: "",
+            severity: "warn",
+            source: "core",
             message: `Do not mention 'foo' in comments: ${line.trim()}`,
             path: file.path,
             line: i + 1,
@@ -108,33 +109,35 @@ export function noFooInComments(): Check {
 ```
 
 **After:**
+
 ```ts
-import type { Check, Violation } from 'gesetz';
+import type { Check, Violation } from "gesetz";
 
 export function noFooInComments(): Check {
   return async (file) => {
     const violations: Violation[] = [];
-    const lines = file.content.split('\n');
+    const lines = file.content.split("\n");
 
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i] ?? '';
-        if (line.includes('//') && line.toLowerCase().includes('foo')) {
-          violations.push({
-            severity: 'warn',
-            source: 'core',
-            message: `Do not mention 'foo' in comments: ${line.trim()}`,
-            path: file.path,
-            line: i + 1,
-          });
-        }
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i] ?? "";
+      if (line.includes("//") && line.toLowerCase().includes("foo")) {
+        violations.push({
+          severity: "warn",
+          source: "core",
+          message: `Do not mention 'foo' in comments: ${line.trim()}`,
+          path: file.path,
+          line: i + 1,
+        });
       }
+    }
 
-      return violations;
+    return violations;
   };
 }
 ```
 
 **Changes to make:**
+
 1. Remove `import { Effect } from 'effect'`
 2. Replace `Effect.sync(() => { ... })` with `async (file) => { ... }`
 3. Remove `rule: ''` from every violation object — the builder injects the rule ID
@@ -142,57 +145,64 @@ export function noFooInComments(): Check {
 #### Pattern B — FileSystem service check
 
 **Before:**
+
 ```ts
-import { Effect } from 'effect';
-import { FileSystem } from 'gesetz';
-import * as nodePath from 'node:path';
-import type { Check, Violation } from 'gesetz';
+import { Effect } from "effect";
+import { FileSystem } from "gesetz";
+import * as nodePath from "node:path";
+import type { Check, Violation } from "gesetz";
 
 export function requireReadme(): Check {
   return (file) =>
     Effect.gen(function* () {
       const fs = yield* FileSystem;
       const dir = nodePath.dirname(file.absolutePath);
-      const readmePath = nodePath.join(dir, 'README.md');
+      const readmePath = nodePath.join(dir, "README.md");
       const exists = yield* fs.exists(readmePath);
 
       if (exists) return [];
 
-      return [{
-        rule: '',
-        severity: 'error',
-        source: 'core',
-        message: `Directory missing README.md: ${file.dir}`,
-        path: file.path,
-      }];
+      return [
+        {
+          rule: "",
+          severity: "error",
+          source: "core",
+          message: `Directory missing README.md: ${file.dir}`,
+          path: file.path,
+        },
+      ];
     });
 }
 ```
 
 **After:**
+
 ```ts
-import * as nodePath from 'node:path';
-import type { Check, Violation } from 'gesetz';
+import * as nodePath from "node:path";
+import type { Check, Violation } from "gesetz";
 
 export function requireReadme(): Check {
   return async (file, { fs }) => {
     const dir = nodePath.dirname(file.absolutePath);
-    const readmePath = nodePath.join(dir, 'README.md');
+    const readmePath = nodePath.join(dir, "README.md");
     const exists = await fs.exists(readmePath);
 
     if (exists) return [];
 
-    return [{
-      severity: 'error',
-      source: 'core',
-      message: `Directory missing README.md: ${file.dir}`,
-      path: file.path,
-    }];
+    return [
+      {
+        severity: "error",
+        source: "core",
+        message: `Directory missing README.md: ${file.dir}`,
+        path: file.path,
+      },
+    ];
   };
 }
 ```
 
 **Changes to make:**
+
 1. Remove `import { Effect } from 'effect'` and `import { FileSystem } from 'gesetz'`
 2. Replace `Effect.gen(function* () { const fs = yield* FileSystem; ... })` with `async (file, { fs }) => { ... }`
 3. Replace `yield* fs.exists(path)` with `await fs.exists(path)`
@@ -201,10 +211,11 @@ export function requireReadme(): Check {
 #### Pattern C — SyntaxTree service check
 
 **Before:**
+
 ```ts
-import { Effect } from 'effect';
-import { SyntaxTree } from 'gesetz';
-import type { Check, Violation } from 'gesetz';
+import { Effect } from "effect";
+import { SyntaxTree } from "gesetz";
+import type { Check, Violation } from "gesetz";
 
 export function noConsoleCalls(): Check {
   return (file) =>
@@ -212,17 +223,21 @@ export function noConsoleCalls(): Check {
       const st = yield* SyntaxTree;
       if (!st.canProcess(file)) return [];
 
-      const result = yield* st.process(file, { calls: true }).pipe(
-        Effect.catchAll(() => Effect.succeed({ imports: [], calls: [], exports: [], structure: [] })),
-      );
+      const result = yield* st
+        .process(file, { calls: true })
+        .pipe(
+          Effect.catchAll(() =>
+            Effect.succeed({ imports: [], calls: [], exports: [], structure: [] }),
+          ),
+        );
 
       const violations: Violation[] = [];
       for (const call of result.calls) {
-        if (call.name.startsWith('console.')) {
+        if (call.name.startsWith("console.")) {
           violations.push({
-            rule: '',
-            severity: 'error',
-            source: 'core',
+            rule: "",
+            severity: "error",
+            source: "core",
             message: `Forbidden call: ${call.name}()`,
             path: file.path,
             line: call.line,
@@ -235,8 +250,9 @@ export function noConsoleCalls(): Check {
 ```
 
 **After:**
+
 ```ts
-import type { Check, Violation } from 'gesetz';
+import type { Check, Violation } from "gesetz";
 
 export function noConsoleCalls(): Check {
   return async (file, { syntax }) => {
@@ -247,10 +263,10 @@ export function noConsoleCalls(): Check {
 
       const violations: Violation[] = [];
       for (const call of result.calls) {
-        if (call.name.startsWith('console.')) {
+        if (call.name.startsWith("console.")) {
           violations.push({
-            severity: 'error',
-            source: 'core',
+            severity: "error",
+            source: "core",
             message: `Forbidden call: ${call.name}()`,
             path: file.path,
             line: call.line,
@@ -266,6 +282,7 @@ export function noConsoleCalls(): Check {
 ```
 
 **Changes to make:**
+
 1. Remove `import { Effect } from 'effect'` and `import { SyntaxTree } from 'gesetz'`
 2. Replace `Effect.gen(function* () { const st = yield* SyntaxTree; ... })` with `async (file, { syntax }) => { ... }`
 3. Replace `yield* st.process(...).pipe(Effect.catchAll(...))` with `try { await syntax.process(...) } catch { return [] }`
@@ -274,10 +291,11 @@ export function noConsoleCalls(): Check {
 #### Pattern D — Multiple services
 
 **Before:**
+
 ```ts
-import { Effect } from 'effect';
-import { FileSystem, SyntaxTree } from 'gesetz';
-import type { Check, Violation } from 'gesetz';
+import { Effect } from "effect";
+import { FileSystem, SyntaxTree } from "gesetz";
+import type { Check, Violation } from "gesetz";
 
 export function complexCheck(): Check {
   return (file) =>
@@ -285,10 +303,14 @@ export function complexCheck(): Check {
       const fs = yield* FileSystem;
       const st = yield* SyntaxTree;
 
-      const exists = yield* fs.exists('/some/path');
-      const result = yield* st.process(file, { imports: true }).pipe(
-        Effect.catchAll(() => Effect.succeed({ imports: [], calls: [], exports: [], structure: [] })),
-      );
+      const exists = yield* fs.exists("/some/path");
+      const result = yield* st
+        .process(file, { imports: true })
+        .pipe(
+          Effect.catchAll(() =>
+            Effect.succeed({ imports: [], calls: [], exports: [], structure: [] }),
+          ),
+        );
 
       // ... logic ...
     });
@@ -296,12 +318,13 @@ export function complexCheck(): Check {
 ```
 
 **After:**
+
 ```ts
-import type { Check, Violation } from 'gesetz';
+import type { Check, Violation } from "gesetz";
 
 export function complexCheck(): Check {
   return async (file, { fs, syntax }) => {
-    const exists = await fs.exists('/some/path');
+    const exists = await fs.exists("/some/path");
     let result;
     try {
       result = await syntax.process(file, { imports: true });
@@ -315,6 +338,7 @@ export function complexCheck(): Check {
 ```
 
 **Changes to make:**
+
 - Both `fs` and `syntax` are destructured from the second argument
 - No `yield*` needed — use `await` for async calls
 
@@ -336,7 +360,7 @@ interface CheckServices {
   imports: {
     resolve(fromFile: File, specifier: string): string | null;
   };
-  projectRoot: string;  // absolute path
+  projectRoot: string; // absolute path
 }
 ```
 
@@ -362,8 +386,8 @@ If your `gesetz.config.ts` only uses **built-in checks** (e.g. `noGodFile`, `noI
 
 ```ts
 // This works exactly as before
-select('src/**/*.ts')
-  .label('No god files')
+select("src/**/*.ts")
+  .label("No god files")
   .check(noGodFile({ maxLines: 400 }));
 ```
 
@@ -374,8 +398,8 @@ If your config contains **custom checks** (functions you wrote), migrate them us
 #### Before: running checks with Effect
 
 ```ts
-import { Effect } from 'effect';
-import { noGodFile } from 'gesetz';
+import { Effect } from "effect";
+import { noGodFile } from "gesetz";
 
 const run = (effect) => Effect.runPromise(effect);
 
@@ -385,7 +409,7 @@ const violations = await run(noGodFile({ maxLines: 400 })(file));
 #### After: running checks directly
 
 ```ts
-import { noGodFile } from 'gesetz';
+import { noGodFile } from "gesetz";
 
 const violations = await noGodFile({ maxLines: 400 })(file, {} as any);
 ```
@@ -433,8 +457,8 @@ For simple tests, construct the services manually:
 const services: CheckServices = {
   fs: {
     glob: async () => [],
-    readFile: async () => '',
-    exists: async (path) => path === '/expected/path',
+    readFile: async () => "",
+    exists: async (path) => path === "/expected/path",
   },
   syntax: {
     canProcess: () => true,
@@ -443,7 +467,7 @@ const services: CheckServices = {
   imports: {
     resolve: () => null,
   },
-  projectRoot: '/project',
+  projectRoot: "/project",
 };
 
 const violations = await myCheck(file, services);
@@ -458,18 +482,18 @@ const violations = await myCheck(file, services);
 ```ts
 // Before
 violations.push({
-  rule: '',
-  severity: 'error',
-  source: 'core',
-  message: '...',
+  rule: "",
+  severity: "error",
+  source: "core",
+  message: "...",
   path: file.path,
 });
 
 // After
 violations.push({
-  severity: 'error',
-  source: 'core',
-  message: '...',
+  severity: "error",
+  source: "core",
+  message: "...",
   path: file.path,
 });
 ```
@@ -478,7 +502,7 @@ If you have code that creates `Violation` objects outside the builder context (e
 
 ### What about `simpleCheck`?
 
-The `simpleCheck` wrapper was explored during the v2.0 development cycle but **deleted before release**. It never shipped. If you see references to it in any internal docs or branches, ignore them. The new `Check` type *is* the simple API.
+The `simpleCheck` wrapper was explored during the v2.0 development cycle but **deleted before release**. It never shipped. If you see references to it in any internal docs or branches, ignore them. The new `Check` type _is_ the simple API.
 
 ### Effect is not gone
 

@@ -1,9 +1,9 @@
-import * as nodePath from 'node:path';
-import * as nodeFs from 'node:fs';
-import { Effect } from 'effect';
-import type { Rule, Violation } from '@gesetz/core';
-import { execTool, runWithTempFile, FileFilter } from '@gesetz/core';
-import { parseJUnitXml, junitToViolations } from '@gesetz/junit';
+import * as nodePath from "node:path";
+import * as nodeFs from "node:fs";
+import { Effect } from "effect";
+import type { Rule, Violation } from "@gesetz/core";
+import { execTool, runWithTempFile, FileFilter } from "@gesetz/core";
+import { parseJUnitXml, junitToViolations } from "@gesetz/junit";
 
 export interface PhpunitOptions {
   /**
@@ -50,22 +50,22 @@ async function executePhpunit(
   cwd: string,
   patterns: readonly string[] | null,
 ): Promise<Violation[]> {
-  const baseArgs = ['--log-junit', '__TMP__', '--no-progress'];
-  if (opts.configFile) baseArgs.push('--configuration', opts.configFile);
-  if (opts.filter) baseArgs.push('--filter', opts.filter);
+  const baseArgs = ["--log-junit", "__TMP__", "--no-progress"];
+  if (opts.configFile) baseArgs.push("--configuration", opts.configFile);
+  if (opts.filter) baseArgs.push("--filter", opts.filter);
   if (opts.extraArgs) baseArgs.push(...opts.extraArgs);
   if (patterns) baseArgs.push(...patterns);
 
   return Effect.runPromise(
-    runWithTempFile('gesetz-phpunit-', 'junit.xml', (tmpFile) =>
+    runWithTempFile("gesetz-phpunit-", "junit.xml", (tmpFile) =>
       Effect.gen(function* () {
-        const args = baseArgs.map((a) => (a === '__TMP__' ? `--log-junit=${tmpFile}` : a));
+        const args = baseArgs.map((a) => (a === "__TMP__" ? `--log-junit=${tmpFile}` : a));
 
-        yield* execTool(bin, args, cwd, 'phpunit').pipe(Effect.ignore);
+        yield* execTool(bin, args, cwd, "phpunit").pipe(Effect.ignore);
 
-        let xml = '';
+        let xml = "";
         try {
-          xml = nodeFs.readFileSync(tmpFile, 'utf-8');
+          xml = nodeFs.readFileSync(tmpFile, "utf-8");
         } catch {
           return [] as Violation[];
         }
@@ -80,21 +80,22 @@ async function executePhpunit(
 }
 
 export function phpunit(opts: PhpunitOptions = {}): Rule {
-  const id = opts.id ?? 'phpunit';
-  const description = opts.label ?? 'PHPUnit test suite';
+  const id = opts.id ?? "phpunit";
+  const description = opts.label ?? "PHPUnit test suite";
   const cwd = nodePath.resolve(opts.cwd ?? process.cwd());
-  const bin = opts.bin ?? 'vendor/bin/phpunit';
+  const bin = opts.bin ?? "vendor/bin/phpunit";
   const defaultPatterns: string[] | null = opts.pattern
     ? Array.isArray(opts.pattern)
       ? [...opts.pattern]
       : [opts.pattern]
     : null;
 
-  const run: Rule['run'] = Effect.gen(function* () {
+  const run: Rule["run"] = Effect.gen(function* () {
     const fileFilter = yield* FileFilter;
-    const patterns = fileFilter.patterns !== null && fileFilter.patterns.length > 0
-      ? [...fileFilter.patterns]
-      : defaultPatterns;
+    const patterns =
+      fileFilter.patterns !== null && fileFilter.patterns.length > 0
+        ? [...fileFilter.patterns]
+        : defaultPatterns;
 
     return yield* Effect.promise(() => executePhpunit(opts, id, bin, cwd, patterns));
   });
@@ -106,7 +107,7 @@ export function phpunit(opts: PhpunitOptions = {}): Rule {
     category: opts.category,
     project: {
       // Test outcomes depend on any source change — conservative.
-      patterns: defaultPatterns ?? ['**/*'],
+      patterns: defaultPatterns ?? ["**/*"],
       run: () => executePhpunit(opts, id, bin, cwd, defaultPatterns),
     },
   };

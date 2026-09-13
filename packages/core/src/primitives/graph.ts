@@ -1,11 +1,11 @@
-import * as nodePath from 'node:path';
-import { Effect } from 'effect';
-import { resolveImportEdges } from 'netzwerk';
-import { FileSystem, ProjectRoot } from '../services/fs';
-import { SyntaxTree } from '../services/syntax-tree';
-import type { ParsedImport } from '../services/syntax-tree';
-import { ImportResolver } from '../services/import-resolver';
-import type { File, NetworkFileLike, Rule, Violation } from '../engine/rule';
+import * as nodePath from "node:path";
+import { Effect } from "effect";
+import { resolveImportEdges } from "netzwerk";
+import { FileSystem, ProjectRoot } from "../services/fs";
+import { SyntaxTree } from "../services/syntax-tree";
+import type { ParsedImport } from "../services/syntax-tree";
+import { ImportResolver } from "../services/import-resolver";
+import type { File, NetworkFileLike, Rule, Violation } from "../engine/rule";
 
 export interface NoCyclesOptions {
   /** Human-readable label / description. */
@@ -18,15 +18,15 @@ export interface NoCyclesOptions {
 function candidatePaths(resolved: string): string[] {
   return [
     nodePath.normalize(resolved),
-    nodePath.normalize(resolved + '.ts'),
-    nodePath.normalize(resolved + '.tsx'),
-    nodePath.normalize(resolved + '.js'),
-    nodePath.normalize(resolved + '.jsx'),
-    nodePath.normalize(resolved + '.php'),
-    nodePath.normalize(nodePath.join(resolved, 'index.ts')),
-    nodePath.normalize(nodePath.join(resolved, 'index.tsx')),
-    nodePath.normalize(nodePath.join(resolved, 'index.js')),
-    nodePath.normalize(nodePath.join(resolved, 'index.php')),
+    nodePath.normalize(resolved + ".ts"),
+    nodePath.normalize(resolved + ".tsx"),
+    nodePath.normalize(resolved + ".js"),
+    nodePath.normalize(resolved + ".jsx"),
+    nodePath.normalize(resolved + ".php"),
+    nodePath.normalize(nodePath.join(resolved, "index.ts")),
+    nodePath.normalize(nodePath.join(resolved, "index.tsx")),
+    nodePath.normalize(nodePath.join(resolved, "index.js")),
+    nodePath.normalize(nodePath.join(resolved, "index.php")),
   ];
 }
 
@@ -43,8 +43,8 @@ function candidatePaths(resolved: string): string[] {
  * noCycles('src/**\/*.{ts,tsx}', { label: 'No circular dependencies' })
  */
 export function noCycles(pattern: string | string[], opts: NoCyclesOptions = {}): Rule {
-  const id = opts.id ?? 'no-cycles';
-  const description = opts.label ?? 'No circular dependencies';
+  const id = opts.id ?? "no-cycles";
+  const description = opts.label ?? "No circular dependencies";
   const patterns = Array.isArray(pattern) ? pattern : [pattern];
 
   const run = Effect.gen(function* () {
@@ -53,14 +53,14 @@ export function noCycles(pattern: string | string[], opts: NoCyclesOptions = {})
     const st = yield* SyntaxTree;
     const resolver = yield* ImportResolver;
 
-    const files = yield* fs.glob(patterns, { cwd: root }).pipe(
-      Effect.catchAll(() => Effect.succeed<File[]>([])),
-    );
+    const files = yield* fs
+      .glob(patterns, { cwd: root })
+      .pipe(Effect.catchAll(() => Effect.succeed<File[]>([])));
     if (files.length === 0) return [];
 
     const rel = (absPath: string): string => {
       const r = nodePath.relative(root, absPath);
-      return r.startsWith('..') ? absPath : r;
+      return r.startsWith("..") ? absPath : r;
     };
 
     // Build adjacency map: absolutePath → [absolutePath, ...]
@@ -73,9 +73,13 @@ export function noCycles(pattern: string | string[], opts: NoCyclesOptions = {})
     for (const file of files) {
       const norm = nodePath.normalize(file.absolutePath);
       if (!st.canProcess(file)) continue;
-      const result = yield* st.process(file, { imports: true }).pipe(
-        Effect.catchAll(() => Effect.succeed({ imports: [], calls: [], exports: [], structure: [] })),
-      );
+      const result = yield* st
+        .process(file, { imports: true })
+        .pipe(
+          Effect.catchAll(() =>
+            Effect.succeed({ imports: [], calls: [], exports: [], structure: [] }),
+          ),
+        );
       const deps: string[] = [];
       for (const imp of result.imports as readonly ParsedImport[]) {
         const resolved = resolver.resolve(file, imp.specifier);
@@ -99,13 +103,13 @@ export function noCycles(pattern: string | string[], opts: NoCyclesOptions = {})
       if (inStack.has(node)) {
         const cycleStart = stack.indexOf(node);
         const cycle = stack.slice(cycleStart);
-        const chain = cycle.map((p) => rel(p)).join(' → ') + ' → ' + rel(node);
+        const chain = cycle.map((p) => rel(p)).join(" → ") + " → " + rel(node);
         violations.push({
           rule: id,
           message: `Circular dependency: ${chain}`,
           path: rel(stack[stack.length - 1] ?? node),
-          severity: 'error',
-          source: 'custom',
+          severity: "error",
+          source: "custom",
         });
         return;
       }
@@ -157,13 +161,13 @@ export function noCycles(pattern: string | string[], opts: NoCyclesOptions = {})
           if (inStack.has(node)) {
             const cycleStart = stack.indexOf(node);
             const cycle = stack.slice(cycleStart);
-            const chain = cycle.join(' → ') + ' → ' + node;
+            const chain = cycle.join(" → ") + " → " + node;
             violations.push({
               rule: id,
               message: `Circular dependency: ${chain}`,
               path: stack[stack.length - 1] ?? node,
-              severity: 'error',
-              source: 'custom',
+              severity: "error",
+              source: "custom",
             });
             return;
           }

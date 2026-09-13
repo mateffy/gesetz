@@ -1,7 +1,7 @@
-import * as nodePath from 'node:path';
-import { Effect } from 'effect';
-import type { Rule, Violation } from '@gesetz/core';
-import { FileFilter } from '@gesetz/core';
+import * as nodePath from "node:path";
+import { Effect } from "effect";
+import type { Rule, Violation } from "@gesetz/core";
+import { FileFilter } from "@gesetz/core";
 
 export interface EslintOptions {
   pattern?: string | string[];
@@ -57,9 +57,9 @@ async function executeEslint(
       try: async () => {
         // @ts-ignore — eslint is an optional peer dep; present in some
         // workspaces, absent in others. Cast to EslintModule for a typed surface.
-        const eslintModule = (await import('eslint')) as unknown as EslintModule;
-        if (typeof eslintModule.ESLint !== 'function') {
-          throw new Error('eslint module does not export ESLint class');
+        const eslintModule = (await import("eslint")) as unknown as EslintModule;
+        if (typeof eslintModule.ESLint !== "function") {
+          throw new Error("eslint module does not export ESLint class");
         }
         const ESLint = eslintModule.ESLint;
         const linter = new ESLint({
@@ -86,12 +86,12 @@ async function executeEslint(
     for (const msg of result.messages) {
       violations.push({
         rule: id,
-        message: `[${msg.ruleId ?? 'unknown'}] ${msg.message}`,
+        message: `[${msg.ruleId ?? "unknown"}] ${msg.message}`,
         path: result.filePath,
         line: msg.line,
         column: msg.column,
-        severity: msg.severity === 2 ? 'error' : 'warn',
-        source: 'eslint',
+        severity: msg.severity === 2 ? "error" : "warn",
+        source: "eslint",
       });
     }
   }
@@ -100,21 +100,22 @@ async function executeEslint(
 }
 
 export function eslint(opts: EslintOptions = {}): Rule {
-  const id = opts.id ?? 'eslint';
-  const description = opts.label ?? 'ESLint';
+  const id = opts.id ?? "eslint";
+  const description = opts.label ?? "ESLint";
   const cwd = nodePath.resolve(opts.cwd ?? process.cwd());
   const defaultPatterns: string[] = opts.pattern
     ? Array.isArray(opts.pattern)
       ? [...opts.pattern]
       : [opts.pattern]
-    : ['.'];
+    : ["."];
 
-  const run: Rule['run'] = Effect.gen(function* () {
+  const run: Rule["run"] = Effect.gen(function* () {
     const fileFilter = yield* FileFilter;
 
-    const patterns: string[] = fileFilter.patterns !== null && fileFilter.patterns.length > 0
-      ? [...fileFilter.patterns]
-      : defaultPatterns;
+    const patterns: string[] =
+      fileFilter.patterns !== null && fileFilter.patterns.length > 0
+        ? [...fileFilter.patterns]
+        : defaultPatterns;
 
     return yield* Effect.promise(() => executeEslint(opts, id, cwd, patterns));
   });
@@ -125,9 +126,10 @@ export function eslint(opts: EslintOptions = {}): Rule {
     run,
     category: opts.category,
     project: {
-      patterns: opts.pattern !== undefined
-        ? defaultPatterns
-        : ['**/*.{js,jsx,ts,tsx,mjs,cjs,mts,cts}', 'eslint.config.*', '.eslintrc', '.eslintrc.*'],
+      patterns:
+        opts.pattern !== undefined
+          ? defaultPatterns
+          : ["**/*.{js,jsx,ts,tsx,mjs,cjs,mts,cts}", "eslint.config.*", ".eslintrc", ".eslintrc.*"],
       run: () => executeEslint(opts, id, cwd, defaultPatterns),
     },
   };

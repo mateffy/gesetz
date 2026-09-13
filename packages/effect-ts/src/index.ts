@@ -3,10 +3,10 @@ export {
   noThrowInEffectGen,
   noYieldWithoutStar,
   noUnboundedEffectAll,
-} from './checks';
+} from "./checks";
 export type {
   NoRunPromiseScatteredOptions,
   NoThrowInEffectGenOptions,
   NoYieldWithoutStarOptions,
   NoUnboundedEffectAllOptions,
-} from './checks';
+} from "./checks";

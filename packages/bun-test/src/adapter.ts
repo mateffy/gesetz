@@ -1,9 +1,9 @@
-import * as nodePath from 'node:path';
-import * as nodeFs from 'node:fs';
-import { Effect } from 'effect';
-import type { Rule, Violation } from '@gesetz/core';
-import { execTool, runWithTempFile, FileFilter } from '@gesetz/core';
-import { parseJUnitXml, junitToViolations } from '@gesetz/junit';
+import * as nodePath from "node:path";
+import * as nodeFs from "node:fs";
+import { Effect } from "effect";
+import type { Rule, Violation } from "@gesetz/core";
+import { execTool, runWithTempFile, FileFilter } from "@gesetz/core";
+import { parseJUnitXml, junitToViolations } from "@gesetz/junit";
 
 export interface BunTestOptions {
   /**
@@ -41,20 +41,20 @@ async function executeBunTest(
   cwd: string,
   patterns: readonly string[] | null,
 ): Promise<Violation[]> {
-  const baseArgs = ['test', '--reporter=junit'];
+  const baseArgs = ["test", "--reporter=junit"];
   if (patterns) baseArgs.push(...patterns);
 
   return Effect.runPromise(
-    runWithTempFile('gesetz-bun-', 'junit.xml', (tmpFile) =>
+    runWithTempFile("gesetz-bun-", "junit.xml", (tmpFile) =>
       Effect.gen(function* () {
         const args = [...baseArgs, `--reporter-outfile=${tmpFile}`];
 
-        yield* execTool(bin, args, cwd, 'bun-test').pipe(Effect.ignore);
+        yield* execTool(bin, args, cwd, "bun-test").pipe(Effect.ignore);
 
         const xml = yield* Effect.try({
-          try: () => nodeFs.readFileSync(tmpFile, 'utf-8'),
+          try: () => nodeFs.readFileSync(tmpFile, "utf-8"),
           catch: (cause) => cause,
-        }).pipe(Effect.catchAll(() => Effect.succeed('')));
+        }).pipe(Effect.catchAll(() => Effect.succeed("")));
 
         if (!xml) return [];
 
@@ -66,21 +66,22 @@ async function executeBunTest(
 }
 
 export function bunTest(opts: BunTestOptions = {}): Rule {
-  const id = opts.id ?? 'bun-test';
-  const description = opts.label ?? 'bun:test suite';
+  const id = opts.id ?? "bun-test";
+  const description = opts.label ?? "bun:test suite";
   const cwd = nodePath.resolve(opts.cwd ?? process.cwd());
-  const bin = opts.bin ?? 'bun';
+  const bin = opts.bin ?? "bun";
   const defaultPatterns: string[] | null = opts.pattern
     ? Array.isArray(opts.pattern)
       ? [...opts.pattern]
       : [opts.pattern]
     : null;
 
-  const run: Rule['run'] = Effect.gen(function* () {
+  const run: Rule["run"] = Effect.gen(function* () {
     const fileFilter = yield* FileFilter;
-    const patterns = fileFilter.patterns !== null && fileFilter.patterns.length > 0
-      ? [...fileFilter.patterns]
-      : defaultPatterns;
+    const patterns =
+      fileFilter.patterns !== null && fileFilter.patterns.length > 0
+        ? [...fileFilter.patterns]
+        : defaultPatterns;
 
     return yield* Effect.promise(() => executeBunTest(id, bin, cwd, patterns));
   });
@@ -92,7 +93,7 @@ export function bunTest(opts: BunTestOptions = {}): Rule {
     category: opts.category,
     project: {
       // Test outcomes depend on any source change — conservative.
-      patterns: defaultPatterns ?? ['**/*'],
+      patterns: defaultPatterns ?? ["**/*"],
       run: () => executeBunTest(id, bin, cwd, defaultPatterns),
     },
   };

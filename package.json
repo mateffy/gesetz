@@ -2,9 +2,17 @@
   "name": "gesetz-workspace",
   "private": true,
   "type": "module",
-  "packageManager": "pnpm@11.9.0",
+  "scripts": {
+    "test": "pnpm -r run test",
+    "typecheck": "pnpm -r run typecheck",
+    "build": "tsdown -W",
+    "check": "node packages/cli/dist/main.js check",
+    "prepack": "tsdown -W",
+    "publish": "pnpm -r publish --access public",
+    "publint": "pnpm -r exec publint",
+    "attw": "pnpm -r exec attw --pack"
+  },
   "dependencies": {
-    "gesetz": "workspace:*",
     "@gesetz/bun-test": "workspace:*",
     "@gesetz/core": "workspace:*",
     "@gesetz/effect-ts": "workspace:*",
@@ -16,21 +24,13 @@
     "@gesetz/prettier": "workspace:*",
     "@gesetz/storybook": "workspace:*",
     "@gesetz/typescript": "workspace:*",
-    "@gesetz/vitest": "workspace:*"
-  },
-  "scripts": {
-    "test": "pnpm -r run test",
-    "typecheck": "pnpm -r run typecheck",
-    "build": "tsdown -W",
-    "check": "node packages/cli/dist/main.js check",
-    "prepack": "tsdown -W",
-    "publish": "pnpm -r publish --access public",
-    "publint": "pnpm -r exec publint",
-    "attw": "pnpm -r exec attw --pack"
+    "@gesetz/vitest": "workspace:*",
+    "gesetz": "workspace:*"
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.4",
     "publint": "^0.3.21",
     "tsdown": "^0.22.3"
-  }
+  },
+  "packageManager": "pnpm@11.9.0"
 }

@@ -1,5 +1,5 @@
-import type { Check, Violation } from '@gesetz/core';
-import { parseFile, findByKind, startLine } from './shared';
+import type { Check, Violation } from "@gesetz/core";
+import { parseFile, findByKind, startLine } from "./shared";
 
 /**
  * Checks that JSX files contain no raw text (letters) in JSX text nodes.
@@ -25,13 +25,13 @@ export function noLiteralJsxText(
     if (root === null) return [];
 
     const violations: Violation[] = [];
-    const jsxTexts = findByKind(root, 'jsx_text');
+    const jsxTexts = findByKind(root, "jsx_text");
     for (const node of jsxTexts) {
       const text = node.text();
       if (hasLetter.test(text)) {
         violations.push({
-          severity: 'error',
-          source: 'core',
+          severity: "error",
+          source: "core",
           message: opts.message ?? `Raw text in JSX is not allowed — use a translation API`,
           path: file.path,
           line: startLine(node),
@@ -66,18 +66,18 @@ export function noLiteralJsxProp(
     if (root === null) return [];
 
     const violations: Violation[] = [];
-    const jsxAttrs = findByKind(root, 'jsx_attribute');
+    const jsxAttrs = findByKind(root, "jsx_attribute");
     for (const attr of jsxAttrs) {
-      const name = attr.child(0)?.text() ?? '';
+      const name = attr.child(0)?.text() ?? "";
       if (!propSet.has(name)) continue;
 
       // Find a string-literal value child (exclude jsx_expression like {foo})
-      const valueNode = attr.children().find((c) => c.kind() === 'string');
+      const valueNode = attr.children().find((c) => c.kind() === "string");
       if (!valueNode) continue;
 
       violations.push({
-        severity: 'error',
-        source: 'core',
+        severity: "error",
+        source: "core",
         message:
           opts.message?.(name) ??
           `Prop '${name}' must not use a raw string literal — use a translation API`,
@@ -114,14 +114,14 @@ export function noJsxElements(
     // <Tag>...</Tag>  → jsx_opening_element
     // <Tag />         → jsx_self_closing_element
     // In both, child(1) is the tag identifier (child(0) is `<`).
-    const checkElement = (node: import('@ast-grep/napi').SgNode): void => {
+    const checkElement = (node: import("@ast-grep/napi").SgNode): void => {
       const tagNode = node.children()[1];
       if (!tagNode) return;
       const tagName = tagNode.text();
       if (elementSet.has(tagName)) {
         violations.push({
-          severity: 'error',
-          source: 'core',
+          severity: "error",
+          source: "core",
           message: opts.message?.(tagName) ?? `Raw HTML element <${tagName}> is not allowed here`,
           path: file.path,
           line: startLine(node),
@@ -129,8 +129,8 @@ export function noJsxElements(
       }
     };
 
-    for (const node of findByKind(root, 'jsx_opening_element')) checkElement(node);
-    for (const node of findByKind(root, 'jsx_self_closing_element')) checkElement(node);
+    for (const node of findByKind(root, "jsx_opening_element")) checkElement(node);
+    for (const node of findByKind(root, "jsx_self_closing_element")) checkElement(node);
 
     return violations;
   };

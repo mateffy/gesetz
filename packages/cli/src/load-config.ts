@@ -4,21 +4,21 @@
  * The config file must default-export the result of `defineConfig()`.
  * When no config file is found, throws a descriptive error.
  */
-import * as nodePath from 'node:path';
-import * as nodeFs from 'node:fs';
-import { Effect } from 'effect';
-import { createJiti } from 'jiti';
-import type { ResolvedConfig } from '@gesetz/core';
+import * as nodePath from "node:path";
+import * as nodeFs from "node:fs";
+import { Effect } from "effect";
+import { createJiti } from "jiti";
+import type { ResolvedConfig } from "@gesetz/core";
 
 const CONFIG_NAMES = [
-  'gesetz.config.ts',
-  'gesetz.config.js',
-  'gesetz.config.mts',
-  'gesetz.config.mjs',
+  "gesetz.config.ts",
+  "gesetz.config.js",
+  "gesetz.config.mts",
+  "gesetz.config.mjs",
 ];
 
 export class ConfigNotFoundError extends Error {
-  readonly _tag = 'ConfigNotFoundError';
+  readonly _tag = "ConfigNotFoundError";
   constructor(readonly projectRoot: string) {
     super(
       `No gesetz config found in ${projectRoot}.\n` +
@@ -69,7 +69,11 @@ export function loadConfig(
     })) as { default?: unknown } & Record<string, unknown>;
 
     const raw = mod.default ?? mod;
-    if (typeof raw !== 'object' || raw === null || !Array.isArray((raw as Record<string, unknown>).rules)) {
+    if (
+      typeof raw !== "object" ||
+      raw === null ||
+      !Array.isArray((raw as Record<string, unknown>).rules)
+    ) {
       return yield* Effect.fail(
         new ConfigNotFoundError(
           `${projectRoot} (invalid config export in ${resolvedConfigPath} — expected { rules: [...] })`,

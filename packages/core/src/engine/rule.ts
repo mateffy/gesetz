@@ -1,11 +1,11 @@
-import type { Effect } from 'effect';
-import type { FileSystem, ProjectRoot, FileFilter, GlobOptions } from '../services/fs';
-import type { SyntaxTree, SyntaxTreeProcessOptions } from '../services/syntax-tree';
-import type { SyntaxBackendProcessResult } from '../services/syntax-tree';
-import type { ImportResolver } from '../services/import-resolver';
+import type { Effect } from "effect";
+import type { FileSystem, ProjectRoot, FileFilter, GlobOptions } from "../services/fs";
+import type { SyntaxTree, SyntaxTreeProcessOptions } from "../services/syntax-tree";
+import type { SyntaxBackendProcessResult } from "../services/syntax-tree";
+import type { ImportResolver } from "../services/import-resolver";
 
-export type Severity = 'error' | 'warn' | 'info';
-export type ViolationSource = 'core' | 'eslint' | 'phpstan' | 'oxlint' | 'custom';
+export type Severity = "error" | "warn" | "info";
+export type ViolationSource = "core" | "eslint" | "phpstan" | "oxlint" | "custom";
 
 export interface Violation {
   /** Rule ID — injected by the builder when absent. */
@@ -67,10 +67,7 @@ export interface CheckServices {
  * A single-file analysis function. Returns a promise of violations.
  * Errors are absorbed by the runner — never throw (return [] on failure).
  */
-export type Check = (
-  file: File,
-  services: CheckServices,
-) => Promise<Violation[]>;
+export type Check = (file: File, services: CheckServices) => Promise<Violation[]>;
 
 /**
  * A named rule that runs against the entire project context.
@@ -85,13 +82,13 @@ export type Check = (
  * Rules with no category still run but don't contribute to category scores.
  */
 export type RuleCategory =
-  | 'strictness'
-  | 'structure'
-  | 'organization'
-  | 'cleanup'
-  | 'security'
-  | 'react'
-  | 'effect-ts'
+  | "strictness"
+  | "structure"
+  | "organization"
+  | "cleanup"
+  | "security"
+  | "react"
+  | "effect-ts"
   | string; // extensible
 
 /** Agent-facing guidance: what the rule checks, what to do, what not to do. */
@@ -130,21 +127,25 @@ export interface Rule {
    * compiles this descriptor into a netzwerk extension instead of
    * executing `run` directly.
    */
-  readonly perFile?: {
-    readonly patterns: readonly string[];
-    readonly exclusions: readonly string[];
-    readonly predicates: ReadonlyArray<(file: File) => boolean>;
-    readonly checks: readonly Check[];
-  } | undefined;
+  readonly perFile?:
+    | {
+        readonly patterns: readonly string[];
+        readonly exclusions: readonly string[];
+        readonly predicates: ReadonlyArray<(file: File) => boolean>;
+        readonly checks: readonly Check[];
+      }
+    | undefined;
   /**
    * Internal: present for project-level rules (architecture, cycle
    * detection, external-tool adapters). Runs once per scan against the
    * network; re-runs only when a file matching `patterns` changed.
    */
-  readonly project?: {
-    readonly patterns: readonly string[];
-    readonly run: (ctx: ProjectRuleContext) => Promise<Violation[]>;
-  } | undefined;
+  readonly project?:
+    | {
+        readonly patterns: readonly string[];
+        readonly run: (ctx: ProjectRuleContext) => Promise<Violation[]>;
+      }
+    | undefined;
 }
 
 /**
@@ -154,9 +155,19 @@ export interface Rule {
  */
 export interface NetworkFileLike {
   readonly path: string;
-  readonly markers: readonly { readonly type: string; readonly data: unknown; readonly lines?: readonly number[] | undefined }[];
+  readonly markers: readonly {
+    readonly type: string;
+    readonly data: unknown;
+    readonly lines?: readonly number[] | undefined;
+  }[];
   hasMarker(type: string): boolean;
-  markersOf<D = unknown>(type: string): readonly { readonly type: string; readonly data: D; readonly lines?: readonly number[] | undefined }[];
+  markersOf<D = unknown>(
+    type: string,
+  ): readonly {
+    readonly type: string;
+    readonly data: D;
+    readonly lines?: readonly number[] | undefined;
+  }[];
   content(): Promise<string>;
 }
 

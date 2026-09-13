@@ -1,4 +1,4 @@
-import type { Check, Violation } from '../../engine/rule';
+import type { Check, Violation } from "../../engine/rule";
 
 /**
  * Checks that the file does not contain content matching a regex.
@@ -12,7 +12,7 @@ export function noPattern(
   regex: RegExp,
   opts: {
     message?: string;
-    severity?: Violation['severity'];
+    severity?: Violation["severity"];
     fullFile?: boolean;
   } = {},
 ): Check {
@@ -22,19 +22,19 @@ export function noPattern(
     if (opts.fullFile) {
       if (regex.test(file.content)) {
         violations.push({
-          severity: opts.severity ?? 'error',
-          source: 'core',
+          severity: opts.severity ?? "error",
+          source: "core",
           message: opts.message ?? `File matches forbidden pattern: ${regex.source}`,
           path: file.path,
         });
       }
     } else {
-      const lines = file.content.split('\n');
+      const lines = file.content.split("\n");
       lines.forEach((line, index) => {
         if (regex.test(line)) {
           violations.push({
-            severity: opts.severity ?? 'error',
-            source: 'core',
+            severity: opts.severity ?? "error",
+            source: "core",
             message: opts.message ?? `Forbidden pattern: ${regex.source}`,
             path: file.path,
             line: index + 1,
@@ -58,7 +58,7 @@ export function requirePattern(
   regex: RegExp,
   opts: {
     message?: string;
-    severity?: Violation['severity'];
+    severity?: Violation["severity"];
   } = {},
 ): Check {
   return async (file) => {
@@ -66,8 +66,8 @@ export function requirePattern(
 
     return [
       {
-        severity: opts.severity ?? 'error',
-        source: 'core',
+        severity: opts.severity ?? "error",
+        source: "core",
         message: opts.message ?? `File must match pattern: ${regex.source}`,
         path: file.path,
       },

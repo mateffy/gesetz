@@ -1,4 +1,4 @@
-import { defineConfig } from 'tsdown';
+import { defineConfig } from "tsdown";
 
 /**
  * @gesetz/cli — two independent builds (no shared chunks, so no stub files).
@@ -19,43 +19,43 @@ import { defineConfig } from 'tsdown';
  * side effect that makes the bin actually run.
  */
 const external = [
-  'oxc-parser',
-  '@ast-grep/napi',
-  '@ast-grep/lang-php',
-  'eslint',
-  'jiti',
-  '@gesetz/core',
-  '@gesetz/typescript',
-  '@gesetz/php',
-  '@gesetz/oxlint',
-  '@gesetz/oxfmt',
-  '@gesetz/vitest',
-  '@gesetz/bun-test',
-  '@gesetz/pest',
-  '@gesetz/prettier',
-  '@gesetz/junit',
-  '@gesetz/effect-ts',
-  '@gesetz/eslint',
-  '@gesetz/phpstan',
-  '@gesetz/storybook',
-  '@gesetz/phpunit',
-  'effect',
-  '@effect/cli',
-  '@effect/platform',
-  '@effect/platform-node',
-  '@effect/platform-node-shared',
-  '@effect/printer',
-  '@effect/printer-ansi',
-  'vitest',
-  'bun:test',
+  "oxc-parser",
+  "@ast-grep/napi",
+  "@ast-grep/lang-php",
+  "eslint",
+  "jiti",
+  "@gesetz/core",
+  "@gesetz/typescript",
+  "@gesetz/php",
+  "@gesetz/oxlint",
+  "@gesetz/oxfmt",
+  "@gesetz/vitest",
+  "@gesetz/bun-test",
+  "@gesetz/pest",
+  "@gesetz/prettier",
+  "@gesetz/junit",
+  "@gesetz/effect-ts",
+  "@gesetz/eslint",
+  "@gesetz/phpstan",
+  "@gesetz/storybook",
+  "@gesetz/phpunit",
+  "effect",
+  "@effect/cli",
+  "@effect/platform",
+  "@effect/platform-node",
+  "@effect/platform-node-shared",
+  "@effect/printer",
+  "@effect/printer-ansi",
+  "vitest",
+  "bun:test",
 ];
 
 const shared = {
-  format: ['esm'],
-  target: 'node20',
-  platform: 'node',
+  format: ["esm"],
+  target: "node20",
+  platform: "node",
   sourcemap: true,
-  outExtensions: () => ({ js: '.js', dts: '.d.ts' }),
+  outExtensions: () => ({ js: ".js", dts: ".d.ts" }),
   external,
 };
 
@@ -63,15 +63,15 @@ export default defineConfig([
   // The bin — bundled executable with node shebang. Cleans dist first.
   {
     ...shared,
-    entry: ['src/main.ts'],
+    entry: ["src/main.ts"],
     dts: true,
     clean: false,
-    banner: { js: '#!/usr/bin/env node' },
+    banner: { js: "#!/usr/bin/env node" },
   },
   // The programmatic API entry. clean: false so it doesn't wipe main.js.
   {
     ...shared,
-    entry: ['src/index.ts'],
+    entry: ["src/index.ts"],
     dts: true,
     clean: false,
   },

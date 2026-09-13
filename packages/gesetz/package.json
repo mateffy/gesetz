@@ -1,8 +1,30 @@
 {
   "name": "gesetz",
   "version": "3.0.0-rc.2",
-  "description": "Unified code-quality gate \u2014 core primitives and CLI. Install adapters separately.",
+  "description": "Unified code-quality gate — core primitives and CLI. Install adapters separately.",
+  "keywords": [
+    "ci",
+    "gate",
+    "lint",
+    "quality",
+    "rules",
+    "typescript"
+  ],
+  "homepage": "https://github.com/mateffy/gesetz#readme",
+  "bugs": {
+    "url": "https://github.com/mateffy/gesetz/issues"
+  },
+  "license": "MIT",
+  "author": "Lukas Mateffy <hey@mateffy.me>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mateffy/gesetz.git"
+  },
+  "files": [
+    "dist"
+  ],
   "type": "module",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -21,27 +43,5 @@
   "devDependencies": {
     "@types/node": "^22.0.0",
     "typescript": "^5.8.0"
-  },
-  "keywords": [
-    "lint",
-    "quality",
-    "gate",
-    "ci",
-    "typescript",
-    "rules"
-  ],
-  "license": "MIT",
-  "author": "Lukas Mateffy <hey@mateffy.me>",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/mateffy/gesetz.git"
-  },
-  "bugs": {
-    "url": "https://github.com/mateffy/gesetz/issues"
-  },
-  "homepage": "https://github.com/mateffy/gesetz#readme",
-  "types": "./dist/index.d.ts",
-  "files": [
-    "dist"
-  ]
+  }
 }

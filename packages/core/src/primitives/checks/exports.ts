@@ -1,8 +1,8 @@
-import type { Check, Violation } from '../../engine/rule';
+import type { Check, Violation } from "../../engine/rule";
 
 export interface RequireExportsMatchingOptions {
   readonly message?: string;
-  readonly severity?: Violation['severity'];
+  readonly severity?: Violation["severity"];
 }
 
 /**
@@ -28,8 +28,8 @@ export function requireExportsMatching(
 
       return [
         {
-          severity: opts.severity ?? 'error',
-          source: 'core',
+          severity: opts.severity ?? "error",
+          source: "core",
           message:
             opts.message ??
             `Expected at least ${minCount} export(s) matching ${pattern}, found ${count}`,
@@ -44,7 +44,7 @@ export function requireExportsMatching(
 
 export interface RequireRelatedExportsOptions {
   readonly message?: (name: string, missing: readonly string[]) => string;
-  readonly severity?: Violation['severity'];
+  readonly severity?: Violation["severity"];
 }
 
 /**
@@ -79,11 +79,11 @@ export function requireRelatedExports(
         const missing = required.filter((r) => !exportNames.has(r));
         if (missing.length > 0) {
           violations.push({
-            severity: opts.severity ?? 'error',
-            source: 'core',
+            severity: opts.severity ?? "error",
+            source: "core",
             message:
               opts.message?.(exp.name, missing) ??
-              `Export '${exp.name}' requires related exports: ${missing.join(', ')}`,
+              `Export '${exp.name}' requires related exports: ${missing.join(", ")}`,
             path: file.path,
           });
         }

@@ -1,8 +1,8 @@
-import * as nodeFs from 'node:fs';
-import * as nodePath from 'node:path';
-import { Effect } from 'effect';
-import type { Rule, Violation } from '@gesetz/core';
-import { execTool, runWithTempFile, extractLocation } from '@gesetz/core';
+import * as nodeFs from "node:fs";
+import * as nodePath from "node:path";
+import { Effect } from "effect";
+import type { Rule, Violation } from "@gesetz/core";
+import { execTool, runWithTempFile, extractLocation } from "@gesetz/core";
 
 export interface StorybookOptions {
   /**
@@ -40,7 +40,7 @@ interface JestJsonResult {
     readonly assertionResults: ReadonlyArray<{
       readonly fullName: string;
       readonly title: string;
-      readonly status: 'passed' | 'failed' | 'skipped' | 'todo' | 'unknown';
+      readonly status: "passed" | "failed" | "skipped" | "todo" | "unknown";
       readonly failureMessages: readonly string[];
     }>;
   }>;
@@ -60,20 +60,20 @@ function parseJestJson(stdout: string, cwd: string, ruleId: string): Violation[]
     const testFile = nodePath.relative(cwd, fileResult.name);
 
     for (const assertion of fileResult.assertionResults ?? []) {
-      if (assertion.status !== 'failed') continue;
+      if (assertion.status !== "failed") continue;
 
-      const failure = assertion.failureMessages[0] ?? '';
+      const failure = assertion.failureMessages[0] ?? "";
       const { path: stackPath, line } = extractLocation(failure);
-      const message = failure.split('\n')[0] ?? `${assertion.fullName} failed`;
+      const message = failure.split("\n")[0] ?? `${assertion.fullName} failed`;
 
       violations.push({
         rule: ruleId,
         message: `${assertion.fullName}: ${message}`,
         path: stackPath ? nodePath.relative(cwd, stackPath) || testFile : testFile,
         line,
-        severity: 'error',
-        source: 'custom',
-        context: failure.split('\n').slice(0, 6).join('\n') || undefined,
+        severity: "error",
+        source: "custom",
+        context: failure.split("\n").slice(0, 6).join("\n") || undefined,
       });
     }
   }
@@ -102,24 +102,24 @@ async function executeStorybook(
   cwd: string,
   url: string,
 ): Promise<Violation[]> {
-  const baseArgs = ['--url', url, '--json', '--outputFile', '__TMP__', '--ci'];
-  if (opts.configFile) baseArgs.push('--config', opts.configFile);
+  const baseArgs = ["--url", url, "--json", "--outputFile", "__TMP__", "--ci"];
+  if (opts.configFile) baseArgs.push("--config", opts.configFile);
   if (opts.pattern) {
     const patterns = Array.isArray(opts.pattern) ? opts.pattern : [opts.pattern];
-    baseArgs.push('--stories', patterns.join(','));
+    baseArgs.push("--stories", patterns.join(","));
   }
   if (opts.extraArgs) baseArgs.push(...opts.extraArgs);
 
   return Effect.runPromise(
-    runWithTempFile('gesetz-storybook-', 'results.json', (tmpFile) =>
+    runWithTempFile("gesetz-storybook-", "results.json", (tmpFile) =>
       Effect.gen(function* () {
-        const args = baseArgs.map((a) => (a === '__TMP__' ? tmpFile : a));
+        const args = baseArgs.map((a) => (a === "__TMP__" ? tmpFile : a));
 
-        yield* execTool(bin, args, cwd, 'test-storybook').pipe(Effect.ignore);
+        yield* execTool(bin, args, cwd, "test-storybook").pipe(Effect.ignore);
 
-        let stdout = '';
+        let stdout = "";
         try {
-          stdout = nodeFs.readFileSync(tmpFile, 'utf-8');
+          stdout = nodeFs.readFileSync(tmpFile, "utf-8");
         } catch {
           return [] as Violation[];
         }
@@ -132,13 +132,13 @@ async function executeStorybook(
 }
 
 export function storybook(opts: StorybookOptions = {}): Rule {
-  const id = opts.id ?? 'storybook';
-  const description = opts.label ?? 'Storybook test runner';
+  const id = opts.id ?? "storybook";
+  const description = opts.label ?? "Storybook test runner";
   const cwd = nodePath.resolve(opts.cwd ?? process.cwd());
-  const bin = opts.bin ?? nodePath.join('node_modules', '.bin', 'test-storybook');
-  const url = opts.url ?? 'http://localhost:6006';
+  const bin = opts.bin ?? nodePath.join("node_modules", ".bin", "test-storybook");
+  const url = opts.url ?? "http://localhost:6006";
 
-  const run: Rule['run'] = Effect.gen(function* () {
+  const run: Rule["run"] = Effect.gen(function* () {
     return yield* Effect.promise(() => executeStorybook(opts, id, bin, cwd, url));
   });
 
@@ -149,7 +149,7 @@ export function storybook(opts: StorybookOptions = {}): Rule {
     category: opts.category,
     project: {
       // Story outcomes depend on any source change — conservative.
-      patterns: ['**/*'],
+      patterns: ["**/*"],
       run: () => executeStorybook(opts, id, bin, cwd, url),
     },
   };

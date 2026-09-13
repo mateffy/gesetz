@@ -1,11 +1,11 @@
-import type { StructureItem } from '../../services/syntax-tree';
-import type { Check, Violation } from '../../engine/rule';
+import type { StructureItem } from "../../services/syntax-tree";
+import type { Check, Violation } from "../../engine/rule";
 
 export interface RequireDocstringsOptions {
   /** e.g. ['function', 'class']. Default: ['function', 'class', 'method'] */
   readonly kinds?: readonly string[];
   readonly message?: string;
-  readonly severity?: Violation['severity'];
+  readonly severity?: Violation["severity"];
 }
 
 /**
@@ -17,7 +17,7 @@ export interface RequireDocstringsOptions {
  * requireDocstrings({ kinds: ['function', 'class'] })
  */
 export function requireDocstrings(opts: RequireDocstringsOptions = {}): Check {
-  const kinds = opts.kinds ?? ['function', 'class', 'method'];
+  const kinds = opts.kinds ?? ["function", "class", "method"];
 
   return async (file, { syntax }) => {
     if (!syntax.canProcess(file)) return [];
@@ -30,8 +30,8 @@ export function requireDocstrings(opts: RequireDocstringsOptions = {}): Check {
         for (const item of items) {
           if (kinds.includes(item.kind) && !item.docstring) {
             violations.push({
-              severity: opts.severity ?? 'warn',
-              source: 'core',
+              severity: opts.severity ?? "warn",
+              source: "core",
               message: opts.message ?? `'${item.name}' is missing a docstring`,
               path: file.path,
               line: item.startLine,

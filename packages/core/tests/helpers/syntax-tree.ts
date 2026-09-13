@@ -1,11 +1,11 @@
-import { Layer } from 'effect';
-import { SyntaxTree } from '../../src/services/syntax-tree';
+import { Layer } from "effect";
+import { SyntaxTree } from "../../src/services/syntax-tree";
 import type {
   SyntaxBackendProcessResult,
   SyntaxTreeProcessOptions,
-} from '../../src/services/syntax-tree';
-import type { File } from '../../src/engine/rule';
-import { Effect } from 'effect';
+} from "../../src/services/syntax-tree";
+import type { File } from "../../src/engine/rule";
+import { Effect } from "effect";
 
 /**
  * Test helper: builds a SyntaxTree Layer that reports `canProcess: true` and
@@ -24,8 +24,7 @@ export function makeSyntaxTreeLayer(
   };
   return Layer.succeed(SyntaxTree, {
     canProcess: (_file: File) => opts.canProcess ?? true,
-    process: (_file: File, _options: SyntaxTreeProcessOptions) =>
-      Effect.succeed(full),
+    process: (_file: File, _options: SyntaxTreeProcessOptions) => Effect.succeed(full),
   });
 }
 
@@ -35,7 +34,7 @@ export const SyntaxTreeUnavailable: Layer.Layer<SyntaxTree> = Layer.succeed(Synt
   process: (_file, _opts) =>
     Effect.fail(
       new (class extends Error {
-        readonly _tag = 'SyntaxTreeError';
+        readonly _tag = "SyntaxTreeError";
       })(),
     ) as never,
 });

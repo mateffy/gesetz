@@ -1,2 +1,2 @@
-export { pest } from './adapter';
-export type { PestOptions } from './adapter';
+export { pest } from "./adapter";
+export type { PestOptions } from "./adapter";

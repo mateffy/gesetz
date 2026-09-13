@@ -1,5 +1,5 @@
 // SyntaxBackend for TypeScript/JavaScript (oxc-parser + @ast-grep/napi).
-export { typescriptSyntaxBackend } from './syntax-backend';
+export { typescriptSyntaxBackend } from "./syntax-backend";
 
 // TypeScript check primitives
 export {
@@ -29,7 +29,7 @@ export {
   noEnum,
   noBarrelFile,
   requireExplicitReturnType,
-} from './checks';
+} from "./checks";
 export type {
   NoHardcodedStringsOptions,
   TestScoring,
@@ -44,4 +44,4 @@ export type {
   NoEnumOptions,
   NoBarrelFileOptions,
   RequireExplicitReturnTypeOptions,
-} from './checks';
+} from "./checks";

@@ -5,16 +5,16 @@
  * auto-detection. `writeConfig` performs the file write, optional `qa` script
  * injection, and optional dependency install.
  */
-import * as nodePath from 'node:path';
-import * as nodeFs from 'node:fs';
-import { Effect, Console } from 'effect';
-import { FileSystem } from '@effect/platform';
-import { Command } from '@effect/platform';
-import { CommandExecutor } from '@effect/platform';
-import type { ProjectProfile, ToolId, PackageManager } from './detect';
-import type { Plan } from './rules';
-import { generateConfig } from './rules';
-import { getBlueprint, toolsForPreset, blueprintsForPreset } from './rules';
+import * as nodePath from "node:path";
+import * as nodeFs from "node:fs";
+import { Effect, Console } from "effect";
+import { FileSystem } from "@effect/platform";
+import { Command } from "@effect/platform";
+import { CommandExecutor } from "@effect/platform";
+import type { ProjectProfile, ToolId, PackageManager } from "./detect";
+import type { Plan } from "./rules";
+import { generateConfig } from "./rules";
+import { getBlueprint, toolsForPreset, blueprintsForPreset } from "./rules";
 
 // ─── Flag shape (what the CLI passes in) ──────────────────────────────────────
 
@@ -33,7 +33,10 @@ export interface InitFlags {
 
 function parseList(s: string | undefined): string[] | undefined {
   if (!s) return undefined;
-  const parts = s.split(',').map((x) => x.trim()).filter(Boolean);
+  const parts = s
+    .split(",")
+    .map((x) => x.trim())
+    .filter(Boolean);
   return parts.length ? parts : undefined;
 }
 
@@ -42,7 +45,7 @@ function parseList(s: string | undefined): string[] | undefined {
  * to detection-derived defaults.
  */
 export function resolvePlanFromFlags(profile: ProjectProfile, flags: InitFlags): Plan {
-  const preset = (flags.preset ?? profile.suggestedPreset) as Plan['preset'];
+  const preset = (flags.preset ?? profile.suggestedPreset) as Plan["preset"];
 
   // Tools: explicit > detected (filtered by preset relevance).
   const toolList = parseList(flags.tools);
@@ -89,37 +92,37 @@ export interface WriteResult {
   readonly pm: PackageManager;
 }
 
-const CONFIG_PATH = 'gesetz.config.ts';
+const CONFIG_PATH = "gesetz.config.ts";
 
 const INSTALL_PACKAGES: Record<PackageManager, (pkg: string) => string[]> = {
-  bun: (p) => ['bun', 'add', ...p.split(' ')],
-  pnpm: (p) => ['pnpm', 'add', ...p.split(' ')],
-  npm: (p) => ['npm', 'install', ...p.split(' ')],
-  yarn: (p) => ['yarn', 'add', ...p.split(' ')],
-  composer: (p) => ['composer', 'require', ...p.split(' ')],
+  bun: (p) => ["bun", "add", ...p.split(" ")],
+  pnpm: (p) => ["pnpm", "add", ...p.split(" ")],
+  npm: (p) => ["npm", "install", ...p.split(" ")],
+  yarn: (p) => ["yarn", "add", ...p.split(" ")],
+  composer: (p) => ["composer", "require", ...p.split(" ")],
 };
 
 /** The @gesetz packages to install for a plan. */
 function packagesForPlan(plan: Plan): string[] {
-  const pkgs = new Set<string>(['@gesetz/core']);
-  if (plan.preset === 'laravel') {
-    pkgs.add('@gesetz/laravel');
-    pkgs.add('@gesetz/php');
+  const pkgs = new Set<string>(["@gesetz/core"]);
+  if (plan.preset === "laravel") {
+    pkgs.add("@gesetz/laravel");
+    pkgs.add("@gesetz/php");
   } else {
-    pkgs.add('@gesetz/typescript');
+    pkgs.add("@gesetz/typescript");
   }
   for (const tool of plan.tools) {
     const map: Record<ToolId, string> = {
-      oxlint: '@gesetz/oxlint',
-      oxfmt: '@gesetz/oxfmt',
-      prettier: '@gesetz/prettier',
-      eslint: '@gesetz/eslint',
-      vitest: '@gesetz/vitest',
-      'bun-test': '@gesetz/bun-test',
-      storybook: '@gesetz/storybook',
-      phpstan: '@gesetz/phpstan',
-      pest: '@gesetz/pest',
-      phpunit: '@gesetz/phpunit',
+      oxlint: "@gesetz/oxlint",
+      oxfmt: "@gesetz/oxfmt",
+      prettier: "@gesetz/prettier",
+      eslint: "@gesetz/eslint",
+      vitest: "@gesetz/vitest",
+      "bun-test": "@gesetz/bun-test",
+      storybook: "@gesetz/storybook",
+      phpstan: "@gesetz/phpstan",
+      pest: "@gesetz/pest",
+      phpunit: "@gesetz/phpunit",
     };
     pkgs.add(map[tool]);
   }
@@ -134,38 +137,34 @@ function writeQaScriptEffect(
   return Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem;
 
-    if (pm === 'composer') {
-      const path = nodePath.join(cwd, 'composer.json');
+    if (pm === "composer") {
+      const path = nodePath.join(cwd, "composer.json");
       const exists = yield* fs.exists(path).pipe(Effect.catchAll(() => Effect.succeed(false)));
       if (!exists) return;
-      const txt = yield* fs.readFileString(path).pipe(
-        Effect.catchAll(() => Effect.succeed('')),
-      );
+      const txt = yield* fs.readFileString(path).pipe(Effect.catchAll(() => Effect.succeed("")));
       if (!txt) return;
       const json = JSON.parse(txt) as { scripts?: Record<string, string> };
       if (!json.scripts) json.scripts = {};
       if (json.scripts.qa) return;
-      json.scripts.qa = 'gesetz check';
-      yield* fs.writeFileString(path, JSON.stringify(json, null, 4) + '\n').pipe(
-        Effect.catchAll((e) => Console.error(`Could not write qa script: ${String(e)}`)),
-      );
+      json.scripts.qa = "gesetz check";
+      yield* fs
+        .writeFileString(path, JSON.stringify(json, null, 4) + "\n")
+        .pipe(Effect.catchAll((e) => Console.error(`Could not write qa script: ${String(e)}`)));
       return;
     }
 
-    const path = nodePath.join(cwd, 'package.json');
+    const path = nodePath.join(cwd, "package.json");
     const exists = yield* fs.exists(path).pipe(Effect.catchAll(() => Effect.succeed(false)));
     if (!exists) return;
-    const txt = yield* fs.readFileString(path).pipe(
-      Effect.catchAll(() => Effect.succeed('')),
-    );
+    const txt = yield* fs.readFileString(path).pipe(Effect.catchAll(() => Effect.succeed("")));
     if (!txt) return;
     const json = JSON.parse(txt) as { scripts?: Record<string, string> };
     if (!json.scripts) json.scripts = {};
     if (json.scripts.qa) return;
-    json.scripts.qa = 'gesetz check';
-    yield* fs.writeFileString(path, JSON.stringify(json, null, 2) + '\n').pipe(
-      Effect.catchAll((e) => Console.error(`Could not write qa script: ${String(e)}`)),
-    );
+    json.scripts.qa = "gesetz check";
+    yield* fs
+      .writeFileString(path, JSON.stringify(json, null, 2) + "\n")
+      .pipe(Effect.catchAll((e) => Console.error(`Could not write qa script: ${String(e)}`)));
   });
 }
 
@@ -192,24 +191,31 @@ export function writeConfig(
     }
 
     const src = generateConfig(plan);
-    yield* fs.writeFileString(configPath, src).pipe(
-      Effect.catchAll((e) =>
-        Effect.fail(new Error(`Failed to write ${configPath}: ${String(e)}`)),
-      ),
-    );
+    yield* fs
+      .writeFileString(configPath, src)
+      .pipe(
+        Effect.catchAll((e) =>
+          Effect.fail(new Error(`Failed to write ${configPath}: ${String(e)}`)),
+        ),
+      );
 
     let installed: string[] = [];
     if (plan.install) {
       const pkgs = packagesForPlan(plan);
-      const cmd = INSTALL_PACKAGES[plan.profile.packageManager](pkgs.join(' '));
+      const cmd = INSTALL_PACKAGES[plan.profile.packageManager](pkgs.join(" "));
       const [bin, ...args] = cmd;
       if (!bin) {
-        return { configPath, installed: [], qaScript: plan.qaScript, pm: plan.profile.packageManager };
+        return {
+          configPath,
+          installed: [],
+          qaScript: plan.qaScript,
+          pm: plan.profile.packageManager,
+        };
       }
       const command = Command.make(bin, ...args).pipe(
         Command.workingDirectory(cwd),
-        Command.stdout('inherit'),
-        Command.stderr('inherit'),
+        Command.stdout("inherit"),
+        Command.stderr("inherit"),
       );
       const exitCode = yield* Command.exitCode(command).pipe(
         Effect.catchAll((cause) =>
