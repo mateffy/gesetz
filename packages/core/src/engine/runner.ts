@@ -184,7 +184,9 @@ export const runAll = (
     const network = createNetwork({
       rootPath: config.projectRoot,
       extensions: compileConfig(config, compileCtx),
-      // GesetzStorageConfig is structurally identical to NetworkStorageConfig.
+      // GesetzStorageConfig mirrors NetworkStorageConfig (gesetz declares its
+      // own copy so the public d.ts has no netzwerk dependency). The cast is
+      // safe because both now support { kind: 'sqlite', path }.
       storage: config.storage as import('netzwerk').NetworkStorageConfig,
     });
 

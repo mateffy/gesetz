@@ -23,12 +23,12 @@ afterEach(() => {
 });
 
 describe('resolveStorage — fresh HOME', () => {
-  it('creates ~/.fabrik so sqlite storage can open', () => {
+  it('creates the .gesetz parent directory and returns sqlite config', () => {
     const root = nodePath.join(tmpHome, 'project');
     nodeFs.mkdirSync(root, { recursive: true });
     const storage = resolveStorage(root, /* full */ false);
     expect(storage.kind).toBe('sqlite');
-    expect(nodeFs.existsSync(nodePath.join(tmpHome, '.fabrik'))).toBe(true);
+    expect(nodeFs.existsSync(nodePath.join(root, '.gesetz'))).toBe(true);
   });
 
   it('returns memory when full=true', () => {
@@ -36,5 +36,16 @@ describe('resolveStorage — fresh HOME', () => {
     nodeFs.mkdirSync(root, { recursive: true });
     const storage = resolveStorage(root, /* full */ true);
     expect(storage.kind).toBe('memory');
+  });
+
+  it('respects GESETZ_DB override', () => {
+    const customDb = nodePath.join(tmpHome, 'custom.db');
+    process.env.GESETZ_DB = customDb;
+    const root = nodePath.join(tmpHome, 'project');
+    nodeFs.mkdirSync(root, { recursive: true });
+    const storage = resolveStorage(root, /* full */ false);
+    expect(storage.kind).toBe('sqlite');
+    expect((storage as { path: string }).path).toBe(customDb);
+    delete process.env.GESETZ_DB;
   });
 });

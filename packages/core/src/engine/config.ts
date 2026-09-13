@@ -61,8 +61,7 @@ export interface UserConfig {
   /**
    * Where the violation-marker cache lives.
    *
-   * `{ kind: 'sqlite', path }` currently persists to `~/.fabrik/netzwerk.db`
-   * — the `path` is reserved for a future netzwerk release that honours it.
+   * `{ kind: 'sqlite', path }` persists to the given SQLite file.
    * `{ kind: 'memory' }` is ephemeral (tests, one-shot runs).
    * Default: memory.
    */
