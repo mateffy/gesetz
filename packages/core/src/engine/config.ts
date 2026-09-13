@@ -59,9 +59,12 @@ export interface UserConfig {
    */
   readonly adapters?: readonly SyntaxBackend[] | undefined;
   /**
-   * Where the violation-marker cache lives. `{ kind: 'sqlite', path }`
-   * persists across runs (CLI default); `{ kind: 'memory' }` is ephemeral
-   * (tests, one-shot runs). Default: memory.
+   * Where the violation-marker cache lives.
+   *
+   * `{ kind: 'sqlite', path }` currently persists to `~/.fabrik/netzwerk.db`
+   * — the `path` is reserved for a future netzwerk release that honours it.
+   * `{ kind: 'memory' }` is ephemeral (tests, one-shot runs).
+   * Default: memory.
    */
   readonly storage?: GesetzStorageConfig | undefined;
 }
