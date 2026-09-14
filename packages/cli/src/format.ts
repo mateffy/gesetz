@@ -128,7 +128,7 @@ export function formatCategoryTable(result: RunResult): string {
     return color('  No categories defined. Add .category("strictness") to your rules.\n', C.dim);
   }
 
-  const colWidths = { category: 14, bar: 20, score: 6, errors: 8, warnings: 9, status: 8 };
+  const colWidths = { category: 14, bar: 20, score: 7, errors: 8, warnings: 9, status: 8 };
 
   const header =
     color(
@@ -142,7 +142,7 @@ export function formatCategoryTable(result: RunResult): string {
     .sort((a, b) => a.score - b.score) // worst first
     .map((cat) => {
       const catName = cat.category.padEnd(colWidths.category);
-      const scoreStr = `${cat.score.toFixed(1)}/10`.padStart(6);
+      const scoreStr = `${cat.score.toFixed(1)}/10`.padStart(7);
       const errStr = cat.errors.toString().padStart(colWidths.errors);
       const warnStr = cat.warnings.toString().padStart(colWidths.warnings);
       const status = cat.passing

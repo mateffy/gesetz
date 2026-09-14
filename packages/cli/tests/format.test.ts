@@ -3,6 +3,7 @@ import {
   buildEnvelope,
   formatEnvelope,
   formatViolations,
+  formatCategoryTable,
   formatCi,
   formatStatusBanner,
   detectFormat,
@@ -49,6 +50,33 @@ function failingResult(violations: Violation[]): RunResult {
     passing: false,
   };
 }
+
+describe('formatCategoryTable', () => {
+  it('aligns columns consistently even when a score is 10.0', () => {
+    // Regression for issue #3: 10.0/10 is 7 chars, 8.5/10 is 6 chars;
+    // if score width is wrong, the Error/Warning/Status columns drift.
+    const result: RunResult = {
+      byRule: [],
+      byCategory: [
+        { category: 'structure', score: 8.5, errors: 0, warnings: 3, infos: 0, totalViolations: 3, ruleIds: [], passing: true },
+        { category: 'organization', score: 10.0, errors: 0, warnings: 0, infos: 0, totalViolations: 0, ruleIds: [], passing: true },
+      ],
+      totalViolations: 3,
+      passing: true,
+    };
+    const out = formatCategoryTable(result);
+    // Strip ANSI codes so we can measure plain text positions.
+    const plain = out.replace(/\x1b\[[0-9;]*m/g, '');
+    const lines = plain.split('\n').filter((l) => l.includes('structure') || l.includes('organization'));
+    expect(lines).toHaveLength(2);
+
+    // Find the index of the first '0' after the '/10' score text — that is
+    // the Errors column. It must line up on both rows.
+    const errIdx0 = lines[0].indexOf('0', lines[0].indexOf('/10'));
+    const errIdx1 = lines[1].indexOf('0', lines[1].indexOf('/10'));
+    expect(errIdx1).toBe(errIdx0);
+  });
+});
 
 describe('buildEnvelope', () => {
   it('marks a passing run with status=pass and empty violations', () => {
