@@ -614,3 +614,30 @@ After rc.3's partial publish (OTP expired mid-batch), rebuilt all gesetz package
 - [ ] Commit consumer version bumps and lockfile changes to git (pending user instruction)
 
 All consumers successfully resolved `@gesetz/*@3.0.0-rc.4` and `netzwerk@^0.0.5` from npm — no local `link:` paths. The end-to-end publish/consume pipeline is fully restored.
+
+## 2026-09-08 19:39:21Z Committing gesetz rc.4 version bumps across all consumers
+
+```session
+01a07bc5-f438-713a-b642-38315d30f957
+```
+
+User invoked `/skill:commit` to commit all version-bump and lockfile changes across repos.
+
+- [x] **gesetz** (`858d0b8`): 18 packages → `3.0.0-rc.4`, netzwerk dep → `^0.0.5`
+- [x] **netzwerk** (`6261eb5`): 14 packages → `0.0.5`, includes exports for `createNetwork`
+- [x] **dialekt** (`e67e866`): gesetz deps → `3.0.0-rc.4`
+- [x] **fabrik monorepo** (`bd37195`): 3 consumers (briefkasten, package-template, schaltbild) → `3.0.0-rc.4`
+
+All 4 commits are Conventional Commits with type `chore`, title suffixed with relevant descriptions. No config/rule changes needed — all existing rules are compatible with the netzwerk-backed engine.
+
+User asked whether `@gesetz/typescript` v3 dropped individual rule helpers (`noAny`, `requireImportFrom`, etc.) — investigated the rc.4 published tarball: all 25 exports are still present (identical to 1.3.3). The earlier breakage was the netzwerk runtime crash (`network.close is not a function`), not missing exports. Dialekt's `gesetz check` runs with all 53 rules intact.
+
+Waiting for user instruction on whether to push.
+
+## 2026-09-09 14:32:35Z Interpreting "/resuime" command
+
+```session
+01a08695-8fb9-76cf-94e1-0c522635d499
+```
+
+User entered `/resuime` — likely a typo for "resume". Waiting for clarification on what they want to do (e.g., build, edit, review a resume). No tasks started yet.
