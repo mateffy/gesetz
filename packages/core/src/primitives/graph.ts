@@ -62,7 +62,6 @@ export function noCycles(pattern: string | string[], opts: NoCyclesOptions = {})
       return r.startsWith('..') ? absPath : r;
     };
 
-    // Build adjacency map: absolutePath → [absolutePath, ...]
     const fileByAbs = new Map<string, File>();
     for (const file of files) {
       fileByAbs.set(nodePath.normalize(file.absolutePath), file);

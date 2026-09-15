@@ -1,5 +1,8 @@
 import type { Check, Violation } from '@gesetz/core';
 
+/** Lines scanned after a catch block when deciding whether it is empty. */
+const LOOKAHEAD_LINES = 3;
+
 export interface NoEmptyCatchOptions {
   readonly message?: string | undefined;
 }
@@ -17,9 +20,8 @@ export function noEmptyCatch(options: NoEmptyCatchOptions = {}): Check {
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i] ?? '';
       if (/\}\s*catch\s*(\([^)]*\))?\s*\{/.test(line) || /catch\s*(\([^)]*\))?\s*\{/.test(line)) {
-        // Check next 3 lines for real content
         const body = lines
-          .slice(i + 1, i + 4)
+          .slice(i + 1, i + 1 + LOOKAHEAD_LINES)
           .map((l) => l.trim())
           .filter((l) => l && l !== '}' && !l.startsWith('//') && !l.startsWith('*'));
         if (body.length === 0) {

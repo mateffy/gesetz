@@ -61,6 +61,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   so `@gesetz/core` still ships no native dependency.
 - `storage: { kind: 'sqlite', path }` in `gesetz.config.ts` is now authoritative
   for `gesetz check`; a relative path resolves against `projectRoot`.
+- `noCrossModuleImports({ modulePattern, message })` in `@gesetz/typescript`:
+  flags imports that cross from one module into another module's internals. The
+  `domain-isolation` blueprint in `gesetz init` referenced this check, but no
+  package exported it.
+- A CI guard (`packages/cli/tests/init-imports.test.ts`) asserting that every
+  import `gesetz init` generates resolves to a real export.
+- `publint` and `attw` now run in CI, after the packaging bugs below.
 
 ### Removed
 
@@ -70,6 +77,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`noMagicNumbers` reported digits inside strings, comments and regex
+  literals.** `'utf-8'` was reported as the magic number 8, `'Node >= 23.4'` as
+  23.4, `/** Default: 400 */` as 400, and the character class `[^a-z0-9]` as 9 —
+  most of its output was false positives. The check now blanks string, template
+  and regex literals and comments before scanning, preserving line numbers.
+- **`gesetz init` generated imports for checks that do not exist.**
+  `noConsoleLog`, `noEmptyCatch`, `noTrivialComment` and `relativeImports` were
+  imported from `@gesetz/core` after moving to `@gesetz/typescript`, so the
+  generated config did not compile.
+- **`@gesetz/core` still defined those four checks** — dead code unreachable from
+  the package's public API, and the source of the `init` bug above.
+- **`@gesetz/junit` ran its tests with `bun test`** although the tests import
+  from vitest, so `pnpm test` failed without Bun installed.
 - **Per-file cache results are now invalidated when the project's file set
   changes.** The cache key covered the file's own content hash and the rule
   definitions, but per-file checks are not pure functions of one file:
@@ -114,6 +134,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`better-sqlite3`) package. Without one, gesetz prints an actionable notice
   and runs without a cache.
 - `@gesetz/core` depends only on `effect`, `fast-glob`, and `micromatch`.
+- **Cache invalidation is derived from each rule's shape** — `fn.toString()` for
+  check bodies, the rule's patterns, and the project's file set. A change to a
+  check's *module-level helper* is invisible to that fingerprint, because the
+  closure's own source text is unchanged. After upgrading an adapter package, run
+  `gesetz check --full` once (or delete the cache) if reported violations look
+  stale. Rules whose behaviour is configured at runtime can set an explicit
+  `Rule.fingerprint` to make invalidation deterministic.
 
 ---
 

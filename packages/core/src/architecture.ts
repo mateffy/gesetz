@@ -33,7 +33,7 @@ import { FileSystem, ProjectRoot } from './services/fs';
 import { SyntaxTree } from './services/syntax-tree';
 import type { ParsedImport } from './services/syntax-tree';
 import { ImportResolver } from './services/import-resolver';
-import type { Rule, Violation } from './engine/rule';
+import type { File, Rule, Violation } from './engine/rule';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -109,6 +109,59 @@ function regexExtractImports(content: string): string[] {
 
 // ─── Rule builder ─────────────────────────────────────────────────────────────
 
+interface LayerIndex {
+  readonly fileToLayer: ReadonlyMap<string, string>;
+  readonly absToLayer: ReadonlyMap<string, string>;
+  readonly allowedImports: ReadonlyMap<string, ReadonlySet<string>>;
+  readonly forbiddenPairs: ReadonlyMap<string, ReadonlySet<string>>;
+  readonly bannedExternals: Readonly<Record<string, readonly string[]>>;
+}
+
+/**
+ * Assigns every scanned file to its layer and builds the constraint lookups.
+ *
+ * Split out of the rule body so the rule reads as "index, then check" rather
+ * than 40 lines of map construction.
+ */
+function buildLayerIndex(config: ArchitectureConfig, files: readonly File[]): LayerIndex {
+  const fileToLayer = new Map<string, string>();
+  const absToLayer = new Map<string, string>();
+  const allowedImports = new Map<string, ReadonlySet<string>>();
+  const forbiddenPairs = new Map<string, ReadonlySet<string>>();
+
+  for (const file of files) {
+    const layer = config.layers.find((candidate) =>
+      micromatch.isMatch(
+        file.path,
+        Array.isArray(candidate.pattern) ? candidate.pattern : [candidate.pattern],
+      ),
+    );
+    if (layer === undefined) continue;
+    fileToLayer.set(file.path, layer.name);
+    absToLayer.set(nodePath.normalize(file.absolutePath), layer.name);
+  }
+
+  for (const layer of config.layers) {
+    if (layer.canImportFrom !== undefined) {
+      allowedImports.set(layer.name, new Set(layer.canImportFrom));
+    }
+  }
+
+  for (const forbidden of config.forbidden ?? []) {
+    const pairs = new Set(forbiddenPairs.get(forbidden.from) ?? []);
+    pairs.add(forbidden.to);
+    forbiddenPairs.set(forbidden.from, pairs);
+  }
+
+  return {
+    fileToLayer,
+    absToLayer,
+    allowedImports,
+    forbiddenPairs,
+    bannedExternals: config.bannedExternals ?? {},
+  };
+}
+
 function buildLayerRule(config: ArchitectureConfig): Rule {
   const id = 'architecture-layer-violations';
   const description = 'Architecture layer constraints must not be violated';
@@ -129,42 +182,8 @@ function buildLayerRule(config: ArchitectureConfig): Rule {
 
     if (allFiles.length === 0) return [];
 
-    // Build a map: filePath -> layer name
-    const fileToLayer = new Map<string, string>();
-    for (const file of allFiles) {
-      for (const layer of config.layers) {
-        const patterns = Array.isArray(layer.pattern) ? layer.pattern : [layer.pattern];
-        if (micromatch.isMatch(file.path, patterns)) {
-          fileToLayer.set(file.path, layer.name);
-          break;
-        }
-      }
-    }
-
-    // Build allowlist map: layerName -> Set<allowed layer names>
-    const allowedImports = new Map<string, Set<string>>();
-    for (const layer of config.layers) {
-      if (layer.canImportFrom !== undefined) {
-        allowedImports.set(layer.name, new Set(layer.canImportFrom));
-      }
-    }
-
-    // Build forbidden pairs map
-    const forbiddenPairs = new Map<string, Set<string>>();
-    for (const forbidden of config.forbidden ?? []) {
-      const set = forbiddenPairs.get(forbidden.from) ?? new Set();
-      set.add(forbidden.to);
-      forbiddenPairs.set(forbidden.from, set);
-    }
-
-    // Build banned externals map
-    const bannedExternals = config.bannedExternals ?? {};
-
-    // Build a lookup of absolute path -> layer name for resolved-import matching.
-    const absToLayer = new Map<string, string>();
-    for (const file of allFiles) {
-      absToLayer.set(nodePath.normalize(file.absolutePath), fileToLayer.get(file.path) ?? '');
-    }
+    const { fileToLayer, absToLayer, allowedImports, forbiddenPairs, bannedExternals } =
+      buildLayerIndex(config, allFiles);
 
     const violations: Violation[] = [];
 
@@ -188,7 +207,6 @@ function buildLayerRule(config: ArchitectureConfig): Rule {
       const bannedForFrom = bannedExternals[fromLayer] ?? [];
 
       for (const importPath of importSpecifiers) {
-        // Check banned external packages
         if (isExternalPackage(importPath) && bannedForFrom.length > 0) {
           const pkg = importPath.startsWith('@')
             ? importPath.split('/').slice(0, 2).join('/')
@@ -237,7 +255,6 @@ function buildLayerRule(config: ArchitectureConfig): Rule {
 
         if (!toLayer || toLayer === fromLayer) continue;
 
-        // Check canImportFrom allowlist
         if (allowedForFrom !== undefined && !allowedForFrom.has(toLayer)) {
           violations.push({
             rule: id,
@@ -249,7 +266,6 @@ function buildLayerRule(config: ArchitectureConfig): Rule {
           continue;
         }
 
-        // Check explicit forbidden pairs
         if (forbiddenForFrom?.has(toLayer)) {
           const pair = config.forbidden?.find((f) => f.from === fromLayer && f.to === toLayer);
           violations.push({
@@ -271,7 +287,7 @@ function buildLayerRule(config: ArchitectureConfig): Rule {
   return { id, description, category: 'organization', run };
 }
 
-function bannedForForLayer(banned: string[], importPath: string): boolean {
+function bannedForForLayer(banned: readonly string[], importPath: string): boolean {
   return banned.includes(importPath);
 }
 

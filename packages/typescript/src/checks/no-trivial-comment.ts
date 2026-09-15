@@ -1,5 +1,8 @@
 import type { Check, Violation } from '@gesetz/core';
 
+/** A run of at least this many divider characters marks a section break. */
+const MIN_DIVIDER_RUN = 5;
+
 export interface NoTrivialCommentOptions {
   readonly message?: string | undefined;
 }
@@ -14,7 +17,7 @@ export function noTrivialComment(options: NoTrivialCommentOptions = {}): Check {
   // Patterns that match AI-narration: "// Verb the Noun" or section dividers
   const narrationPattern =
     /^\s*\/\/\s*(?:import|define|create|add|set|update|delete|remove|return|export|initialize|handle|check|call|use|get|fetch|render|make|build|iterate|loop|map|filter)\s+\w/i;
-  const dividerPattern = /^\s*\/\/\s*[-=*]{5,}/;
+  const dividerPattern = new RegExp(`^\\s*//\\s*[-=*]{${MIN_DIVIDER_RUN},}`);
 
   return async (file) => {
     const violations: Violation[] = [];

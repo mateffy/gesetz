@@ -19,6 +19,9 @@
 import * as nodePath from 'node:path';
 import type { Violation } from '@gesetz/core';
 
+/** Lines of a failure stack kept as violation context. */
+const MAX_STACK_LINES = 5;
+
 export interface ParsedTestCase {
   readonly name: string;
   readonly classname: string;
@@ -55,7 +58,6 @@ export function parseJUnitXml(xml: string, cwd: string): ParsedTestCase[] {
   const caseRe =
     /<testcase\b([^>]*?)(?:\/>|>([\s\S]*?)<\/testcase>)/gi;
 
-  // Build a map of testcase positions to the nearest preceding suite file.
   // Walk through suite openings and testcase matches in order.
   let suiteFile = '';
 
@@ -151,7 +153,7 @@ export function junitToViolations(
         line: c.line,
         severity: 'error',
         source: 'custom',
-        context: c.stack ? c.stack.split('\n').slice(0, 5).join('\n') : undefined,
+        context: c.stack ? c.stack.split('\n').slice(0, MAX_STACK_LINES).join('\n') : undefined,
       };
     });
 }

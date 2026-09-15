@@ -1,5 +1,22 @@
-import type { Check, Violation } from '@gesetz/core';
+import type { CheckServices, Check, File, Violation } from '@gesetz/core';
 import { parseFile, findByKind, findChildText, startLine } from './shared';
+
+/**
+ * Exported names for a file, or an empty set when the file has no backend or the
+ * backend cannot parse it. A parse failure must not fail the check.
+ */
+async function exportedNamesOf(
+  file: File,
+  syntax: CheckServices['syntax'],
+): Promise<Set<string>> {
+  if (!syntax.canProcess(file)) return new Set();
+  try {
+    const result = await syntax.process(file, { exports: true });
+    return new Set(result.exports.map((e) => e.name));
+  } catch {
+    return new Set();
+  }
+}
 
 /**
  * Checks that the file does not define local helper function components
@@ -23,16 +40,7 @@ export function noLocalFunctionComponents(
     const root = parseFile(file.content, file.path);
     if (root === null) return [];
 
-    // Build the set of exported names via the SyntaxTree service (oxc-parser).
-    let exportedNames = new Set<string>();
-    if (syntax.canProcess(file)) {
-      try {
-        const result = await syntax.process(file, { exports: true });
-        exportedNames = new Set(result.exports.map((e) => e.name));
-      } catch {
-        // ignore parse errors
-      }
-    }
+    const exportedNames = await exportedNamesOf(file, syntax);
 
     const violations: Violation[] = [];
     const functions = findByKind(root, 'function_declaration');
@@ -43,9 +51,8 @@ export function noLocalFunctionComponents(
       if (opts.excludeExportedNames && exportedNames.has(name)) continue;
       if (exportedNames.has(name)) continue; // main export — skip
 
-      // Check if it contains JSX. ast-grep parses `<>...</>` as a
-      // `jsx_element` with an empty opening, so `jsx_element` +
-      // `jsx_self_closing_element` covers all JSX forms.
+      // `<>...</>` parses as a `jsx_element` with an empty opening, so these two
+      // kinds together cover every JSX form.
       const hasJsx =
         fn.findAll({ rule: { kind: 'jsx_element' } }).length > 0 ||
         fn.findAll({ rule: { kind: 'jsx_self_closing_element' } }).length > 0;

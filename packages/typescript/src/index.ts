@@ -22,6 +22,7 @@ export {
   noMagicNumbers,
   noTrivialComment,
   relativeImports,
+  noCrossModuleImports,
   // New checks:
   noTypedAny,
   noAsUnknownAs,
@@ -44,4 +45,5 @@ export type {
   NoEnumOptions,
   NoBarrelFileOptions,
   RequireExplicitReturnTypeOptions,
+  NoCrossModuleImportsOptions,
 } from './checks';

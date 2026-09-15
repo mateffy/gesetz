@@ -1,6 +1,9 @@
 import type { Check, Violation } from '@gesetz/core';
 import { parseFile, findByKind } from './shared';
 
+/** Re-exports allowed before a barrel file is considered pointless. */
+const DEFAULT_MAX_REEXPORTS = 5;
+
 export interface NoBarrelFileOptions {
   /** Maximum number of re-exports allowed before the file is flagged. Default: 5 */
   readonly maxReexports?: number;
@@ -21,7 +24,7 @@ export interface NoBarrelFileOptions {
  * select('src/scripts/index.{ts,tsx}').check(noBarrelFile())
  */
 export function noBarrelFile(opts: NoBarrelFileOptions = {}): Check {
-  const maxReexports = opts.maxReexports ?? 5;
+  const maxReexports = opts.maxReexports ?? DEFAULT_MAX_REEXPORTS;
 
   return async (file) => {
     // Only consider index files

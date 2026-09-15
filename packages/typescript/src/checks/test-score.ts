@@ -33,6 +33,21 @@ export interface TestScoring {
   varietyBonus?: number;
 }
 
+/** Default scoring weights. Overridable per call via `TestScoring`. */
+const ASSERTION_THRESHOLDS = [1, 3, 5, 8];
+const ASSERTION_BONUS = 5;
+const TEST_COUNT_THRESHOLDS = [2, 4, 6];
+const TEST_COUNT_BONUS = 5;
+const TRIVIAL_PENALTY = -20;
+const ASYNC_BONUS = 5;
+const INTERACTION_BONUS = 5;
+const ERROR_BONUS = 5;
+const VARIETY_BONUS = 5;
+/** How many distinct assertion kinds count as "varied". */
+const VARIETY_MIN_KINDS = 3;
+/** Score every file starts from, before bonuses and penalties. */
+const BASE_SCORE = 40;
+
 /**
  * Scores a test file based on quality signals (assertion count, async tests,
  * interaction coverage, error paths) and returns a violation if below `minScore`.
@@ -45,20 +60,20 @@ export interface TestScoring {
 export function requireMinTestScore(scoring: TestScoring): Check {
   const {
     minScore,
-    assertionThresholds = [1, 3, 5, 8],
-    assertionBonus = 5,
-    testCountThresholds = [2, 4, 6],
-    testCountBonus = 5,
+    assertionThresholds = ASSERTION_THRESHOLDS,
+    assertionBonus = ASSERTION_BONUS,
+    testCountThresholds = TEST_COUNT_THRESHOLDS,
+    testCountBonus = TEST_COUNT_BONUS,
     assertionNames = ['expect('],
     trivialAssertions = ['toBeTrue(', 'toBeTruthy(', 'toBeDefined('],
-    trivialPenalty = -20,
+    trivialPenalty = TRIVIAL_PENALTY,
     asyncIndicators = ['waitFor(', 'act('],
     interactionMethods = ['userEvent.', 'fireEvent.'],
     errorIndicators = ['.toThrow(', '.rejects.', 'toThrow('],
-    asyncBonus = 5,
-    interactionBonus = 5,
-    errorBonus = 5,
-    varietyBonus = 5,
+    asyncBonus = ASYNC_BONUS,
+    interactionBonus = INTERACTION_BONUS,
+    errorBonus = ERROR_BONUS,
+    varietyBonus = VARIETY_BONUS,
   } = scoring;
 
   return async (file) => {
@@ -84,9 +99,10 @@ export function requireMinTestScore(scoring: TestScoring): Check {
     for (const match of content.matchAll(assertionTypePattern)) {
       assertionTypes.add(match[1] ?? '');
     }
-    const hasVariety = assertionTypes.size >= 3;
+    const hasVariety = assertionTypes.size >= VARIETY_MIN_KINDS;
 
-    let score = 40; // base score for having any tests
+    // Base score for having any tests at all.
+    let score = BASE_SCORE;
 
     // Assertion count bonuses
     for (const threshold of assertionThresholds) {

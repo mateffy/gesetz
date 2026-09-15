@@ -51,20 +51,8 @@ jobs:
       # Run all test suites.
       - run: pnpm test
 
-      # ── Aspirational gate ───────────────────────────────────────────────────
-      # Dogfood: run gesetz against its own codebase.
-      #
-      # This is allowed to fail so that a red self-check cannot mask a real
-      # typecheck/test regression — it used to run first, which meant failures in
-      # the hard gates above were never reached. The step still shows as failed
-      # in the run summary when it does not pass.
-      #
-      # Current state: `noDeepNesting` counts *indentation*, and this codebase
-      # routinely indents to level 6 (Effect pipelines and nested callbacks), so
-      # the rule reports ~237 warnings and the `structure` category scores 0.
-      # Making this gate enforceable means either measuring real control-flow
-      # nesting (AST-based, in @gesetz/typescript) or adopting a threshold that
-      # reflects indentation-based counting. Until then it stays visible but
-      # non-blocking.
+      # ── Dogfood gate ────────────────────────────────────────────────────────
+      # Gesetz checks its own codebase with `gesetz.config.ts`. Runs last so a
+      # failure here cannot mask a typecheck/test regression, but it is a hard
+      # gate: it passes, so a regression should fail the build.
       - run: pnpm check
-        continue-on-error: true

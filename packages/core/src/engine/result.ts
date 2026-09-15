@@ -52,6 +52,11 @@ export interface RunResult {
   readonly failedRules?: readonly string[] | undefined;
 }
 
+/** Weight applied to each severity when scoring a category. */
+const SEVERITY_WEIGHT = { error: 1, warn: 0.5, info: 0.1 } as const;
+/** Minimum score a category must reach when no threshold is configured. */
+const DEFAULT_MIN_SCORE = 7;
+
 /** Computes category scores from rule results and config thresholds. */
 export function computeCategoryScores(
   results: RuleResult[],
@@ -76,9 +81,12 @@ export function computeCategoryScores(
   }
 
   return Array.from(byCategory.entries()).map(([category, counts]) => {
-    const weighted = counts.errors * 1.0 + counts.warnings * 0.5 + counts.infos * 0.1;
+    const weighted =
+      counts.errors * SEVERITY_WEIGHT.error +
+      counts.warnings * SEVERITY_WEIGHT.warn +
+      counts.infos * SEVERITY_WEIGHT.info;
     const score = Math.max(0, Math.round((10 - weighted) * 10) / 10);
-    const threshold = thresholds.find((t) => t.category === category)?.minScore ?? 7;
+    const threshold = thresholds.find((t) => t.category === category)?.minScore ?? DEFAULT_MIN_SCORE;
     return {
       category,
       score,

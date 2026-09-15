@@ -22,6 +22,8 @@ export type { NoMagicNumbersOptions } from './no-magic-numbers';
 export { noTrivialComment } from './no-trivial-comment';
 export type { NoTrivialCommentOptions } from './no-trivial-comment';
 export { relativeImports } from './relative-imports';
+export { noCrossModuleImports } from './cross-module-imports';
+export type { NoCrossModuleImportsOptions } from './cross-module-imports';
 
 // New checks (ast-grep / SyntaxBackend based, no ts-morph):
 export { noTypedAny } from './no-typed-any';

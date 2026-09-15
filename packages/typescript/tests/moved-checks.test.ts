@@ -80,6 +80,85 @@ describe('noMagicNumbers (moved from core)', () => {
     );
     expect(v).toHaveLength(0);
   });
+
+  it('ignores digits inside string literals', async () => {
+    const v = await runCheck(
+      noMagicNumbers(),
+      makeFile(
+        'src/foo.ts',
+        [
+          "const enc = readFile(path, 'utf-8');",
+          "throw new Error('needs Node >= 23.4');",
+          "db.exec('PRAGMA busy_timeout = 5000');",
+          "const url = 'http://localhost:6006';",
+          "const note = \"file exceeds 400 lines\";",
+        ].join('\n'),
+      ),
+      makeCheckServices(),
+    );
+    expect(v).toEqual([]);
+  });
+
+  it('ignores digits inside comments, including inline and doc comments', async () => {
+    const v = await runCheck(
+      noMagicNumbers(),
+      makeFile(
+        'src/foo.ts',
+        [
+          '// Default: 400 lines',
+          '/** Maximum allowed nesting level. Default: 4 */',
+          'const a = 1; // waited 150ms',
+          ['/*', ' * Retry after 250ms.', ' */'].join('\n'),
+        ].join('\n'),
+      ),
+      makeCheckServices(),
+    );
+    expect(v).toEqual([]);
+  });
+
+  it('ignores digits inside template literals', async () => {
+    const v = await runCheck(
+      noMagicNumbers(),
+      makeFile('src/foo.ts', 'const s = `Timeout: 150`;'),
+      makeCheckServices(),
+    );
+    expect(v).toEqual([]);
+  });
+
+  it('ignores digits inside regex literals', async () => {
+    const v = await runCheck(
+      noMagicNumbers(),
+      makeFile(
+        'src/foo.ts',
+        [
+          "const slug = value.replace(/[^a-z0-9\\s-]/g, '');",
+          'if (/^v\\d+\\.\\d+$/.test(version)) return true;',
+          'const divider = /^\\s*[-=*]{5,}/;',
+        ].join('\n'),
+      ),
+      makeCheckServices(),
+    );
+    expect(v).toEqual([]);
+  });
+
+  it('does not mistake division for a regex literal', async () => {
+    const v = await runCheck(
+      noMagicNumbers(),
+      makeFile('src/foo.ts', 'const ratio = total / 150;\nconst other = a / b;'),
+      makeCheckServices(),
+    );
+    expect(v).toHaveLength(1);
+    expect(v[0]?.message).toContain('150');
+  });
+
+  it('still flags real numeric literals in code', async () => {
+    const v = await runCheck(
+      noMagicNumbers(),
+      makeFile('src/foo.ts', "setTimeout(fn, 150);\nconst buf = 64 * 1024;"),
+      makeCheckServices(),
+    );
+    expect(v.map((x) => x.message.match(/\d+/)?.[0])).toEqual(['150', '64', '1024']);
+  });
 });
 
 describe('noTrivialComment (moved from core)', () => {

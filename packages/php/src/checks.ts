@@ -42,8 +42,7 @@ export function psrNamespace(opts: {
     const declaredNamespace = namespaceMatch[1] ?? '';
     const relativePath = file.dir.replace(/\\/g, '/');
 
-    // Remove basePath prefix
-    const normalizedBase = opts.basePath.replace(/^\/|\/$/g, '');
+      const normalizedBase = opts.basePath.replace(/^\/|\/$/g, '');
     const normalizedDir = relativePath.replace(/^\/|\/$/g, '');
 
     let pathAfterBase = normalizedDir;

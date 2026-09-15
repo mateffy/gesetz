@@ -5,6 +5,9 @@ import micromatch from 'micromatch';
 import type { FileRef } from '../cache/types';
 import type { ResolvedConfig } from './config';
 
+/** Cap for git output; a very large listing must not throw ENOBUFS. */
+const GIT_MAX_BUFFER_BYTES = 64 * 1024 * 1024;
+
 /** Ignored on top of whatever the file source already excludes. */
 const ALWAYS_IGNORED = ['**/node_modules/**', '**/.git/**'];
 
@@ -28,7 +31,7 @@ export function listGitFiles(projectRoot: string): string[] | null {
         cwd: projectRoot,
         encoding: 'utf-8',
         stdio: ['ignore', 'pipe', 'ignore'],
-        maxBuffer: 64 * 1024 * 1024,
+        maxBuffer: GIT_MAX_BUFFER_BYTES,
       },
     );
     return output.split('\0').filter((path) => path !== '');

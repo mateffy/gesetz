@@ -33,6 +33,9 @@ import {
 import { SKILL_MARKDOWN } from './skill';
 import { initCommand } from './init';
 
+/** Debounce for watch-mode re-runs, in milliseconds. */
+const WATCH_DEBOUNCE_MS = 150;
+
 // ─── Storage resolution ─────────────────────────────────────────────────────
 
 /** Guards the one-time notices so watch mode does not repeat them. */
@@ -278,7 +281,7 @@ const checkCommand = Command.make(
                   ),
                 ),
               );
-            }, 150);
+            }, WATCH_DEBOUNCE_MS);
           });
           process.on('SIGINT', () => {
             watcher.close();

@@ -92,14 +92,13 @@ export const FileSystemLive: Layer.Layer<FileSystem> = Layer.effect(
           Effect.map((paths: string[]) =>
             paths.map((relativePath) => {
               const absolutePath = nodePath.resolve(effectiveCwd, relativePath);
-              let stat: nodeFs.Stats | null = null;
-              try {
-                stat = nodeFs.statSync(absolutePath);
-              } catch {
-                // ignore
-              }
               // Content is loaded lazily on first `file.content` access.
-              return buildFile(relativePath, absolutePath, () => readFileSafe(absolutePath), stat);
+              return buildFile(
+                relativePath,
+                absolutePath,
+                () => readFileSafe(absolutePath),
+                statOrNull(absolutePath),
+              );
             }),
           ),
         );
@@ -122,6 +121,15 @@ function readFileSafe(absolutePath: string): string {
     return nodeFs.readFileSync(absolutePath, 'utf-8');
   } catch {
     return '';
+  }
+}
+
+/** `statSync`, or null when the file cannot be stat'ed (missing, permissions). */
+function statOrNull(absolutePath: string): nodeFs.Stats | null {
+  try {
+    return nodeFs.statSync(absolutePath);
+  } catch {
+    return null;
   }
 }
 

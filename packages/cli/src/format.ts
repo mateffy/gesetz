@@ -17,6 +17,23 @@ import type { CategoryScore, RunResult, RuleResult, Violation } from '@gesetz/co
 
 export type OutputFormat = 'pretty' | 'json' | 'ci';
 
+/** Score at or above which a category is shown as healthy. */
+const SCORE_GOOD = 8;
+/** Score at or above which a category is shown as marginal. */
+const SCORE_FAIR = 5;
+/** Width of the score bar, in characters. */
+const BAR_WIDTH = 20;
+/** Column widths for the category table. */
+const COLUMN_WIDTHS = { category: 14, bar: 20, score: 6, errors: 8, warnings: 9, status: 8 };
+/** Width of the "Score" cell, e.g. `10.0/10`. */
+const SCORE_CELL_WIDTH = 6;
+/** Width of the score-cell separator used to pad the header. */
+const SCORE_HEADER_PAD = 4;
+/** Total width of the table divider rule. */
+const DIVIDER_WIDTH = 72;
+/** Threshold assumed when a category has none configured. */
+const DEFAULT_MIN_SCORE = 7;
+
 /**
  * Environment variables that signal gesetz is running inside an AI agent.
  * When any is set (truthy), or stdout is not a TTY, JSON mode is the default.
@@ -72,8 +89,8 @@ function color(text: string, ...codes: string[]): string {
 }
 
 function scoreColor(score: number): string {
-  if (score >= 8) return C.green;
-  if (score >= 5) return C.yellow;
+  if (score >= SCORE_GOOD) return C.green;
+  if (score >= SCORE_FAIR) return C.yellow;
   return C.red;
 }
 
@@ -111,7 +128,7 @@ function glyphs(): Glyphs {
   return isTty() ? PRETTY_GLYPHS : ASCII_GLYPHS;
 }
 
-function bar(score: number, width = 20): string {
+function bar(score: number, width = BAR_WIDTH): string {
   const g = glyphs();
   const filled = Math.round((score / 10) * width);
   const empty = width - filled;
@@ -128,21 +145,21 @@ export function formatCategoryTable(result: RunResult): string {
     return color('  No categories defined. Add .category("strictness") to your rules.\n', C.dim);
   }
 
-  const colWidths = { category: 14, bar: 20, score: 6, errors: 8, warnings: 9, status: 8 };
+  const colWidths = COLUMN_WIDTHS;
 
   const header =
     color(
-      `  ${'Category'.padEnd(colWidths.category)}  ${'Score'.padEnd(colWidths.bar + 4)}  ${'Errors'.padStart(colWidths.errors)}  ${'Warnings'.padStart(colWidths.warnings)}  Status`,
+      `  ${'Category'.padEnd(colWidths.category)}  ${'Score'.padEnd(colWidths.bar + SCORE_HEADER_PAD)}  ${'Errors'.padStart(colWidths.errors)}  ${'Warnings'.padStart(colWidths.warnings)}  Status`,
       C.bold,
     ) + '\n';
 
-  const divider = color(`  ${g.hLine.repeat(72)}\n`, C.dim);
+  const divider = color(`  ${g.hLine.repeat(DIVIDER_WIDTH)}\n`, C.dim);
 
   const rows = result.byCategory
     .sort((a, b) => a.score - b.score) // worst first
     .map((cat) => {
       const catName = cat.category.padEnd(colWidths.category);
-      const scoreStr = `${cat.score.toFixed(1)}/10`.padStart(6);
+      const scoreStr = `${cat.score.toFixed(1)}/10`.padStart(SCORE_CELL_WIDTH);
       const errStr = cat.errors.toString().padStart(colWidths.errors);
       const warnStr = cat.warnings.toString().padStart(colWidths.warnings);
       const status = cat.passing
@@ -289,7 +306,7 @@ export function buildEnvelope(
     warnings: c.warnings,
     infos: c.infos,
     passing: c.passing,
-    threshold: thresholds[c.category] ?? 7,
+    threshold: thresholds[c.category] ?? DEFAULT_MIN_SCORE,
   }));
 
   const summary: Record<string, number> = {};

@@ -9,10 +9,11 @@
     }
   },
   "scripts": {
-    "test": "bun test",
+    "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "build": "tsdown",
-    "prepack": "tsdown"
+    "prepack": "tsdown",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@gesetz/core": "workspace:*",

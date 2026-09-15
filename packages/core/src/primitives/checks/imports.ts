@@ -1,4 +1,4 @@
-import type { Check, Violation } from '../../engine/rule';
+import type { CheckServices, Check, File, Violation } from '../../engine/rule';
 
 /**
  * Simple regex fallback for extracting import specifiers from JS/TS-like
@@ -19,6 +19,30 @@ function regexExtractImports(content: string): string[] {
     }
   }
   return results;
+}
+
+/**
+ * Import entries for a file: the syntax backend when it handles the extension,
+ * otherwise a regex scan of the source.
+ *
+ * Shared by the import checks so the "no backend, or a parse failure, falls back
+ * to regex" rule lives in one place. Only the regex path leaves `line` undefined.
+ */
+async function importEntries(
+  file: File,
+  syntax: CheckServices['syntax'],
+): Promise<readonly { specifier: string; line?: number | undefined }[]> {
+  const viaRegex = (): { specifier: string }[] =>
+    regexExtractImports(file.content).map((specifier) => ({ specifier }));
+
+  if (!syntax.canProcess(file)) return viaRegex();
+
+  try {
+    const result = await syntax.process(file, { imports: true });
+    return result.imports.map((imp) => ({ specifier: imp.specifier, line: imp.line }));
+  } catch {
+    return viaRegex();
+  }
 }
 
 /**
@@ -43,40 +67,20 @@ export function noImportFrom(
 
   const label = typeof module === 'string' ? module : module.source;
 
-  return async (file, { syntax }) => {
+  return async (file, services) => {
     const violations: Violation[] = [];
 
-    if (syntax.canProcess(file)) {
-      try {
-        const result = await syntax.process(file, { imports: true });
-        for (const imp of result.imports) {
-          if (matcher(imp.specifier)) {
-            violations.push({
-              severity: opts.severity ?? 'error',
-              source: 'core',
-              message: opts.message ?? `Forbidden import from '${label}'`,
-              path: file.path,
-              line: imp.line,
-            });
-          }
-        }
-        return violations;
-      } catch {
-        // fall through to regex fallback
-      }
+    for (const { specifier, line } of await importEntries(file, services.syntax)) {
+      if (!matcher(specifier)) continue;
+      violations.push({
+        severity: opts.severity ?? 'error',
+        source: 'core',
+        message: opts.message ?? `Forbidden import from '${label}'`,
+        path: file.path,
+        ...(line !== undefined ? { line } : {}),
+      });
     }
 
-    // Regex fallback for unregistered extensions
-    for (const specifier of regexExtractImports(file.content)) {
-      if (matcher(specifier)) {
-        violations.push({
-          severity: opts.severity ?? 'error',
-          source: 'core',
-          message: opts.message ?? `Forbidden import from '${label}'`,
-          path: file.path,
-        });
-      }
-    }
     return violations;
   };
 }
@@ -99,18 +103,8 @@ export function requireImportFrom(
 
   const label = typeof module === 'string' ? module : module.source;
 
-  return async (file, { syntax }) => {
-    let specifiers: string[];
-    if (syntax.canProcess(file)) {
-      try {
-        const result = await syntax.process(file, { imports: true });
-        specifiers = result.imports.map((i) => i.specifier);
-      } catch {
-        specifiers = regexExtractImports(file.content);
-      }
-    } else {
-      specifiers = regexExtractImports(file.content);
-    }
+  return async (file, services) => {
+    const specifiers = (await importEntries(file, services.syntax)).map((e) => e.specifier);
 
     if (specifiers.some(matcher)) return [];
 

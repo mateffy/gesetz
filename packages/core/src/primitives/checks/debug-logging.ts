@@ -51,8 +51,8 @@ export function noDebugLogging(opts: NoDebugLoggingOptions = {}): Check {
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i] ?? '';
       for (const name of names) {
-        // Match the name followed by ( or ! — avoid matching partial names
-        // e.g. "console.log(" matches but "notconsole.log(" does not
+        // Guarded by a negative lookbehind for word characters and dots, so a
+        // longer identifier that merely ends in the same name does not match.
         const pattern = new RegExp(`(?<![\\w.])${escapeForRegex(name)}\\s*[(!]`);
         if (pattern.test(line)) {
           violations.push({

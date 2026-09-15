@@ -4,6 +4,9 @@ import { Effect } from 'effect';
 import type { Rule, Violation } from '@gesetz/core';
 import { execTool, runWithTempFile, extractLocation, ProjectRoot, resolveToolBin, resolveToolCwd } from '@gesetz/core';
 
+/** Lines of a failure stack kept as violation context. */
+const MAX_STACK_LINES = 6;
+
 export interface StorybookOptions {
   /**
    * URL of the Storybook instance to test.
@@ -73,7 +76,7 @@ function parseJestJson(stdout: string, cwd: string, ruleId: string): Violation[]
         line,
         severity: 'error',
         source: 'custom',
-        context: failure.split('\n').slice(0, 6).join('\n') || undefined,
+        context: failure.split('\n').slice(0, MAX_STACK_LINES).join('\n') || undefined,
       });
     }
   }

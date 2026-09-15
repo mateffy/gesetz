@@ -7,6 +7,11 @@
  */
 import type { Check, Violation } from '../../engine/rule';
 
+/** Default line budget for noGodFile. */
+const DEFAULT_MAX_LINES = 400;
+/** Default indentation budget for noDeepNesting. */
+const DEFAULT_MAX_LEVELS = 4;
+
 // ─── God file ────────────────────────────────────────────────────────────────
 
 export interface NoGodFileOptions {
@@ -22,7 +27,7 @@ export interface NoGodFileOptions {
  * select('src/scripts/\*.ts').category('structure').check(noGodFile({ maxLines: 300 }))
  */
 export function noGodFile(options: NoGodFileOptions = {}): Check {
-  const maxLines = options.maxLines ?? 400;
+  const maxLines = options.maxLines ?? DEFAULT_MAX_LINES;
   return async (file) => {
     const count = file.content.split('\n').length;
     if (count <= maxLines) return [];
@@ -53,7 +58,7 @@ export interface NoDeepNestingOptions {
  * Counts leading spaces / tab-width (4) as nesting level.
  */
 export function noDeepNesting(options: NoDeepNestingOptions = {}): Check {
-  const maxLevels = options.maxLevels ?? 4;
+  const maxLevels = options.maxLevels ?? DEFAULT_MAX_LEVELS;
   return async (file) => {
     const violations: Violation[] = [];
     const lines = file.content.split('\n');
@@ -80,165 +85,6 @@ export function noDeepNesting(options: NoDeepNestingOptions = {}): Check {
 }
 
 // ─── Console log ─────────────────────────────────────────────────────────────
-
-export interface NoConsoleLogOptions {
-  /**
-   * Allow `console.warn` and `console.error`. Default: false (ban all console.*).
-   */
-  readonly allowWarnError?: boolean | undefined;
-  readonly message?: string | undefined;
-}
-
-/**
- * Bans `console.log` (and optionally all `console.*`) in production files.
- */
-export function noConsoleLog(options: NoConsoleLogOptions = {}): Check {
-  const pattern = options.allowWarnError
-    ? /\bconsole\.(log|debug|info)\s*\(/g
-    : /\bconsole\.(log|debug|info|warn|error)\s*\(/g;
-
-  return async (file) => {
-    const violations: Violation[] = [];
-    const lines = file.content.split('\n');
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i] ?? '';
-      if (pattern.test(line)) {
-        violations.push({
-          message:
-            options.message ??
-            'Remove console logging from production code. Use a proper logger instead.',
-          path: file.path,
-          line: i + 1,
-          severity: 'warn',
-          source: 'core',
-        });
-      }
-      pattern.lastIndex = 0;
-    }
-    return violations;
-  };
-}
-
-// ─── Empty catch ──────────────────────────────────────────────────────────────
-
-export interface NoEmptyCatchOptions {
-  readonly message?: string | undefined;
-}
-
-/**
- * Detects empty or trivially-commented catch blocks that swallow errors.
- */
-export function noEmptyCatch(options: NoEmptyCatchOptions = {}): Check {
-  return async (file) => {
-    const violations: Violation[] = [];
-    const lines = file.content.split('\n');
-    // Simple state machine: look for catch { with no real body
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i] ?? '';
-      if (/\}\s*catch\s*(\([^)]*\))?\s*\{/.test(line) || /catch\s*(\([^)]*\))?\s*\{/.test(line)) {
-        // Check next 3 lines for real content
-        const body = lines
-          .slice(i + 1, i + 4)
-          .map((l) => l.trim())
-          .filter((l) => l && l !== '}' && !l.startsWith('//') && !l.startsWith('*'));
-        if (body.length === 0) {
-          violations.push({
-            message:
-              options.message ??
-              'Empty catch block swallows errors. Log, rethrow, or handle explicitly.',
-            path: file.path,
-            line: i + 1,
-            severity: 'error',
-            source: 'core',
-          });
-        }
-      }
-    }
-    return violations;
-  };
-}
-
-// ─── Magic numbers ────────────────────────────────────────────────────────────
-
-export interface NoMagicNumbersOptions {
-  /** Numbers that are always allowed. Default: [0, 1, -1, 2, 100] */
-  readonly ignore?: number[] | undefined;
-  readonly message?: string | undefined;
-}
-
-/**
- * Flags unexplained numeric literals in non-constant positions.
- * Only flags integers/floats not assigned to a SCREAMING_SNAKE_CASE const.
- */
-export function noMagicNumbers(options: NoMagicNumbersOptions = {}): Check {
-  const ignore = new Set<number>(options.ignore ?? [0, 1, -1, 2, 100]);
-  // Match numeric literals not in const UPPER_SNAKE = N; or enum values
-  const numericLit = /(?<!\w)(-?\d+\.?\d*)(?!\w)/g;
-  const constDecl = /^\s*(?:export\s+)?(?:const|readonly)\s+[A-Z][A-Z_0-9]+\s*=/;
-
-  return async (file) => {
-    const violations: Violation[] = [];
-    const lines = file.content.split('\n');
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i] ?? '';
-      // Skip named constant declarations and comment lines
-      if (constDecl.test(line) || /^\s*\/\//.test(line) || /^\s*\*\//.test(line)) continue;
-      let match: RegExpExecArray | null;
-      numericLit.lastIndex = 0;
-      while ((match = numericLit.exec(line)) !== null) {
-        const val = parseFloat(match[0] ?? '');
-        if (!Number.isFinite(val) || ignore.has(val)) continue;
-        violations.push({
-          message:
-            options.message ??
-            `Magic number ${match[0]}. Extract to a named constant with a descriptive name.`,
-          path: file.path,
-          line: i + 1,
-          severity: 'warn',
-          source: 'core',
-        });
-      }
-    }
-    return violations.slice(0, 20); // cap output
-  };
-}
-
-// ─── Trivial comments ─────────────────────────────────────────────────────────
-
-export interface NoTrivialCommentOptions {
-  readonly message?: string | undefined;
-}
-
-/**
- * Detects AI-generated narration comments that just restate the code.
- * Examples: `// Import React`, `// Define the component`, `// Return JSX`
- */
-export function noTrivialComment(options: NoTrivialCommentOptions = {}): Check {
-  // Patterns that match AI-narration: "// Verb the Noun" or section dividers
-  const narrationPattern =
-    /^\s*\/\/\s*(?:import|define|create|add|set|update|delete|remove|return|export|initialize|handle|check|call|use|get|fetch|render|make|build|iterate|loop|map|filter)\s+\w/i;
-  const dividerPattern = /^\s*\/\/\s*[-=*]{5,}/;
-
-  return async (file) => {
-    const violations: Violation[] = [];
-    const lines = file.content.split('\n');
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i] ?? '';
-      if (narrationPattern.test(line) || dividerPattern.test(line)) {
-        violations.push({
-          message:
-            options.message ??
-            'Trivial or narrative comment. Remove it — good code is self-explanatory.',
-          path: file.path,
-          line: i + 1,
-          severity: 'info',
-          source: 'core',
-        });
-      }
-    }
-    return violations;
-  };
-}
 
 // ─── Debugging residue files ──────────────────────────────────────────────────
 

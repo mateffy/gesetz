@@ -16,6 +16,9 @@ import type { Plan } from './rules';
 import { generateConfig } from './rules';
 import { getBlueprint, toolsForPreset, blueprintsForPreset } from './rules';
 
+/** Indentation for generated JSON files. */
+const JSON_INDENT = 4;
+
 // ─── Flag shape (what the CLI passes in) ──────────────────────────────────────
 
 export interface InitFlags {
@@ -146,7 +149,7 @@ function writeQaScriptEffect(
       if (!json.scripts) json.scripts = {};
       if (json.scripts.qa) return;
       json.scripts.qa = 'gesetz check';
-      yield* fs.writeFileString(path, JSON.stringify(json, null, 4) + '\n').pipe(
+      yield* fs.writeFileString(path, JSON.stringify(json, null, JSON_INDENT) + '\n').pipe(
         Effect.catchAll((e) => Console.error(`Could not write qa script: ${String(e)}`)),
       );
       return;

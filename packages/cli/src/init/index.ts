@@ -128,7 +128,6 @@ export const initCommand = Command.make(
 
       const useInteractive = !opts.noInteractive && (opts.interactive || isInteractive());
 
-      // Build the plan.
       let plan;
       if (useInteractive) {
         plan = yield* runWizard(profile, flags).pipe(

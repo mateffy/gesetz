@@ -15,8 +15,8 @@ export const ProcessReporter: Layer.Layer<Reporter> = Layer.succeed(Reporter, {
       process.stderr.write(
         `gesetz: ${verdict} (${result.totalViolations} violation${result.totalViolations === 1 ? '' : 's'})\n`,
       );
-      // Set exit code without short-circuiting finalizers — lets the Effect
-      // runtime finish cleanup before the process exits.
+      // `exitCode` rather than `exit()`: the Effect runtime gets to finish its
+      // cleanup before the process ends.
       if (result.totalViolations > 0) process.exitCode = 1;
     }),
 });
