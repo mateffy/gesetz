@@ -26,7 +26,7 @@
     "prepack": "tsdown -W",
     "publish": "pnpm -r publish --access public",
     "publint": "pnpm -r exec publint",
-    "attw": "pnpm -r exec attw --pack"
+    "attw": "pnpm -r exec attw --pack --profile esm-only"
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.4",

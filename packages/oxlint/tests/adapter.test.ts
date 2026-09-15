@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import * as childProcess from 'node:child_process';
+import * as nodePath from 'node:path';
 import { Effect, Layer } from 'effect';
 import { oxlint } from '../src/adapter';
 import { MemoryFileSystem, ProjectRootLive, FileFilterLive, SyntaxTreeStub, ImportResolverDefault } from '@gesetz/core';
@@ -109,6 +110,58 @@ describe('oxlint', () => {
     const rule = oxlint({ cwd: '/project' });
     const violations = await Effect.runPromise(Effect.provide(rule.run, TestLayer));
     expect(violations).toEqual([]);
+  });
+
+  it('fails loudly when the tool cannot be spawned', async () => {
+    (childProcess.execFileSync as ReturnType<typeof vi.fn>).mockImplementation(() => {
+      throw Object.assign(new Error('spawn oxlint ENOENT'), { code: 'ENOENT' });
+    });
+
+    const rule = oxlint({ cwd: '/project' });
+    await expect(Effect.runPromise(Effect.provide(rule.run, TestLayer))).rejects.toThrow(
+      /oxlint could not run \(command not found: oxlint\)/,
+    );
+  });
+
+  it('resolves a relative cwd against the project root, not process.cwd()', async () => {
+    const spy = childProcess.execFileSync as ReturnType<typeof vi.fn>;
+    spy.mockImplementation(() => JSON.stringify({ diagnostics: [] }));
+
+    const rule = oxlint({ cwd: 'packages/api' });
+    await Effect.runPromise(Effect.provide(rule.run, TestLayer));
+
+    expect(spy).toHaveBeenCalledWith(
+      'oxlint',
+      expect.any(Array),
+      expect.objectContaining({ cwd: nodePath.join('/project', 'packages/api') }),
+    );
+  });
+
+  it('defaults cwd to the project root when unset', async () => {
+    const spy = childProcess.execFileSync as ReturnType<typeof vi.fn>;
+    spy.mockImplementation(() => JSON.stringify({ diagnostics: [] }));
+
+    await Effect.runPromise(Effect.provide(oxlint().run, TestLayer));
+
+    expect(spy).toHaveBeenCalledWith(
+      'oxlint',
+      expect.any(Array),
+      expect.objectContaining({ cwd: '/project' }),
+    );
+  });
+
+  it('resolves the project rule cwd from ctx.rootDir', async () => {
+    const spy = childProcess.execFileSync as ReturnType<typeof vi.fn>;
+    spy.mockImplementation(() => JSON.stringify({ diagnostics: [] }));
+
+    const rule = oxlint({ cwd: 'packages/api' });
+    await rule.project?.run({ rootDir: '/from-runner', changedFiles: [] });
+
+    expect(spy).toHaveBeenCalledWith(
+      'oxlint',
+      expect.any(Array),
+      expect.objectContaining({ cwd: nodePath.join('/from-runner', 'packages/api') }),
+    );
   });
 
   describe('FileFilter integration', () => {

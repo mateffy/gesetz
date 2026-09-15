@@ -1,14 +1,14 @@
 import * as nodePath from 'node:path';
 import { Effect } from 'effect';
 import type { Rule, Violation } from '@gesetz/core';
-import { execTool, FileFilter } from '@gesetz/core';
+import { execTool, FileFilter, ProjectRoot, resolveToolBin, resolveToolCwd } from '@gesetz/core';
 
 export interface PhpstanOptions {
   /** Glob pattern(s) to analyse. If omitted, phpstan analyses the configured paths. */
   pattern?: string | string[];
   /** Path to phpstan binary. Default: 'vendor/bin/phpstan' */
   bin?: string;
-  /** Working directory. Default: process.cwd() */
+  /** Working directory. Default: the project root. */
   cwd?: string;
   /** phpstan config file path */
   configFile?: string;
@@ -101,8 +101,6 @@ async function executePhpstan(
 }
 
 export function phpstan(opts: PhpstanOptions = {}): Rule {
-  const bin = opts.bin ?? 'vendor/bin/phpstan';
-  const cwd = nodePath.resolve(opts.cwd ?? process.cwd());
   const memoryLimit = opts.memoryLimit ?? '512M';
   const id = opts.id ?? 'phpstan';
   const description = opts.label ?? 'PHPStan static analysis';
@@ -112,8 +110,15 @@ export function phpstan(opts: PhpstanOptions = {}): Rule {
       : [opts.pattern]
     : null;
 
+  // PHP tools live in `vendor/bin`; the fallback keeps the historical default.
+  const locate = (projectRoot: string): { bin: string; cwd: string } => {
+    const cwd = resolveToolCwd(opts.cwd, projectRoot);
+    return { bin: resolveToolBin(opts.bin, cwd, ['vendor/bin/phpstan'], 'vendor/bin/phpstan'), cwd };
+  };
+
   const run: Rule['run'] = Effect.gen(function* () {
     const fileFilter = yield* FileFilter;
+    const { bin, cwd } = locate(yield* ProjectRoot);
     const patterns = fileFilter.patterns !== null && fileFilter.patterns.length > 0
       ? [...fileFilter.patterns]
       : defaultPatterns;
@@ -128,7 +133,10 @@ export function phpstan(opts: PhpstanOptions = {}): Rule {
     category: opts.category,
     project: {
       patterns: defaultPatterns ?? ['**/*.php', 'phpstan.neon', 'phpstan.neon.*'],
-      run: () => executePhpstan(opts, id, bin, cwd, memoryLimit, defaultPatterns),
+      run: (ctx) => {
+        const { bin, cwd } = locate(ctx.rootDir);
+        return executePhpstan(opts, id, bin, cwd, memoryLimit, defaultPatterns);
+      },
     },
   };
 }

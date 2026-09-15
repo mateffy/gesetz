@@ -55,7 +55,7 @@ describe('phpunit', () => {
     (nodeFs.mkdtempSync as ReturnType<typeof vi.fn>).mockReturnValue(nodePath.dirname(tmpFile));
     (nodeFs.readFileSync as ReturnType<typeof vi.fn>).mockReturnValue(PHPUNIT_JUNIT);
     (childProcess.execFileSync as ReturnType<typeof vi.fn>).mockImplementation(() => {
-      throw new Error('phpunit exited 1');
+      throw Object.assign(new Error('phpunit exited 1'), { status: 1, stdout: '' });
     });
 
     const rule = phpunit({ cwd: '/project', label: 'PHPUnit' });
@@ -92,7 +92,7 @@ describe('phpunit', () => {
     (nodeFs.mkdtempSync as ReturnType<typeof vi.fn>).mockReturnValue(nodePath.dirname(tmpFile));
     (nodeFs.readFileSync as ReturnType<typeof vi.fn>).mockReturnValue('');
     (childProcess.execFileSync as ReturnType<typeof vi.fn>).mockImplementation(() => {
-      throw new Error('exit 1');
+      throw Object.assign(new Error('exit 1'), { status: 1, stdout: '' });
     });
 
     const rule = phpunit({ cwd: '/project' });

@@ -19,9 +19,8 @@ import type {
   ParsedExport,
   StructureItem,
 } from '@gesetz/core';
-import { parseSync as oxcParseSync } from 'oxc-parser';
-import { ts, js, tsx, jsx } from '@ast-grep/napi';
 import type { SgNode } from '@ast-grep/napi';
+import { parseAstGrep, parseOxc } from './parse-memo';
 
 /** oxc-parser returns byte offsets; convert to a 1-indexed line number. */
 function byteOffsetToLine(content: string, byteOffset: number): number {
@@ -29,55 +28,42 @@ function byteOffsetToLine(content: string, byteOffset: number): number {
 }
 
 function extractImports(content: string, filePath: string): ParsedImport[] {
-  try {
-    const result = oxcParseSync(filePath, content, { sourceType: 'module' });
-    return result.module.staticImports.map((imp) => ({
-      specifier: imp.moduleRequest.value,
-      names: imp.entries
-        .map((e) => e.importName?.name ?? '')
-        .filter(Boolean),
-      line: byteOffsetToLine(content, imp.moduleRequest.start ?? 0),
-    }));
-  } catch {
-    return [];
-  }
+  const result = parseOxc(content, filePath);
+  if (result === null) return [];
+  return result.module.staticImports.map((imp) => ({
+    specifier: imp.moduleRequest.value,
+    names: imp.entries
+      .map((e) => e.importName?.name ?? '')
+      .filter(Boolean),
+    line: byteOffsetToLine(content, imp.moduleRequest.start ?? 0),
+  }));
 }
 
 function extractExports(content: string, filePath: string): ParsedExport[] {
-  try {
-    const result = oxcParseSync(filePath, content, { sourceType: 'module' });
-    const exports: ParsedExport[] = [];
-    for (const exp of result.module.staticExports) {
-      for (const entry of exp.entries) {
-        const name = entry.exportName?.name;
-        // Skip `default` exports (name is null) — they have no identifier.
-        if (name && name !== 'default') {
-          exports.push({
-            name,
-            kind: 'unknown', // oxc doesn't expose declaration kind here
-            line: byteOffsetToLine(content, entry.start ?? 0),
-          });
-        }
+  const result = parseOxc(content, filePath);
+  if (result === null) return [];
+  const exports: ParsedExport[] = [];
+  for (const exp of result.module.staticExports) {
+    for (const entry of exp.entries) {
+      const name = entry.exportName?.name;
+      // Skip `default` exports (name is null) — they have no identifier.
+      if (name && name !== 'default') {
+        exports.push({
+          name,
+          kind: 'unknown', // oxc doesn't expose declaration kind here
+          line: byteOffsetToLine(content, entry.start ?? 0),
+        });
       }
     }
-    return exports;
-  } catch {
-    return [];
   }
-}
-
-function getAstGrepParser(ext: string) {
-  if (ext === '.tsx') return tsx;
-  if (ext === '.jsx') return jsx;
-  if (ext === '.js' || ext === '.mjs' || ext === '.cjs') return js;
-  return ts; // default to ts for .ts, .d.ts, etc.
+  return exports;
 }
 
 function extractCalls(content: string, filePath: string): ParsedCall[] {
   try {
     const ext = '.' + (filePath.split('.').pop() ?? '');
-    const parser = getAstGrepParser(ext);
-    const root = parser.parse(content).root();
+    const root = parseAstGrep(content, ext);
+    if (root === null) return [];
     const calls = root.findAll({ rule: { kind: 'call_expression' } });
     return calls
       .map((n) => ({
@@ -118,8 +104,8 @@ function extractStructure(
 ): StructureItem[] {
   try {
     const ext = '.' + (filePath.split('.').pop() ?? '');
-    const parser = getAstGrepParser(ext);
-    const root = parser.parse(content).root();
+    const root = parseAstGrep(content, ext);
+    if (root === null) return [];
     const items: StructureItem[] = [];
 
     // Function declarations (exported and non-exported)

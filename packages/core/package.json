@@ -1,6 +1,6 @@
 {
   "name": "@gesetz/core",
-  "version": "3.0.0-rc.2",
+  "version": "3.0.0-rc.5",
   "type": "module",
   "exports": {
     ".": {
@@ -8,8 +8,8 @@
       "import": "./dist/index.js"
     },
     "./reporters": {
-      "types": "./dist/reporters.d.ts",
-      "import": "./dist/reporters.js"
+      "types": "./dist/reporters/index.d.ts",
+      "import": "./dist/reporters/index.js"
     }
   },
   "scripts": {
@@ -22,12 +22,9 @@
   "dependencies": {
     "effect": "^3.15.0",
     "fast-glob": "^3.3.3",
-    "micromatch": "^4.0.8",
-    "netzwerk": "link:../../../netzwerk/packages/netzwerk"
+    "micromatch": "^4.0.8"
   },
   "devDependencies": {
-    "@types/better-sqlite3": "^7.6.0",
-    "@types/d3-force": "^3.0.0",
     "@types/micromatch": "^4.0.9",
     "@types/node": "^22.20.1",
     "typescript": "^5.8.0",

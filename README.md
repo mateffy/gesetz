@@ -94,10 +94,11 @@ gesetz check --since main
 
 ### 5. Caching & watch mode
 
-Gesetz stores every detected violation as a marker in a local cache
-(backed by [netzwerk](../netzwerk), SQLite at `.gesetz/cache.db`). Files are
-fingerprinted by content hash, so repeat runs only re-check the files you
-actually edited — unchanged files are served from the cache:
+Gesetz stores every detected violation in a shared cache (SQLite at
+`${XDG_CACHE_HOME:-~/.cache}/gesetz/cache.db`, using Node's built-in
+`node:sqlite`). Files are fingerprinted by content hash, so repeat runs only
+re-check the files you actually edited — unchanged files are served from the
+cache:
 
 ```bash
 gesetz check          # first run: full scan
@@ -106,13 +107,65 @@ gesetz check --full   # bypass the cache (no persistence)
 gesetz check --watch  # re-run incrementally on every file change
 ```
 
-- Add `.gesetz/` to your `.gitignore`.
-- `GESETZ_DB` overrides the cache location.
+- **Nothing to gitignore.** The cache lives in one shared file outside your
+  repository — `${XDG_CACHE_HOME:-~/.cache}/gesetz/cache.db` — with every project's
+  entries namespaced by project root, so projects never see each other's
+  results. Clear it with `rm -rf ~/.cache/gesetz`. Entries untouched for 30 days
+  are swept automatically.
+- The cache location is resolved in this order: `--full` or `GESETZ_DB=off`
+  disables it; `storage: { kind: 'memory' }` in `gesetz.config.ts` disables it;
+  `GESETZ_DB=<path>` sets the file; `storage: { kind: 'sqlite', path }` sets it;
+  otherwise the shared cache. If the shared location is not writable (read-only
+  `$HOME`, some containers) gesetz falls back to `<project>/.gesetz/cache.db`.
 - Editing `gesetz.config.ts` invalidates the cache automatically (rule
   fingerprints); exemptions, thresholds, `--files`, and `--since` are
-  aggregation-time filters and never trigger a rescan.
-- Under **Bun**, the cache is disabled automatically (better-sqlite3 is not
-  supported there) and every run is a full run.
+  aggregation-time filters and never trigger a rescan. Adding or removing a file
+  also invalidates the per-file results, because checks such as `requireSibling`
+  inspect other files — editing a file only re-checks that file.
+- Persistence needs a SQLite driver. The built-in `node:sqlite` covers Node
+  ≥ 23.4 (or ≥ 22.5 with `--experimental-sqlite`). On other runtimes — Bun,
+  older Node — gesetz prints one notice and runs **without a cache**. To enable
+  caching there, install the optional compat package and import it from your
+  config:
+
+  ```bash
+  pnpm add -D @gesetz/sqlite-compat
+  ```
+
+  ```ts
+  // gesetz.config.ts
+  import '@gesetz/sqlite-compat';
+  ```
+
+- Discovery honours `.gitignore` — gesetz asks git for the file list. Outside a
+  git repository it walks the directory tree instead, and cannot honour
+  `.gitignore`.
+
+### 6. When a tool cannot run
+
+A rule backed by an external tool (ESLint, oxlint, Vitest, PHPStan, …) that
+cannot be started — missing binary, killed process — is reported as a **critical
+violation**, not as a silent pass. Other rules still run, so you get a partial
+report plus a clear signal that it is partial:
+
+```
+gesetz: fail (12 violations)
+  1 rule(s) could not run: oxlint — results are incomplete
+```
+
+The JSON envelope carries the same information as `failedRules`, and a run with
+any failed rule never passes, regardless of category scores. Fix the tool, or
+remove its rule from the config. If you would rather abort immediately with the
+full error, pass `--throw`:
+
+```bash
+gesetz check --throw
+```
+
+Note that a tool exiting **non-zero is normal**: linters exit non-zero when they
+find violations, and file-reporting tools (PHPUnit, Storybook) exit non-zero
+while writing their report to a file. Only a tool that could not run at all is
+treated as a failure.
 
 ---
 
@@ -128,6 +181,36 @@ export const everyFileNeedsTest = select('src/**/*.ts')
   .exclude('**/*.test.ts', '**/index.ts')
   .label('Every source file needs a test')
   .check(requireSibling('.test.ts'));
+```
+
+Selectors are immutable, so a shared preset removes the repeated preamble:
+
+```ts
+// rules/presets.ts
+export const SRC = select('src/**/*.ts').exclude('**/*.test.ts');
+
+// rules/quality.ts — `select(glob, options)` is shorthand for the chained calls
+export const noAny = select('src/**/*.ts', {
+  exclude: ['**/*.test.ts'],
+  label: 'No `any` types',
+  category: 'strictness',
+}).check(noTypedAny());
+```
+
+Categories can also be applied to a whole list of rules, which keeps the
+gesetz config free of repeated `.category(...)` calls and comment headers:
+
+```ts
+import { defineConfig, group } from 'gesetz';
+import * as quality from './rules/quality';
+
+export default defineConfig({
+  rules: [
+    ...group('organization', [quality.everyFileNeedsTest, quality.noBarrelFiles]),
+    ...group('strictness', [quality.noAny, quality.noEnums, quality.noEmptyCatches]),
+    ...group('cleanup', [quality.noConsole, quality.noTrivialComments]),
+  ],
+});
 ```
 
 ```ts

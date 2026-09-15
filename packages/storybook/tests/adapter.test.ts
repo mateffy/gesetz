@@ -70,7 +70,7 @@ describe('storybook', () => {
     (nodeFs.mkdtempSync as ReturnType<typeof vi.fn>).mockReturnValue(tmpDir);
     (nodeFs.readFileSync as ReturnType<typeof vi.fn>).mockReturnValue(STORYBOOK_JSON);
     (childProcess.execFileSync as ReturnType<typeof vi.fn>).mockImplementation(() => {
-      throw new Error('exit 1');
+      throw Object.assign(new Error('exit 1'), { status: 1, stdout: '' });
     });
 
     const rule = storybook({ cwd: '/project', url: 'http://localhost:6006' });

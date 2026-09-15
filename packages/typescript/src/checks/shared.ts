@@ -8,25 +8,18 @@
  * For type-checked rules (e.g. no-floating-promises), use `@gesetz/eslint`
  * or `@gesetz/oxlint` — those wrap ESLint/oxlint with `--type-aware`.
  */
-import { ts, js, tsx, jsx } from '@ast-grep/napi';
 import type { SgNode } from '@ast-grep/napi';
+import { parseAstGrep } from '../parse-memo';
 
-/** Pick the ast-grep parser for a file extension. */
-export function getParser(ext: string): typeof ts {
-  if (ext === '.tsx') return tsx;
-  if (ext === '.jsx') return jsx;
-  if (ext === '.js' || ext === '.mjs' || ext === '.cjs') return js;
-  return ts; // default to ts for .ts, .d.ts, etc.
-}
-
-/** Parse file content into an ast-grep root node, or null on parse failure. */
+/**
+ * Parse file content into an ast-grep root node, or null on parse failure.
+ *
+ * Memoized by (extension, content) so the many ast-grep based checks that run
+ * against one file share a single parse.
+ */
 export function parseFile(content: string, filePath: string): SgNode | null {
-  try {
-    const ext = '.' + (filePath.split('.').pop() ?? '');
-    return getParser(ext).parse(content).root();
-  } catch {
-    return null;
-  }
+  const ext = '.' + (filePath.split('.').pop() ?? '');
+  return parseAstGrep(content, ext);
 }
 
 /** Find all nodes of a given tree-sitter kind, recursively. */

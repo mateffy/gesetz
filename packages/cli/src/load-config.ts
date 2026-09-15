@@ -30,9 +30,22 @@ export class ConfigNotFoundError extends Error {
   }
 }
 
+export interface LoadConfigOverrides {
+  readonly changedSince?: string | undefined;
+  readonly configPath?: string | undefined;
+  /**
+   * When true, `projectRoot` wins over whatever the config set for its own
+   * `projectRoot`. Set this when the user passed `--project-root` explicitly:
+   * the flag locates the config *and* names the tree to scan, so a config that
+   * omits `projectRoot` (and therefore defaults to `process.cwd()`) must not
+   * silently scan the wrong directory.
+   */
+  readonly projectRootOverride?: boolean | undefined;
+}
+
 export function loadConfig(
   projectRoot: string,
-  overrides?: { changedSince?: string | undefined; configPath?: string | undefined },
+  overrides?: LoadConfigOverrides,
 ): Effect.Effect<ResolvedConfig, ConfigNotFoundError> {
   return Effect.gen(function* () {
     const resolvedConfigPath =
@@ -76,9 +89,11 @@ export function loadConfig(
         ),
       );
     }
-    const config = raw as ResolvedConfig;
+    const loaded = raw as ResolvedConfig;
 
     // Apply CLI overrides
+    const config =
+      overrides?.projectRootOverride === true ? { ...loaded, projectRoot } : loaded;
     if (overrides?.changedSince !== undefined) {
       return { ...config, changedSince: overrides.changedSince };
     }

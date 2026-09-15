@@ -1,4 +1,7 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import * as nodePath from 'node:path';
 import { Effect, Layer } from 'effect';
 import { runAll, applyExemptions } from '../../src/engine/runner';
 import { defineConfig } from '../../src/engine/config';
@@ -127,5 +130,87 @@ describe('runAll', () => {
   it('projectRoot defaults to process.cwd()', () => {
     const config = defineConfig({ rules: [] });
     expect(config.projectRoot).toBe(process.cwd());
+  });
+});
+
+describe('runAll rule failures', () => {
+  let dir: string;
+
+  beforeEach(async () => {
+    dir = await mkdtemp(nodePath.join(tmpdir(), 'gesetz-rule-failure-'));
+  });
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  function makeFailingProjectRule(id: string, counter: { calls: number }): Rule {
+    return {
+      id,
+      description: `Rule ${id}`,
+      run: Effect.succeed([]),
+      project: {
+        patterns: ['**/*'],
+        run: async () => {
+          counter.calls += 1;
+          throw new Error('adapter exploded');
+        },
+      },
+    };
+  }
+
+  it('reports a failing project rule as a critical violation', async () => {
+    const counter = { calls: 0 };
+    const config = defineConfig({
+      projectRoot: dir,
+      rules: [
+        makeFailingProjectRule('broken-tool', counter),
+        makeRule('good-rule', [violation('src/a.ts', 'good-rule')]),
+      ],
+    });
+
+    const result = await Effect.runPromise(runAll(config));
+
+    // Other rules still produce results.
+    expect(result.byRule.find((r) => r.ruleId === 'good-rule')?.violations).toHaveLength(1);
+
+    const broken = result.byRule.find((r) => r.ruleId === 'broken-tool');
+    expect(broken?.violations).toHaveLength(1);
+    expect(broken?.violations[0]?.severity).toBe('error');
+    expect(broken?.violations[0]?.message).toContain('unexpected error');
+    expect(broken?.violations[0]?.message).toContain('adapter exploded');
+    expect(broken?.violations[0]?.fix).toContain('--throw');
+    // A failure is critical: it makes the run fail, even without a category.
+    expect(result.passing).toBe(false);
+    expect(result.failedRules).toEqual(['broken-tool']);
+  });
+
+  it('does not cache a failed rule, so the next run retries it', async () => {
+    const counter = { calls: 0 };
+    const dbPath = nodePath.join(dir, 'cache.db');
+    const config = (): ReturnType<typeof defineConfig> =>
+      defineConfig({
+        projectRoot: dir,
+        storage: { kind: 'sqlite', path: dbPath },
+        rules: [makeFailingProjectRule('broken-tool', counter)],
+      });
+
+    await Effect.runPromise(runAll(config()));
+    await Effect.runPromise(runAll(config()));
+    await Effect.runPromise(runAll(config()));
+
+    expect(counter.calls).toBe(3);
+  });
+
+  it('throws instead when throwOnRuleError is set', async () => {
+    const counter = { calls: 0 };
+    const config = defineConfig({
+      projectRoot: dir,
+      rules: [makeFailingProjectRule('broken-tool', counter)],
+    });
+
+    await expect(
+      Effect.runPromise(runAll(config, { throwOnRuleError: true })),
+    ).rejects.toThrow(/adapter exploded/);
   });
 });

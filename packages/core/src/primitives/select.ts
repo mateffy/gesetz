@@ -80,6 +80,29 @@ interface SelectorState {
   readonly guidance: RuleGuidance | undefined;
 }
 
+/**
+ * Inline options for {@link select}. Every field is optional and equivalent to
+ * the corresponding builder call, so `select(glob, { exclude, category })` is
+ * shorthand for `select(glob).exclude(...).category(...)`.
+ */
+export interface SelectOptions {
+  /** Extra glob patterns to exclude (equivalent to `.exclude(...)`). */
+  readonly exclude?: string | readonly string[] | undefined;
+  /** Extra glob patterns to include (equivalent to `.include(...)`). */
+  readonly include?: string | readonly string[] | undefined;
+  /** Scoring category (equivalent to `.category(...)`). */
+  readonly category?: RuleCategory | undefined;
+  /** Human-readable label (equivalent to `.label(...)`). */
+  readonly label?: string | undefined;
+  /** Agent-facing guidance (equivalent to `.guidance(...)`). */
+  readonly guidance?: RuleGuidance | undefined;
+}
+
+function asArray(value: string | readonly string[] | undefined): string[] {
+  if (value === undefined) return [];
+  return typeof value === 'string' ? [value] : [...value];
+}
+
 function buildRule(state: SelectorState, checks: Check[]): Rule {
   const humanLabel = state.humanLabel;
   // Deterministic ID: prefer the human label (slugified); otherwise derive
@@ -216,6 +239,9 @@ function createSelector(state: SelectorState): Selector {
 /**
  * Creates a rule selector targeting files matching the given glob pattern(s).
  *
+ * An optional {@link SelectOptions} object may be passed as the final argument
+ * as shorthand for the equivalent builder calls.
+ *
  * @example
  * ```ts
  * const rule = select('src/**\/*.tsx')
@@ -226,14 +252,46 @@ function createSelector(state: SelectorState): Selector {
  * rule.id;          // 'all-components-need-storybook-stories'
  * rule.description; // 'All components need Storybook stories'
  * ```
+ *
+ * @example
+ * ```ts
+ * const rule = select('src/**\/*.ts', {
+ *   exclude: ['**\/*.test.ts'],
+ *   label: 'No `any` types',
+ *   category: 'strictness',
+ * }).check(noTypedAny());
+ * ```
  */
-export function select(...patterns: string[]): Selector {
+export function select(...patternsOrOptions: (string | SelectOptions)[]): Selector {
+  const options = patternsOrOptions.find(
+    (value): value is SelectOptions => typeof value === 'object' && value !== null,
+  );
+  const patterns = patternsOrOptions.filter((value): value is string => typeof value === 'string');
+
   return createSelector({
-    patterns,
-    exclusions: [],
+    patterns: [...patterns, ...asArray(options?.include)],
+    exclusions: asArray(options?.exclude),
     predicates: [],
-    humanLabel: null,
-    category: undefined,
-    guidance: undefined,
+    humanLabel: options?.label ?? null,
+    category: options?.category,
+    guidance: options?.guidance,
   });
+}
+
+/**
+ * Applies one category to a list of rules.
+ *
+ * Lets a config group rules by category without repeating `.category(...)` on
+ * every rule or restating the category as a comment:
+ *
+ * @example
+ * ```ts
+ * rules: [
+ *   ...group('strictness', [noAny, noEnums, noNonNullAssertions]),
+ *   ...group('cleanup', [noConsole, noTrivialComments]),
+ * ]
+ * ```
+ */
+export function group(category: RuleCategory, rules: readonly Rule[]): Rule[] {
+  return rules.map((rule) => ({ ...rule, category }));
 }

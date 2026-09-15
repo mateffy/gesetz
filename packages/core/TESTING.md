@@ -14,12 +14,19 @@
 | `src/engine/errors.ts` | — | ❌ | Error constructors — tested implicitly |
 | `src/engine/exec.ts` | `tests/engine/exec.test.ts` | ✅ | `execTool`, `runWithTempFile`, `extractLocation` |
 | `src/engine/rule.ts` | — | ❌ | Types only |
-| `src/engine/runner.ts` | `tests/engine/runner.test.ts` — `tests/engine/runner-incremental.test.ts` — `tests/engine/project-rules.test.ts` | ✅ | `runAll`, `applyExemptions`, incremental scanning |
-| `src/backend/compile.ts` | `tests/backend/compile.test.ts` | ✅ | Compilation of rules to netzwerk extensions |
-| `src/backend/check-services.ts` | `tests/backend/check-services.test.ts` | ✅ | `createCheckServices` |
-| `src/backend/violation-markers.ts` | `tests/backend/violation-markers.test.ts` | ✅ | Marker creation and deserialization |
-| `src/backend/syntax-extension.ts` | `tests/backend/syntax-extension.test.ts` | ✅ | Syntax-backed per-file checks |
-| `src/primitives/select.ts` | `tests/primitives/select.test.ts` | ✅ | `select`, `slugify`, chaining API |
+| `src/engine/runner.ts` | `tests/engine/runner.test.ts` — `tests/engine/runner-incremental.test.ts` — `tests/engine/project-rules.test.ts` | ✅ | `runAll`, `applyExemptions`, incremental caching |
+| `src/engine/discovery.ts` | `tests/engine/discovery.test.ts` | ✅ | `listProjectFiles`, `listGitFiles`, `.gitignore` handling, candidate selection |
+| `src/engine/fingerprint.ts` | — | ❌ | Covered through runner incremental tests |
+| `src/engine/result.ts` | `tests/engine/result.test.ts` | ✅ | Scoring formula, thresholds, category aggregation |
+| `src/engine/cache-store.ts` | — | ❌ | Covered through runner incremental tests |
+| `src/engine/services-layer.ts` | — | ❌ | Covered through `tests/engine/project-rules.test.ts` |
+| `src/cache/kernel.ts` | `tests/cache/kernel.test.ts` | ✅ | `sync` — hash/diff/reuse/prune, fingerprints, vanished files |
+| `src/cache/store-*.ts` | `tests/cache/store-*.test.ts` | ✅ | Memory and SQLite adapters: `delete`, namespace isolation, TTL sweep, schema migration |
+| `src/engine/cache-path.ts` | `tests/engine/cache-path.test.ts` | ✅ | XDG/`~/.cache` resolution for the shared cache |
+| `src/cache/drivers.ts` | `tests/cache/drivers.test.ts` | ✅ | Driver registry and SQLite driver selection |
+| `src/cache/**` (purity) | `tests/cache/purity.test.ts` | ✅ | Enforces zero non-`node:` dependencies |
+| `src/services/check-services.ts` | `tests/services/check-services.test.ts` | ✅ | File listing, lazy per-kind syntax extraction, import resolution |
+| `src/primitives/select.ts` | `tests/primitives/select.test.ts` | ✅ | `select`, `select(glob, options)`, `group`, `slugify`, chaining API |
 | `src/primitives/checks/fs.ts` | `tests/primitives/checks/fs.test.ts` | ✅ | `requireSibling`, `requireChildren`, `forbidFile`, `relativeImports` |
 | `src/primitives/checks/imports.ts` | `tests/primitives/checks/imports.test.ts` | ✅ | `noImportFrom`, `requireImportFrom` |
 | `src/primitives/checks/patterns.ts` | `tests/primitives/checks/patterns.test.ts` | ✅ | `noPattern`, `requirePattern` |
@@ -30,7 +37,7 @@
 | `src/primitives/checks/docstrings.ts` | `tests/primitives/checks/docstrings.test.ts` | ✅ | `requireDocstrings` |
 | `src/primitives/checks/exports.ts` | `tests/primitives/checks/exports.test.ts` | ✅ | `requireExportsMatching`, `requireRelatedExports` |
 | `src/primitives/checks/structure-count.ts` | `tests/primitives/checks/structure-count.test.ts` | ✅ | `requireMinStructureCount` |
-| `src/primitives/graph.ts` | `tests/primitives/checks/cycles.test.ts` | ✅ | `noCycles` — project-level, uses netzwerk import edges |
+| `src/primitives/graph.ts` | `tests/primitives/checks/cycles.test.ts` | ✅ | `noCycles` — project-level, runs over cached syntax markers |
 | `src/architecture.ts` | `tests/primitives/architecture.test.ts` | ✅ | `defineArchitecture` |
 | `src/reporters/*.ts` | `tests/reporters/reporters.test.ts` | ✅ | `TestRunnerReporter` |
 | `src/services/fs.ts` | `tests/services/fs.test.ts` | ✅ | `FileSystemLive`, `MemoryFileSystem` |
@@ -39,7 +46,13 @@
 
 ## Known Coverage Gaps
 
-1. **`noCycles`** — tested through integration-level mocks. The DFS implementation is unit-tested, but the netzwerk `resolveImportEdges` integration is tested at the smoke level.
+1. **`noCycles`** — tested through integration-level tests in
+   `tests/engine/project-rules.test.ts`. Cycle detection runs over the cached
+   syntax markers; no external import-edge resolution is involved.
+2. **Rule failures** — `tests/engine/runner.test.ts` covers a project rule that
+   throws (violation, `failedRules`, no caching, `throwOnRuleError`), and
+   `tests/engine/exec.test.ts` covers `execTool`'s spawn-failure detection.
+   Adapter-level propagation is covered by `packages/oxlint/tests/adapter.test.ts`.
 2. **`TsAdapter` / `PhpAdapter`** — deleted in v1.2.0. Replaced by `typescriptSyntaxBackend` / `phpSyntaxBackend`, tested through their respective packages.
 3. **Error branches in `execTool`** — the "command not found" path is tested; the "stdout in error" path is tested via adapter tests.
 

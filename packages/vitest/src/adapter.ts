@@ -1,7 +1,7 @@
 import * as nodePath from 'node:path';
 import { Effect } from 'effect';
 import type { Rule, Violation } from '@gesetz/core';
-import { execTool, extractLocation, FileFilter } from '@gesetz/core';
+import { execTool, extractLocation, FileFilter, ProjectRoot, resolveToolBin, resolveToolCwd } from '@gesetz/core';
 
 export interface VitestOptions {
   /**
@@ -9,7 +9,7 @@ export interface VitestOptions {
    * If omitted, runs the full suite configured in vitest.config.
    */
   pattern?: string | string[];
-  /** Working directory. Default: process.cwd() */
+  /** Working directory. Default: the project root. */
   cwd?: string;
   /** Path to the vitest binary. Default: 'node_modules/.bin/vitest' */
   bin?: string;
@@ -112,16 +112,28 @@ async function executeVitest(
 export function vitest(opts: VitestOptions = {}): Rule {
   const id = opts.id ?? 'vitest';
   const description = opts.label ?? 'Vitest test suite';
-  const cwd = nodePath.resolve(opts.cwd ?? process.cwd());
-  const bin = opts.bin ?? nodePath.join('node_modules', '.bin', 'vitest');
   const defaultPatterns: string[] | null = opts.pattern
     ? Array.isArray(opts.pattern)
       ? [...opts.pattern]
       : [opts.pattern]
     : null;
 
+  const locate = (projectRoot: string): { bin: string; cwd: string } => {
+    const cwd = resolveToolCwd(opts.cwd, projectRoot);
+    return {
+      bin: resolveToolBin(
+        opts.bin,
+        cwd,
+        [nodePath.join('node_modules', '.bin', 'vitest')],
+        'vitest',
+      ),
+      cwd,
+    };
+  };
+
   const run: Rule['run'] = Effect.gen(function* () {
     const fileFilter = yield* FileFilter;
+    const { bin, cwd } = locate(yield* ProjectRoot);
     const patterns = fileFilter.patterns !== null && fileFilter.patterns.length > 0
       ? [...fileFilter.patterns]
       : defaultPatterns;
@@ -138,7 +150,10 @@ export function vitest(opts: VitestOptions = {}): Rule {
       // Test outcomes depend on any source change — conservative: re-run
       // whenever anything changed, skip only zero-change runs.
       patterns: defaultPatterns ?? ['**/*'],
-      run: () => executeVitest(opts, id, bin, cwd, defaultPatterns),
+      run: (ctx) => {
+        const { bin, cwd } = locate(ctx.rootDir);
+        return executeVitest(opts, id, bin, cwd, defaultPatterns);
+      },
     },
   };
 }

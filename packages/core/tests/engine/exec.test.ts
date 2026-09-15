@@ -1,10 +1,17 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as childProcess from 'node:child_process';
 import * as nodeFs from 'node:fs';
+import { mkdtemp, rm, mkdir, writeFile } from 'node:fs/promises';
 import * as nodeOs from 'node:os';
 import * as nodePath from 'node:path';
 import { Effect } from 'effect';
-import { execTool, runWithTempFile, extractLocation } from '../../src/engine/exec';
+import {
+  execTool,
+  runWithTempFile,
+  extractLocation,
+  resolveToolCwd,
+  resolveToolBin,
+} from '../../src/engine/exec';
 
 vi.mock('node:child_process', async () => {
   const actual = await vi.importActual('node:child_process');
@@ -57,13 +64,34 @@ describe('execTool', () => {
     expect(result).toBe('violation output');
   });
 
-  it('returns empty string and logs warning on failure without stdout', async () => {
+  it('throws when the tool produced no output at all', async () => {
     const spy = childProcess.execFileSync as ReturnType<typeof vi.fn>;
     spy.mockImplementation(() => {
-      throw new Error('command not found');
+      throw Object.assign(new Error('spawn missing ENOENT'), { code: 'ENOENT' });
     });
 
-    const result = await Effect.runPromise(execTool('missing', [], '/cwd', 'tool'));
+    await expect(
+      Effect.runPromise(execTool('missing', [], '/cwd', 'oxlint')),
+    ).rejects.toThrow(/oxlint could not run \(command not found: missing\)/);
+  });
+
+  it('reports the tool name and reason for a non-spawn failure', async () => {
+    const spy = childProcess.execFileSync as ReturnType<typeof vi.fn>;
+    spy.mockImplementation(() => {
+      throw new Error('killed by signal');
+    });
+
+    await expect(Effect.runPromise(execTool('cmd', [], '/cwd', 'vitest'))).rejects.toThrow(
+      /vitest could not run \(killed by signal\)/,
+    );
+  });
+
+  it('returns empty string for a non-zero exit with no stdout', async () => {
+    (childProcess.execFileSync as ReturnType<typeof vi.fn>).mockImplementation(() => {
+      throw Object.assign(new Error('exited 1'), { status: 1, stdout: '' });
+    });
+
+    const result = await Effect.runPromise(execTool('cmd', [], '/cwd', 'phpunit'));
     expect(result).toBe('');
   });
 
@@ -119,6 +147,56 @@ describe('runWithTempFile', () => {
     );
 
     expect(nodeFs.rmSync as ReturnType<typeof vi.fn>).toHaveBeenCalled();
+  });
+});
+
+describe('resolveToolCwd', () => {
+  it('uses the project root when no cwd is configured', () => {
+    expect(resolveToolCwd(undefined, '/project')).toBe('/project');
+  });
+
+  it('resolves a relative cwd against the project root, not process.cwd()', () => {
+    expect(resolveToolCwd('packages/web', '/project')).toBe(
+      nodePath.resolve('/project', 'packages/web'),
+    );
+  });
+
+  it('keeps an absolute cwd untouched', () => {
+    expect(resolveToolCwd('/elsewhere', '/project')).toBe('/elsewhere');
+  });
+});
+
+describe('resolveToolBin', () => {
+  let dir: string;
+
+  beforeEach(async () => {
+    dir = await mkdtemp(nodePath.join(nodeOs.tmpdir(), 'gesetz-resolve-bin-'));
+  });
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it('prefers an explicit bin', () => {
+    expect(resolveToolBin('/custom/tool', dir, ['node_modules/.bin/tool'], 'tool')).toBe(
+      '/custom/tool',
+    );
+  });
+
+  it('resolves local candidates relative to the given working directory', async () => {
+    const cwd = nodePath.join(dir, 'packages', 'web');
+    await mkdir(nodePath.join(cwd, 'node_modules', '.bin'), { recursive: true });
+    await writeFile(nodePath.join(cwd, 'node_modules', '.bin', 'vitest'), '');
+    const candidates = [nodePath.join('node_modules', '.bin', 'vitest')];
+
+    // From the tool's working directory the local install is found...
+    expect(resolveToolBin(undefined, cwd, candidates, 'vitest')).toBe(candidates[0]);
+    // ...but not when looking from a different directory.
+    expect(resolveToolBin(undefined, dir, candidates, 'vitest')).toBe('vitest');
+  });
+
+  it('falls back to the bare name (PATH) when nothing is installed locally', () => {
+    expect(resolveToolBin(undefined, dir, ['node_modules/.bin/tool'], 'tool')).toBe('tool');
   });
 });
 

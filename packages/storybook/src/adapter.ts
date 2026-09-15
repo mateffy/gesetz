@@ -2,7 +2,7 @@ import * as nodeFs from 'node:fs';
 import * as nodePath from 'node:path';
 import { Effect } from 'effect';
 import type { Rule, Violation } from '@gesetz/core';
-import { execTool, runWithTempFile, extractLocation } from '@gesetz/core';
+import { execTool, runWithTempFile, extractLocation, ProjectRoot, resolveToolBin, resolveToolCwd } from '@gesetz/core';
 
 export interface StorybookOptions {
   /**
@@ -11,7 +11,7 @@ export interface StorybookOptions {
    * If the URL is unreachable, the rule produces an info-level violation.
    */
   url?: string;
-  /** Working directory. Default: process.cwd() */
+  /** Working directory. Default: the project root. */
   cwd?: string;
   /** Path to the test-storybook binary. Default: 'node_modules/.bin/test-storybook' */
   bin?: string;
@@ -134,11 +134,23 @@ async function executeStorybook(
 export function storybook(opts: StorybookOptions = {}): Rule {
   const id = opts.id ?? 'storybook';
   const description = opts.label ?? 'Storybook test runner';
-  const cwd = nodePath.resolve(opts.cwd ?? process.cwd());
-  const bin = opts.bin ?? nodePath.join('node_modules', '.bin', 'test-storybook');
   const url = opts.url ?? 'http://localhost:6006';
 
+  const locate = (projectRoot: string): { bin: string; cwd: string } => {
+    const cwd = resolveToolCwd(opts.cwd, projectRoot);
+    return {
+      bin: resolveToolBin(
+        opts.bin,
+        cwd,
+        [nodePath.join('node_modules', '.bin', 'test-storybook')],
+        'test-storybook',
+      ),
+      cwd,
+    };
+  };
+
   const run: Rule['run'] = Effect.gen(function* () {
+    const { bin, cwd } = locate(yield* ProjectRoot);
     return yield* Effect.promise(() => executeStorybook(opts, id, bin, cwd, url));
   });
 
@@ -150,7 +162,10 @@ export function storybook(opts: StorybookOptions = {}): Rule {
     project: {
       // Story outcomes depend on any source change — conservative.
       patterns: ['**/*'],
-      run: () => executeStorybook(opts, id, bin, cwd, url),
+      run: (ctx) => {
+        const { bin, cwd } = locate(ctx.rootDir);
+        return executeStorybook(opts, id, bin, cwd, url);
+      },
     },
   };
 }

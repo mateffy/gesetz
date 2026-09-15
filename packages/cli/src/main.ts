@@ -12,7 +12,13 @@ import { Command, Options } from '@effect/cli';
 import { NodeContext, NodeRuntime } from '@effect/platform-node';
 import { Console, Effect, Option } from 'effect';
 import * as nodePath from 'node:path';
-import { runAll } from '@gesetz/core';
+import {
+  defaultCachePath,
+  getCacheDriver,
+  isNodeSqliteAvailable,
+  runAll,
+  sqliteUnavailableMessage,
+} from '@gesetz/core';
 import { loadConfig } from './load-config';
 import {
   formatCategoryTable,
@@ -29,22 +35,80 @@ import { initCommand } from './init';
 
 // ─── Storage resolution ─────────────────────────────────────────────────────
 
-/** True when running under Bun (better-sqlite3 is unsupported there). */
-const isBun = typeof (globalThis as { Bun?: unknown }).Bun !== 'undefined';
+/** Guards the one-time notices so watch mode does not repeat them. */
+let storageNoticeShown = false;
+
+function noticeOnce(message: string): void {
+  if (storageNoticeShown) return;
+  storageNoticeShown = true;
+  process.stderr.write(`(cache) ${message}\n`);
+}
+
+/** Creates `dir` when needed, and reports whether it is writable. */
+function ensureWritableDir(dir: string): boolean {
+  try {
+    nodeFs.mkdirSync(dir, { recursive: true });
+    nodeFs.accessSync(dir, nodeFs.constants.W_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 /**
- * Default cache location; GESETZ_DB overrides. `--full` bypasses the cache.
- * Under Bun the cache is disabled: better-sqlite3 is not supported there
- * (a bun:sqlite storage backend for netzwerk is a possible follow-up).
+ * Resolves where this run caches its results.
+ *
+ * Precedence (highest first):
+ *   1. `--full` or `GESETZ_DB=off`        → nothing is persisted
+ *   2. `storage: { kind: 'memory' }` in gesetz.config.ts → nothing is persisted
+ *   3. `GESETZ_DB=<path>`                 → that path
+ *   4. `storage: { kind: 'sqlite', path }` in gesetz.config.ts → that path
+ *   5. otherwise                          → the shared cache (`~/.cache/gesetz/cache.db`)
+ *   6. shared location unusable           → `<root>/.gesetz/cache.db`
+ *
+ * The shared cache keeps every project's entries in one file, namespaced by
+ * project root, so there is nothing to gitignore and one place to clear. Nothing
+ * is shared *between* projects: entries are keyed by repo-relative path and some
+ * checks read other files, so cross-project reuse would be wrong.
+ *
+ * Persistence needs a SQLite driver: the built-in `node:sqlite` module, or one
+ * registered by an optional compat package imported from `gesetz.config.ts`.
+ * Without either, the run continues in memory and explains how to enable it.
  */
-const resolveStorage = (
+const resolveStorage = async (
   root: string,
   full: boolean,
-): import('@gesetz/core').GesetzStorageConfig => {
-  if (full || isBun) return { kind: 'memory' };
-  const dbPath = process.env.GESETZ_DB ?? nodePath.join(root, '.gesetz', 'cache.db');
-  nodeFs.mkdirSync(nodePath.dirname(dbPath), { recursive: true });
-  return { kind: 'sqlite', path: dbPath };
+  configured: import('@gesetz/core').GesetzStorageConfig | undefined,
+): Promise<import('@gesetz/core').GesetzStorageConfig> => {
+  if (full) return { kind: 'memory' };
+  const override = process.env['GESETZ_DB'];
+  if (override === 'off') return { kind: 'memory' };
+  if (configured?.kind === 'memory') return { kind: 'memory' };
+
+  if (!(await isNodeSqliteAvailable()) && getCacheDriver('sqlite') === undefined) {
+    noticeOnce(sqliteUnavailableMessage());
+    return { kind: 'memory' };
+  }
+
+  // 1. An explicit path — from the environment or the config — wins outright.
+  const explicit = override ?? (configured?.kind === 'sqlite' ? configured.path : undefined);
+  if (explicit !== undefined) {
+    if (ensureWritableDir(nodePath.dirname(explicit))) return { kind: 'sqlite', path: explicit };
+    noticeOnce(`cannot write to ${explicit} — running without a persistent cache.`);
+    return { kind: 'memory' };
+  }
+
+  // 2. The shared, cross-project cache.
+  const shared = defaultCachePath();
+  if (ensureWritableDir(nodePath.dirname(shared))) return { kind: 'sqlite', path: shared };
+
+  // 3. Project-local fallback when the shared location is unusable
+  //    (read-only HOME, containers, restricted CI runners).
+  const local = nodePath.join(root, '.gesetz', 'cache.db');
+  if (ensureWritableDir(nodePath.dirname(local))) return { kind: 'sqlite', path: local };
+
+  noticeOnce(`cannot write a cache file — running without a persistent cache.`);
+  return { kind: 'memory' };
 };
 
 // ─── `gesetz check` ───────────────────────────────────────────────────────────
@@ -92,6 +156,12 @@ const checkCommand = Command.make(
       Options.withDescription('Re-run checks when files change (incremental via the violation cache)'),
       Options.withDefault(false),
     ),
+    throwOnError: Options.boolean('throw').pipe(
+      Options.withDescription(
+        'Fail hard when a rule or tool adapter cannot run, instead of reporting a critical violation',
+      ),
+      Options.withDefault(false),
+    ),
   },
   (opts) =>
     Effect.gen(function* () {
@@ -106,10 +176,13 @@ const checkCommand = Command.make(
         (v) => new Set(v.split(',').map((s) => s.trim())),
       );
 
-      const config = yield* loadConfig(
-        root,
-        { changedSince, configPath },
-      ).pipe(
+      const config = yield* loadConfig(root, {
+        changedSince,
+        configPath,
+        // An explicit --project-root both locates the config and names the tree
+        // to scan, so it must beat the config's own projectRoot.
+        projectRootOverride: Option.isSome(opts.projectRoot),
+      }).pipe(
         Effect.catchTag('ConfigNotFoundError', (e) =>
           Effect.gen(function* () {
             yield* Console.error(e.message);
@@ -139,18 +212,20 @@ const checkCommand = Command.make(
 
       if (opts.full) {
         yield* Console.error('(--full) cache bypassed — running without persistence.');
-      } else if (isBun) {
-        yield* Console.error('(bun) violation cache disabled — better-sqlite3 is unsupported under Bun.');
       }
       const format = detectFormat(Option.getOrUndefined(opts.format) as OutputFormat | undefined);
       const thresholdMap: Record<string, number> = {};
       for (const t of thresholds) thresholdMap[t.category] = t.minScore;
 
       const runAndRender = Effect.gen(function* () {
+        const storage = yield* Effect.promise(() =>
+          resolveStorage(root, opts.full, filteredConfig.storage),
+        );
         const result = yield* runAll(
-          { ...filteredConfig, thresholds, storage: resolveStorage(root, opts.full) },
+          { ...filteredConfig, thresholds, storage },
           {
             fileFilter: Option.getOrUndefined(filesGlobs) ?? null,
+            throwOnRuleError: opts.throwOnError,
             onScan: (scan) => {
               process.stderr.write(
                 `scan: ${scan.filesSeen} files — +${scan.added} ~${scan.changed} -${scan.removed} =${scan.reused} reused (${scan.durationMs}ms)\n`,

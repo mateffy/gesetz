@@ -1,7 +1,7 @@
 import * as nodePath from 'node:path';
 import { Effect } from 'effect';
 import type { Rule, Violation } from '@gesetz/core';
-import { execTool, FileFilter } from '@gesetz/core';
+import { execTool, FileFilter, ProjectRoot, resolveToolBin, resolveToolCwd } from '@gesetz/core';
 
 export interface OxlintOptions {
   pattern?: string | string[];
@@ -91,16 +91,30 @@ async function executeOxlint(
 export function oxlint(opts: OxlintOptions = {}): Rule {
   const id = opts.id ?? 'oxlint';
   const description = opts.label ?? 'oxlint';
-  const bin = opts.bin ?? 'oxlint';
-  const cwd = nodePath.resolve(opts.cwd ?? process.cwd());
   const defaultPatterns: string[] = opts.pattern
     ? Array.isArray(opts.pattern)
       ? [...opts.pattern]
       : [opts.pattern]
     : ['.'];
 
+  // Prefer a tool installed beside the tool's working directory, then fall back
+  // to PATH. Resolved at run time, not at config-evaluation time.
+  const locate = (projectRoot: string): { bin: string; cwd: string } => {
+    const cwd = resolveToolCwd(opts.cwd, projectRoot);
+    return {
+      bin: resolveToolBin(
+        opts.bin,
+        cwd,
+        [nodePath.join('node_modules', '.bin', 'oxlint')],
+        'oxlint',
+      ),
+      cwd,
+    };
+  };
+
   const run: Rule['run'] = Effect.gen(function* () {
     const fileFilter = yield* FileFilter;
+    const { bin, cwd } = locate(yield* ProjectRoot);
 
     const patterns: string[] = fileFilter.patterns !== null && fileFilter.patterns.length > 0
       ? [...fileFilter.patterns]
@@ -118,7 +132,10 @@ export function oxlint(opts: OxlintOptions = {}): Rule {
       patterns: opts.pattern !== undefined
         ? defaultPatterns
         : ['**/*.{js,jsx,ts,tsx,mjs,cjs,mts,cts}', '.oxlintrc*', 'oxlint.config.*'],
-      run: () => executeOxlint(opts, id, bin, cwd, defaultPatterns),
+      run: (ctx) => {
+        const { bin, cwd } = locate(ctx.rootDir);
+        return executeOxlint(opts, id, bin, cwd, defaultPatterns);
+      },
     },
   };
 }

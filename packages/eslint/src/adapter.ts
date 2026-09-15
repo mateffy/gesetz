@@ -1,7 +1,7 @@
 import * as nodePath from 'node:path';
 import { Effect } from 'effect';
 import type { Rule, Violation } from '@gesetz/core';
-import { FileFilter } from '@gesetz/core';
+import { FileFilter, ProjectRoot, resolveToolCwd } from '@gesetz/core';
 
 export interface EslintOptions {
   pattern?: string | string[];
@@ -102,7 +102,6 @@ async function executeEslint(
 export function eslint(opts: EslintOptions = {}): Rule {
   const id = opts.id ?? 'eslint';
   const description = opts.label ?? 'ESLint';
-  const cwd = nodePath.resolve(opts.cwd ?? process.cwd());
   const defaultPatterns: string[] = opts.pattern
     ? Array.isArray(opts.pattern)
       ? [...opts.pattern]
@@ -111,6 +110,7 @@ export function eslint(opts: EslintOptions = {}): Rule {
 
   const run: Rule['run'] = Effect.gen(function* () {
     const fileFilter = yield* FileFilter;
+    const cwd = resolveToolCwd(opts.cwd, yield* ProjectRoot);
 
     const patterns: string[] = fileFilter.patterns !== null && fileFilter.patterns.length > 0
       ? [...fileFilter.patterns]
@@ -128,7 +128,7 @@ export function eslint(opts: EslintOptions = {}): Rule {
       patterns: opts.pattern !== undefined
         ? defaultPatterns
         : ['**/*.{js,jsx,ts,tsx,mjs,cjs,mts,cts}', 'eslint.config.*', '.eslintrc', '.eslintrc.*'],
-      run: () => executeEslint(opts, id, cwd, defaultPatterns),
+      run: (ctx) => executeEslint(opts, id, resolveToolCwd(opts.cwd, ctx.rootDir), defaultPatterns),
     },
   };
 }

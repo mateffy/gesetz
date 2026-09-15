@@ -1,7 +1,7 @@
 {
   "name": "gesetz",
-  "version": "3.0.0-rc.2",
-  "description": "Unified code-quality gate \u2014 core primitives and CLI. Install adapters separately.",
+  "version": "3.0.0-rc.5",
+  "description": "Unified code-quality gate — core primitives and CLI. Install adapters separately.",
   "type": "module",
   "exports": {
     ".": {

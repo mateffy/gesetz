@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { Effect, Layer } from 'effect';
-import { select, slugify } from '../../src/primitives/select';
+import { select, slugify, group } from '../../src/primitives/select';
 import { MemoryFileSystem, ProjectRootLive, FileFilterLive } from '../../src/services/fs';
 import { SyntaxTreeStub } from '../../src/services/syntax-tree';
 import { ImportResolverDefault } from '../../src/services/import-resolver';
@@ -286,6 +286,50 @@ describe('select', () => {
       const rule2 = select('src/**/*.ts').label('Test').forEach(noop);
       expect(rule1.id).toBe(rule2.id);
       expect(rule1.description).toBe(rule2.description);
+    });
+  });
+
+  describe('select(patterns, options)', () => {
+    it('applies label, category and exclusions in one call', () => {
+      const chained = select('src/**/*.ts')
+        .exclude('**/*.test.ts')
+        .label('No any')
+        .category('strictness')
+        .check(noop);
+      const inline = select('src/**/*.ts', {
+        exclude: ['**/*.test.ts'],
+        label: 'No any',
+        category: 'strictness',
+      }).check(noop);
+      expect(inline.id).toBe(chained.id);
+      expect(inline.description).toBe(chained.description);
+      expect(inline.category).toBe('strictness');
+      expect(inline.perFile?.exclusions).toEqual(['**/*.test.ts']);
+    });
+
+    it('accepts a single exclude string and extra includes', () => {
+      const rule = select('src/**/*.ts', {
+        exclude: '**/*.test.ts',
+        include: ['scripts/**/*.ts'],
+      }).check(noop);
+      expect(rule.perFile?.exclusions).toEqual(['**/*.test.ts']);
+      expect(rule.perFile?.patterns).toEqual(['src/**/*.ts', 'scripts/**/*.ts']);
+    });
+  });
+
+  describe('group()', () => {
+    it('applies one category to every rule', () => {
+      const rules = group('cleanup', [
+        select('src/**/*.ts').label('A').check(noop),
+        select('src/**/*.ts').label('B').check(noop),
+      ]);
+      expect(rules.map((rule) => rule.category)).toEqual(['cleanup', 'cleanup']);
+    });
+
+    it('does not mutate the input rules', () => {
+      const original = select('src/**/*.ts').label('A').check(noop);
+      group('cleanup', [original]);
+      expect(original.category).toBeUndefined();
     });
   });
 });

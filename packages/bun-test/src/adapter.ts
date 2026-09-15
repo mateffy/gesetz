@@ -2,7 +2,7 @@ import * as nodePath from 'node:path';
 import * as nodeFs from 'node:fs';
 import { Effect } from 'effect';
 import type { Rule, Violation } from '@gesetz/core';
-import { execTool, runWithTempFile, FileFilter } from '@gesetz/core';
+import { execTool, runWithTempFile, FileFilter, ProjectRoot, resolveToolBin, resolveToolCwd } from '@gesetz/core';
 import { parseJUnitXml, junitToViolations } from '@gesetz/junit';
 
 export interface BunTestOptions {
@@ -11,7 +11,7 @@ export interface BunTestOptions {
    * If omitted, runs the default matching `*.test.ts`.
    */
   pattern?: string | string[];
-  /** Working directory. Default: process.cwd() */
+  /** Working directory. Default: the project root. */
   cwd?: string;
   /** Path to the bun binary. Default: 'bun' */
   bin?: string;
@@ -68,16 +68,28 @@ async function executeBunTest(
 export function bunTest(opts: BunTestOptions = {}): Rule {
   const id = opts.id ?? 'bun-test';
   const description = opts.label ?? 'bun:test suite';
-  const cwd = nodePath.resolve(opts.cwd ?? process.cwd());
-  const bin = opts.bin ?? 'bun';
   const defaultPatterns: string[] | null = opts.pattern
     ? Array.isArray(opts.pattern)
       ? [...opts.pattern]
       : [opts.pattern]
     : null;
 
+  const locate = (projectRoot: string): { bin: string; cwd: string } => {
+    const cwd = resolveToolCwd(opts.cwd, projectRoot);
+    return {
+      bin: resolveToolBin(
+        opts.bin,
+        cwd,
+        [nodePath.join('node_modules', '.bin', 'bun')],
+        'bun',
+      ),
+      cwd,
+    };
+  };
+
   const run: Rule['run'] = Effect.gen(function* () {
     const fileFilter = yield* FileFilter;
+    const { bin, cwd } = locate(yield* ProjectRoot);
     const patterns = fileFilter.patterns !== null && fileFilter.patterns.length > 0
       ? [...fileFilter.patterns]
       : defaultPatterns;
@@ -93,7 +105,10 @@ export function bunTest(opts: BunTestOptions = {}): Rule {
     project: {
       // Test outcomes depend on any source change — conservative.
       patterns: defaultPatterns ?? ['**/*'],
-      run: () => executeBunTest(id, bin, cwd, defaultPatterns),
+      run: (ctx) => {
+        const { bin, cwd } = locate(ctx.rootDir);
+        return executeBunTest(id, bin, cwd, defaultPatterns);
+      },
     },
   };
 }

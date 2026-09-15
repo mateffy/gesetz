@@ -5,6 +5,7 @@
  * It enforces quality rules on the gesetz monorepo itself.
  */
 
+import * as nodePath from 'node:path';
 import {
   defineConfig,
   select,
@@ -14,7 +15,6 @@ import {
   noHardcodedSecret,
   noPattern,
   requirePattern,
-  requireSibling,
   noImportFrom,
   defineArchitecture,
 } from '@gesetz/core';
@@ -114,33 +114,26 @@ export default defineConfig({
 
     // ─── Tests must exist for adapters ──────────────────────────────────────
 
-    select('packages/vitest/src/adapter.ts').label('vitest needs tests').check(
-      requireSibling('.test.ts', { message: 'Adapter files must have a matching test file' }),
-    ),
-
-    select('packages/prettier/src/adapter.ts').label('prettier needs tests').check(
-      requireSibling('.test.ts', { message: 'Adapter files must have a matching test file' }),
-    ),
-
-    select('packages/eslint/src/adapter.ts').label('eslint needs tests').check(
-      requireSibling('.test.ts', { message: 'Adapter files must have a matching test file' }),
-    ),
-
-    select('packages/bun-test/src/adapter.ts').label('bun-test needs tests').check(
-      requireSibling('.test.ts', { message: 'Adapter files must have a matching test file' }),
-    ),
-
-    select('packages/pest/src/adapter.ts').label('pest needs tests').check(
-      requireSibling('.test.ts', { message: 'Adapter files must have a matching test file' }),
-    ),
-
-    select('packages/phpstan/src/adapter.ts').label('phpstan needs tests').check(
-      requireSibling('.test.ts', { message: 'Adapter files must have a matching test file' }),
-    ),
-
-    select('packages/oxfmt/src/adapter.ts').label('oxfmt needs tests').check(
-      requireSibling('.test.ts', { message: 'Adapter files must have a matching test file' }),
-    ),
+    // Tests live in `tests/`, not next to the source, so this is a custom check
+    // rather than `requireSibling`. `packages/php/src/adapter.ts` is excluded: it is
+    // a deliberate stub kept only so stale imports fail with a clear error.
+    select('packages/*/src/adapter.ts')
+      .exclude('packages/php/src/adapter.ts')
+      .label('Adapters need tests')
+      .category('organization')
+      .check(async (file, { fs }) => {
+        const packageDir = nodePath.dirname(nodePath.dirname(file.absolutePath));
+        const testFile = nodePath.join(packageDir, 'tests', 'adapter.test.ts');
+        if (await fs.exists(testFile)) return [];
+        return [
+          {
+            message: `Adapter has no test file: expected ${file.path.replace('/src/adapter.ts', '/tests/adapter.test.ts')}`,
+            path: file.path,
+            severity: 'error' as const,
+            source: 'core' as const,
+          },
+        ];
+      }),
 
     // ─── Patterns ───────────────────────────────────────────────────────────
 

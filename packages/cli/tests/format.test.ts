@@ -51,6 +51,15 @@ function failingResult(violations: Violation[]): RunResult {
 }
 
 describe('buildEnvelope', () => {
+  it('reports rules that could not run', () => {
+    const env = buildEnvelope({ ...passingResult(), failedRules: ['eslint', 'vitest'] });
+    expect(env.failedRules).toEqual(['eslint', 'vitest']);
+  });
+
+  it('omits failedRules when every rule ran', () => {
+    expect(buildEnvelope(passingResult()).failedRules).toBeUndefined();
+  });
+
   it('marks a passing run with status=pass and empty violations', () => {
     const env = buildEnvelope(passingResult());
     expect(env.status).toBe('pass');
@@ -214,6 +223,16 @@ describe('formatStatusBanner', () => {
     expect(formatStatusBanner({ ...passingResult(), totalViolations: 0 })).toBe('gesetz: pass (0 violations)\n');
     expect(formatStatusBanner({ ...failingResult([v()]), totalViolations: 1 })).toBe('gesetz: fail (1 violation)\n');
     expect(formatStatusBanner({ ...failingResult([v(), v()]), totalViolations: 2 })).toBe('gesetz: fail (2 violations)\n');
+  });
+
+  it('names rules that could not run', () => {
+    const banner = formatStatusBanner({
+      ...passingResult(),
+      passing: false,
+      failedRules: ['eslint', 'vitest'],
+    });
+    expect(banner).toContain('2 rule(s) could not run: eslint, vitest');
+    expect(banner).toContain('incomplete');
   });
 });
 

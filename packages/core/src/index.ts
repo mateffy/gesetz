@@ -30,7 +30,41 @@ export { runAll, applyExemptions } from './engine/runner';
 export type { RunResult, RuleResult, CategoryScore, RunAllOptions, ScanStats } from './engine/runner';
 
 // ─── Exec helpers ─────────────────────────────────────────────────────────────
-export { execTool, runWithTempFile, extractLocation } from './engine/exec';
+export {
+  execTool,
+  runWithTempFile,
+  extractLocation,
+  resolveToolCwd,
+  resolveToolBin,
+} from './engine/exec';
+
+// ─── Cache drivers ────────────────────────────────────────────────────────────
+export {
+  getCacheDriver,
+  registerCacheDriver,
+  unregisterCacheDriver,
+  createSqliteStore,
+  createSqliteStoreFromDatabase,
+  isNodeSqliteAvailable,
+  sqliteUnavailableMessage,
+  DEFAULT_CACHE_TTL_MS,
+  SQLITE_COMPAT_PACKAGE,
+  SqliteUnavailableError,
+} from './cache';
+export type {
+  CacheDriverFactory,
+  CacheEntry,
+  CacheStore,
+  FileRef,
+  SqliteDriver,
+  SqliteLikeDatabase,
+  SqliteLikeStatement,
+  SqliteStoreOptions,
+  SqliteStoreNamespaceOptions,
+} from './cache';
+
+// ─── Cache location ───────────────────────────────────────────────────────────
+export { defaultCacheDir, defaultCachePath } from './engine/cache-path';
 
 // ─── Services ─────────────────────────────────────────────────────────────────
 export { FileSystem, FileSystemLive, MemoryFileSystem, ProjectRoot, ProjectRootLive, FileFilter, FileFilterLive } from './services/fs';
@@ -54,8 +88,8 @@ export { ImportResolver, ImportResolverDefault, ImportResolveError } from './ser
 export type { ImportResolverService } from './services/import-resolver';
 
 // ─── Select DSL ───────────────────────────────────────────────────────────────
-export { select, slugify } from './primitives/select';
-export type { Selector } from './primitives/select';
+export { select, slugify, group } from './primitives/select';
+export type { Selector, SelectOptions } from './primitives/select';
 
 // ─── Check types ─────────────────────────────────────────────────────────────
 export type { CheckServices } from './engine/rule';

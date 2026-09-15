@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile, mkdir, unlink } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile, mkdir, unlink, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import * as nodePath from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -6,6 +6,7 @@ import { Effect } from 'effect';
 import { runAll } from '../../src/engine/runner';
 import { defineConfig } from '../../src/engine/config';
 import { select } from '../../src/primitives/select';
+import { requireSibling } from '../../src/primitives/checks/fs';
 import type { Check } from '../../src/engine/rule';
 
 let dir: string;
@@ -106,5 +107,70 @@ describe('runAll incremental caching (sqlite storage)', () => {
       runAll(config(dbPath), { fileFilter: ['src/other/**'] }),
     );
     expect(filtered.totalViolations).toBe(0);
+  });
+
+  it('does not skip files larger than 64 KB', async () => {
+    const dbPath = nodePath.join(dir, 'cache.db');
+    await writeFile(
+      nodePath.join(dir, 'src/big.ts'),
+      `console.log("big");\n${'// pad\n'.repeat(20_000)}`,
+    );
+    const result = await run(config(dbPath));
+    expect(result.byRule[0]?.violations.map((violation) => violation.path)).toContain('src/big.ts');
+  });
+
+  it('writes the cache to the configured path', async () => {
+    const dbPath = nodePath.join(dir, 'nested', 'custom-cache.db');
+    await mkdir(nodePath.dirname(dbPath), { recursive: true });
+    await writeFile(nodePath.join(dir, 'src/dirty.ts'), 'console.log("x");\n');
+    await run(config(dbPath));
+    await expect(stat(dbPath)).resolves.toBeDefined();
+  });
+
+  it('invalidates cached results when a sibling file is deleted or added', async () => {
+    // `requireSibling` reads the project's file listing, so a per-file result is
+    // not a pure function of that file's content. Without the path set in the
+    // cache fingerprint, deleting `a.test.ts` left `a.ts`'s cached "sibling
+    // present" result in place — a silent pass.
+    const dbPath = nodePath.join(dir, 'cache.db');
+    const cfg = defineConfig({
+      projectRoot: dir,
+      storage: { kind: 'sqlite', path: dbPath },
+      rules: [
+        select('src/*.ts')
+          .exclude('**/*.test.ts')
+          .label('Needs a sibling test')
+          .check(requireSibling('.test.ts')),
+      ],
+    });
+
+    await writeFile(nodePath.join(dir, 'src/a.ts'), 'export const a = 1;\n');
+    await writeFile(nodePath.join(dir, 'src/a.test.ts'), 'export const t = 1;\n');
+    expect((await run(cfg)).totalViolations).toBe(0);
+
+    await unlink(nodePath.join(dir, 'src/a.test.ts'));
+    expect((await run(cfg)).totalViolations).toBe(1);
+
+    await writeFile(nodePath.join(dir, 'src/a.test.ts'), 'export const t = 1;\n');
+    expect((await run(cfg)).totalViolations).toBe(0);
+  });
+
+  it('still re-checks only the edited file (path set unchanged)', async () => {
+    const dbPath = nodePath.join(dir, 'cache.db');
+    const cfg = defineConfig({
+      projectRoot: dir,
+      storage: { kind: 'sqlite', path: dbPath },
+      rules: [select('src/**/*.ts').label('No console log').check(noConsoleLog)],
+    });
+    await writeFile(nodePath.join(dir, 'src/one.ts'), 'export const one = 1;\n');
+    await writeFile(nodePath.join(dir, 'src/two.ts'), 'export const two = 2;\n');
+    await run(cfg);
+
+    await writeFile(nodePath.join(dir, 'src/one.ts'), 'export const one = 1; // edited\n');
+    const scans: { changed: number; reused: number }[] = [];
+    await Effect.runPromise(runAll(cfg, { onScan: (s) => scans.push(s) }));
+
+    expect(scans[0]?.changed).toBe(1);
+    expect(scans[0]?.reused).toBe(1);
   });
 });

@@ -3,14 +3,24 @@ import type { Rule, Exemption } from './rule';
 import type { SyntaxBackend } from '../services/syntax-tree';
 
 /**
- * Where the violation-marker cache lives. Structurally identical to
- * netzwerk's NetworkStorageConfig, but declared here so the public d.ts
- * has no netzwerk references (consumers would otherwise typecheck
- * netzwerk's TS source).
+ * Where the incremental cache lives.
+ *
+ * - `{ kind: 'memory' }` — nothing is persisted. Use this to opt out of
+ *   caching for a project, or when calling `runAll` from tests.
+ * - `{ kind: 'sqlite', path }` — a persistent SQLite cache at `path`.
+ *
+ * Omit the field to accept the default: the CLI persists to
+ * `<projectRoot>/.gesetz/cache.db`, while a programmatic `runAll` stays in
+ * memory.
+ *
+ * The SQLite driver is chosen automatically — the built-in `node:sqlite`
+ * module when the runtime has it, otherwise a driver registered by an optional
+ * compatibility package such as `@gesetz/sqlite-compat`. When neither exists,
+ * the run continues without persistence and says so once.
  */
 export type GesetzStorageConfig =
-  | { readonly kind?: 'memory' | undefined }
-  | { readonly kind: 'sqlite'; readonly path: string; readonly dimensions?: number | undefined };
+  | { readonly kind: 'memory' }
+  | { readonly kind: 'sqlite'; readonly path: string };
 
 export interface CategoryThreshold {
   /** Category name matching `Rule.category` */
@@ -59,9 +69,9 @@ export interface UserConfig {
    */
   readonly adapters?: readonly SyntaxBackend[] | undefined;
   /**
-   * Where the violation-marker cache lives. `{ kind: 'sqlite', path }`
-   * persists across runs (CLI default); `{ kind: 'memory' }` is ephemeral
-   * (tests, one-shot runs). Default: memory.
+   * Where the incremental cache lives. Omit for the default (the CLI persists
+   * to `<projectRoot>/.gesetz/cache.db`; `runAll` stays in memory). Set
+   * `{ kind: 'memory' }` to opt out of caching entirely.
    */
   readonly storage?: GesetzStorageConfig | undefined;
 }
@@ -74,7 +84,8 @@ export interface ResolvedConfig {
   readonly changedSince: string | undefined;
   readonly thresholds: CategoryThreshold[];
   readonly adapters: readonly SyntaxBackend[];
-  readonly storage: GesetzStorageConfig;
+  /** Undefined means "not specified" — the caller picks the default. */
+  readonly storage: GesetzStorageConfig | undefined;
 }
 
 /**
@@ -99,6 +110,10 @@ export function defineConfig(config: UserConfig): ResolvedConfig {
     changedSince: config.changedSince,
     thresholds: config.thresholds ?? [],
     adapters: config.adapters ?? [],
-    storage: config.storage ?? { kind: 'memory' },
+    // A relative cache path is project-relative, like every other path here.
+    storage:
+      config.storage?.kind === 'sqlite'
+        ? { kind: 'sqlite', path: nodePath.resolve(projectRoot, config.storage.path) }
+        : config.storage,
   };
 }

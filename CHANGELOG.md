@@ -5,6 +5,118 @@ All notable changes to **Gesetz** and the `@gesetz/*` packages are documented he
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.0-rc.5] — 2026-09-15
+
+> Supersedes `3.0.0-rc.0` … `3.0.0-rc.4`, which shipped the `netzwerk`-backed
+> engine. Those candidates could not be installed on a fresh machine (`netzwerk`
+> was a `link:` dependency in rc.0/rc.2, so `npm install` failed outright),
+> ignored the configured cache path, and silently skipped files over 64 KB. This
+> candidate drops the dependency completely and fixes those defects — see
+> “Fixed” below. It is the first 3.x release that installs and caches correctly
+> on a clean machine.
+
+### Changed
+
+- **The cache moved to one shared file: `${XDG_CACHE_HOME:-~/.cache}/gesetz/cache.db`.**
+  It used to be per-project at `.gesetz/cache.db`, which meant every repository
+  needed a `.gitignore` entry and the caches were scattered. Entries are now
+  namespaced by project root inside the shared file, so nothing is shared
+  *between* projects (entries are keyed by repo-relative path, and checks like
+  `requireSibling` read other files). Clearing the cache is
+  `rm -rf ~/.cache/gesetz`; entries untouched for 30 days are swept on open.
+  `GESETZ_DB`, `storage: { kind: 'sqlite', path }`, and the
+  `<project>/.gesetz/cache.db` fallback (used when the shared location is not
+  writable) all still work.
+- **Removed the `netzwerk` runtime dependency.** The incremental engine is now a
+  self-contained, dependency-free cache inside `@gesetz/core` (`src/cache/`).
+  Rules run file-major — each file is read and parsed once, and every applicable
+  per-file rule runs against that single parse. On this repository a cold
+  `gesetz check` went from ~22 s to ~0.7 s and a warm run from ~1.3 s to ~120 ms.
+  The install no longer pulls onnxruntime, transformers, sharp, libsql, or
+  tree-sitter.
+- Parse results are memoized in `@gesetz/typescript`, so the ast-grep based
+  checks and the syntax backend share a single parse per file instead of one
+  parse per check.
+- Syntax is extracted on demand. A registered adapter that no rule consumes no
+  longer parses the project.
+- **A tool adapter that cannot run is now a critical violation** instead of a
+  silent pass. The run reports `failedRules`, never passes while a rule is
+  broken, and retries the rule on the next invocation. Pass `--throw` to abort
+  with the full error instead.
+- `execTool` now throws when the tool could not be started (previously it
+  returned `''` and logged a warning). A non-zero exit is unaffected.
+
+### Added
+
+- `gesetz check --throw` (and `runAll(config, { throwOnRuleError: true })`) to
+  fail hard when a rule or tool adapter cannot run.
+- `RunResult.failedRules` — the ids of rules that could not run. Surfaced in the
+  status banner and the JSON envelope.
+- `select(glob, { exclude, include, category, label, guidance })` — inline
+  shorthand for the corresponding builder calls.
+- `group(category, rules)` — applies one scoring category to a list of rules.
+- `@gesetz/sqlite-compat` — optional `better-sqlite3` cache driver for runtimes
+  without `node:sqlite`. Registered through the new
+  `registerCacheDriver('sqlite', factory)` seam and `createSqliteStoreFromDatabase`,
+  so `@gesetz/core` still ships no native dependency.
+- `storage: { kind: 'sqlite', path }` in `gesetz.config.ts` is now authoritative
+  for `gesetz check`; a relative path resolves against `projectRoot`.
+
+### Removed
+
+- The JSON cache adapter. When no SQLite driver is available the run continues
+  without a cache instead. `storage` is now `{ kind: 'memory' } | { kind:
+  'sqlite', path }`, with no `driver` field — driver selection is automatic.
+
+### Fixed
+
+- **Per-file cache results are now invalidated when the project's file set
+  changes.** The cache key covered the file's own content hash and the rule
+  definitions, but per-file checks are not pure functions of one file:
+  `requireSibling` asks `fs.exists`, and `requireChildren`/`forbidFile`/
+  `fs.glob`/`imports.resolve` consult the project's file listing. Deleting
+  `a.test.ts` left `a.ts`'s cached "sibling present" result in place, so
+  `everyFileNeedsTest`-style rules **silently passed**. The path set is now part
+  of the fingerprint, so add/remove/rename recomputes while an edit still only
+  re-checks the edited file.
+- **Adapter `cwd` is resolved when the rule runs, not when the config is
+  loaded.** Adapters used to capture `nodePath.resolve(opts.cwd ?? process.cwd())`
+  while `gesetz.config.ts` was being evaluated, so a relative `cwd` (for example
+  `vitest({ cwd: 'packages/web' })`) anchored to the shell's directory rather
+  than the project root. `eslint`, `oxlint`, `oxfmt`, `prettier`, `vitest`,
+  `storybook`, `bun-test`, `pest`, `phpunit`, and `phpstan` now resolve it from
+  the project root at run time.
+- **Adapter binaries prefer a local install, then `PATH`.** `oxlint` used to
+  require `oxlint` on `PATH` while the other adapters required
+  `node_modules/.bin/<tool>`; `phpstan`/`phpunit`/`pest` required
+  `vendor/bin/<tool>`. All ten adapters now look for their tool relative to the
+  adapter's working directory first and fall back to `PATH`. An explicit `bin`
+  still wins.
+- `gesetz check --project-root <dir>` now actually scans `<dir>`. Previously the
+  flag only located the config; because `defineConfig()` defaults `projectRoot`
+  to `process.cwd()`, the scan silently ran against the current directory
+  instead — `--project-root ./packages/web` from the repo root scanned the repo
+  root.
+- The violation cache is now written where the configuration says
+  (`GESETZ_DB`, a configured `storage` path, or the shared cache) instead of a
+  global `~/.fabrik/netzwerk.db` that ignored every setting.
+- Files larger than 64 KB are no longer silently skipped.
+- `gesetz check --full` genuinely bypasses persistence.
+- Discovery honours `.gitignore` via `git ls-files`, including files deleted from
+  the working tree but still present in the git index.
+
+### Notes
+
+- `ProjectRuleContext` no longer has a `network` field; it exposes
+  `{ rootDir, changedFiles }`. No shipped adapter used the removed field.
+- Persistent SQLite caching requires a usable driver: Node >= 23.4, Node >= 22.5
+  with `--experimental-sqlite`, or the optional `@gesetz/sqlite-compat`
+  (`better-sqlite3`) package. Without one, gesetz prints an actionable notice
+  and runs without a cache.
+- `@gesetz/core` depends only on `effect`, `fast-glob`, and `micromatch`.
+
+---
+
 ## [2.0.0] — 2026-07-05
 
 ### Breaking: Check type migrated from Effect to async/await

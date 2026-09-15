@@ -6,33 +6,82 @@ If you are a coding agent tasked with upgrading a codebase, read the section for
 
 ---
 
-## v3.0 — Netzwerk-backed engine (violation cache)
+## v3.0 — Incremental cache engine (no netzwerk)
 
 ### One-line summary
 
-The rule-execution backend now runs on [netzwerk](../netzwerk): rules are
-compiled to netzwerk extensions, violations are stored as markers in a
-content-hash-indexed cache (SQLite), and `gesetz check` re-checks only
-changed files on repeat runs. **The public API is unchanged** — no migration
-needed for configs, custom checks, or adapters.
+The rule-execution backend now runs on a built-in incremental cache in
+`@gesetz/core`. Rules are evaluated per file, results are stored in a
+content-hash cache (SQLite via Node's built-in `node:sqlite`), and
+`gesetz check` re-checks only changed files on repeat runs. **The public API is
+unchanged** — no migration needed for configs, custom checks, or adapters.
 
 ### What changed for consumers
 
-- `gesetz check` persists a cache at `.gesetz/cache.db` (add `.gesetz/` to
-  your `.gitignore`). `GESETZ_DB` overrides the location; `--full` bypasses
-  the cache; `--watch` re-runs incrementally on file changes.
-- Under Bun the cache is disabled (better-sqlite3 is unsupported); runs
-  behave as before.
-- `defineConfig` accepts an optional `storage` field
-  (`{ kind: 'sqlite', path }` or `{ kind: 'memory' }`, default memory).
+- `gesetz check` persists a cache in **one shared file outside your
+  repositories**: `${XDG_CACHE_HOME:-~/.cache}/gesetz/cache.db`. Nothing needs to
+  be gitignored, and clearing it is `rm -rf ~/.cache/gesetz`. Entries are
+  namespaced by project root, so projects never see each other's results, and
+  entries untouched for 30 days are swept on open. `GESETZ_DB` overrides the
+  location, `GESETZ_DB=off` disables persistence, `--full` bypasses the cache,
+  and `--watch` re-runs incrementally on file changes. If you previously added
+  `.gesetz/` to a `.gitignore` for gesetz, you can drop it.
+- **A tool adapter that cannot run is now a critical violation instead of a
+  silent pass.** ESLint, oxlint, Vitest, PHPStan, and friends previously
+  swallowed a failed tool invocation and contributed no violations. They now
+  fail the run, report `failedRules` in the JSON envelope and status banner, and
+  are retried on the next invocation (failures are never cached). Pass
+  `--throw` (or `runAll(config, { throwOnRuleError: true })`) to abort with the
+  full error instead. Note that a non-zero exit is still normal — linters exit
+  non-zero when they find violations.
+- `execTool` changed contract: it used to return `''` when the tool could not be
+  started; it now throws. Callers that relied on the empty string must catch.
+- `runAll` results gained an optional `failedRules: string[]` field.
+- **`storage` is simpler, and now authoritative for both `gesetz check` and
+  `runAll`.** It is `{ kind: 'memory' }` or `{ kind: 'sqlite', path }` — the
+  `json` kind and the `driver` field are gone. Omit it to accept the default
+  (CLI: the shared cache; programmatic `runAll`: memory). Precedence for
+  `gesetz check` is `--full` / `GESETZ_DB=off` → config `memory` →
+  `GESETZ_DB=<path>` → config `sqlite` path → the shared cache →
+  `<root>/.gesetz/cache.db`. A relative `storage.path` is resolved against
+  `projectRoot`.
+- **Per-file results are invalidated when the file set changes.** Checks are not
+  pure functions of one file — `requireSibling` reads the project's listing, as
+  do `requireChildren`, `forbidFile`, `fs.glob`, and `imports.resolve`. Adding,
+  removing, or renaming a file therefore recomputes all per-file results;
+  editing a file still only re-checks that file.
+- Persistence needs a SQLite driver: the built-in `node:sqlite` on Node ≥ 23.4
+  (or ≥ 22.5 with `--experimental-sqlite`), otherwise a driver registered by
+  `@gesetz/sqlite-compat`. With neither, the run continues **without a cache**
+  and says so once. The JSON fallback adapter was removed.
+- Custom cache drivers can be registered with `registerCacheDriver('sqlite', factory)`;
+  `createSqliteStoreFromDatabase(db)` builds a store over any
+  better-sqlite3-shaped database. Driver selection is automatic — it is not a
+  user-facing setting.
 - `runAll(config, options?)` accepts an optional second argument
-  (`{ fileFilter, onScan }`). The Effect service environment is no longer
-  required — providing it is harmless but ignored.
-- Violations are now reported with repo-relative paths consistently
-  (external-tool adapters that emitted absolute paths are normalized).
-- Files excluded by `.gitignore` (e.g. `dist/`) are no longer scanned —
-  the old backend globbed them in. This can *reduce* reported violations
-  in built artifacts; run `--full` and check your globs if unsure.
+  (`{ fileFilter, onScan, throwOnRuleError }`). The Effect service environment is
+  no longer required — providing it is harmless but ignored.
+- Violations are reported with repo-relative paths consistently (external-tool
+  adapters that emitted absolute paths are normalized).
+- Files excluded by `.gitignore` (e.g. `dist/`) are not scanned — gesetz asks
+  git for the file list. Outside a git repository gesetz walks the directory
+  tree and cannot honour `.gitignore`.
+- Files larger than 64 KB are no longer skipped. The previous backend silently
+  ignored them.
+- **Adapter `cwd` and `bin` are resolved at run time against the project
+  root.** Relative options like `vitest({ cwd: 'packages/web' })` previously
+  resolved against `process.cwd()` while the config was evaluated, so they broke
+  under `--project-root`. Adapters now also prefer a tool installed relative to
+  their working directory and fall back to `PATH`, so `oxlint()` no longer
+  requires `oxlint` to be on `PATH`. An explicit `bin` still wins.
+- **`--project-root` now selects the scanned tree.** It previously only located
+  the config file; the scan root came from `defineConfig()`, which defaults to
+  `process.cwd()`. Running `gesetz check --project-root ./packages/web` from the
+  repo root therefore scanned the repo root. An explicit flag now overrides the
+  config's `projectRoot`; when the flag is omitted, a config that sets its own
+  `projectRoot` is still honoured.
+- New, additive SDK helpers: `select(glob, { exclude, category, label })` and
+  `group(category, rules)`.
 
 ### What did NOT change
 
@@ -40,7 +89,12 @@ needed for configs, custom checks, or adapters.
   `noCycles()`, all `@gesetz/*` check factories and tool adapters — same
   signatures, same `Violation` shape, same scoring formula.
 - `--since`, `--files`, `--category`, exemptions, and thresholds behave as
-  before (now implemented as aggregation-time filters over cached markers).
+  before (aggregation-time filters over cached results).
+- `Rule`, `Rule.project`, and `Rule.perFile` keep their shapes. `ProjectRuleContext`
+  no longer carries a `network` field — it exposes `{ rootDir, changedFiles }`,
+  and no adapter used the field it replaced.
+- The `netzwerk` runtime dependency is gone. `@gesetz/core` depends only on
+  `effect`, `fast-glob`, and `micromatch`.
 
 ---
 

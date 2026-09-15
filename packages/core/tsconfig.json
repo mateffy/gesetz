@@ -12,8 +12,6 @@
   },
   "include": [
     "src/**/*",
-    "tests/**/*",
-    // netzwerk ships TS source; its d3-force-3d declaration must be in the program
-    "./node_modules/netzwerk/src/layout/d3-force-3d.d.ts"
+    "tests/**/*"
   ]
 }

@@ -1,7 +1,7 @@
 import * as nodePath from 'node:path';
 import { Effect } from 'effect';
 import type { Rule, Violation } from '@gesetz/core';
-import { execTool, FileFilter } from '@gesetz/core';
+import { execTool, FileFilter, ProjectRoot, resolveToolBin, resolveToolCwd } from '@gesetz/core';
 
 export interface OxfmtOptions {
   /**
@@ -9,7 +9,7 @@ export interface OxfmtOptions {
    * Default: '.' (current directory)
    */
   pattern?: string | string[];
-  /** Working directory. Default: process.cwd() */
+  /** Working directory. Default: the project root. */
   cwd?: string;
   /** Path to the oxfmt binary. Default: 'node_modules/.bin/oxfmt' */
   bin?: string;
@@ -66,16 +66,25 @@ async function executeOxfmt(
 export function oxfmt(opts: OxfmtOptions = {}): Rule {
   const id = opts.id ?? 'oxfmt';
   const description = opts.label ?? 'oxfmt formatting';
-  const cwd = nodePath.resolve(opts.cwd ?? process.cwd());
-  const bin = opts.bin ?? nodePath.join('node_modules', '.bin', 'oxfmt');
   const defaultPatterns: string[] = opts.pattern
     ? Array.isArray(opts.pattern)
       ? [...opts.pattern]
       : [opts.pattern]
     : ['.'];
 
+  // Resolved at run time against the project root, not at config-evaluation
+  // time against `process.cwd()`.
+  const locate = (projectRoot: string): { bin: string; cwd: string } => {
+    const cwd = resolveToolCwd(opts.cwd, projectRoot);
+    return {
+      bin: resolveToolBin(opts.bin, cwd, [nodePath.join('node_modules', '.bin', 'oxfmt')], 'oxfmt'),
+      cwd,
+    };
+  };
+
   const run: Rule['run'] = Effect.gen(function* () {
     const fileFilter = yield* FileFilter;
+    const { bin, cwd } = locate(yield* ProjectRoot);
 
     const patterns = fileFilter.patterns !== null && fileFilter.patterns.length > 0
       ? [...fileFilter.patterns]
@@ -91,7 +100,10 @@ export function oxfmt(opts: OxfmtOptions = {}): Rule {
     category: opts.category,
     project: {
       patterns: opts.pattern !== undefined ? defaultPatterns : ['**/*'],
-      run: () => executeOxfmt(opts, id, bin, cwd, defaultPatterns),
+      run: (ctx) => {
+        const { bin, cwd } = locate(ctx.rootDir);
+        return executeOxfmt(opts, id, bin, cwd, defaultPatterns);
+      },
     },
   };
 }

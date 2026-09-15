@@ -2,7 +2,7 @@ import * as nodePath from 'node:path';
 import * as nodeFs from 'node:fs';
 import { Effect } from 'effect';
 import type { Rule, Violation } from '@gesetz/core';
-import { execTool, runWithTempFile, FileFilter } from '@gesetz/core';
+import { execTool, runWithTempFile, FileFilter, ProjectRoot, resolveToolBin, resolveToolCwd } from '@gesetz/core';
 import { parseJUnitXml, junitToViolations } from '@gesetz/junit';
 
 export interface PestOptions {
@@ -11,7 +11,7 @@ export interface PestOptions {
    * If omitted, pest runs its configured test suite.
    */
   pattern?: string | string[];
-  /** Working directory. Default: process.cwd() */
+  /** Working directory. Default: the project root. */
   cwd?: string;
   /** Path to the pest binary. Default: 'vendor/bin/pest' */
   bin?: string;
@@ -74,16 +74,20 @@ async function executePest(
 export function pest(opts: PestOptions = {}): Rule {
   const id = opts.id ?? 'pest';
   const description = opts.label ?? 'Pest test suite';
-  const cwd = nodePath.resolve(opts.cwd ?? process.cwd());
-  const bin = opts.bin ?? 'vendor/bin/pest';
   const defaultPatterns: string[] | null = opts.pattern
     ? Array.isArray(opts.pattern)
       ? [...opts.pattern]
       : [opts.pattern]
     : null;
 
+  const locate = (projectRoot: string): { bin: string; cwd: string } => {
+    const cwd = resolveToolCwd(opts.cwd, projectRoot);
+    return { bin: resolveToolBin(opts.bin, cwd, ['vendor/bin/pest'], 'vendor/bin/pest'), cwd };
+  };
+
   const run: Rule['run'] = Effect.gen(function* () {
     const fileFilter = yield* FileFilter;
+    const { bin, cwd } = locate(yield* ProjectRoot);
     const patterns = fileFilter.patterns !== null && fileFilter.patterns.length > 0
       ? [...fileFilter.patterns]
       : defaultPatterns;
@@ -99,7 +103,10 @@ export function pest(opts: PestOptions = {}): Rule {
     project: {
       // Test outcomes depend on any source change — conservative.
       patterns: defaultPatterns ?? ['**/*'],
-      run: () => executePest(opts, id, bin, cwd, defaultPatterns),
+      run: (ctx) => {
+        const { bin, cwd } = locate(ctx.rootDir);
+        return executePest(opts, id, bin, cwd, defaultPatterns);
+      },
     },
   };
 }

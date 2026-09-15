@@ -125,7 +125,7 @@ function readFileSafe(absolutePath: string): string {
   }
 }
 
-function buildFile(
+export function buildFile(
   relativePath: string,
   absolutePath: string,
   contentLoader: () => string,

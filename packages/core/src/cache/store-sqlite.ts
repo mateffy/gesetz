@@ -1,0 +1,257 @@
+import { getCacheDriver } from './drivers';
+import type { CacheEntry, CacheStore } from './types';
+
+/**
+ * Minimal structural view of a better-sqlite3 / `node:sqlite` style database.
+ * Declared locally so this module does not depend on the Node type definitions
+ * exposing the experimental `node:sqlite` module (its typings lag across Node
+ * versions). Both drivers satisfy this interface, which is what lets the
+ * optional compat package reuse this whole file's logic.
+ */
+export interface SqliteLikeStatement {
+  run(...params: unknown[]): unknown;
+  all(...params: unknown[]): unknown[];
+  get(...params: unknown[]): unknown;
+}
+
+export interface SqliteLikeDatabase {
+  exec(sql: string): unknown;
+  prepare(sql: string): SqliteLikeStatement;
+  close(): unknown;
+}
+
+interface SqliteModule {
+  DatabaseSync: new (path: string) => SqliteLikeDatabase;
+}
+
+interface Row {
+  readonly path: string;
+  readonly hash: string;
+  readonly fingerprint: string | null;
+  readonly value: string;
+}
+
+/** Which driver backs `{ kind: 'sqlite' }`. */
+export type SqliteDriver = 'auto' | 'node' | 'compat';
+
+/**
+ * A shared cache file holds every project's entries, so each project writes
+ * under its own namespace (its absolute project root). Dedicated per-project
+ * files only ever hold one namespace, so the default is fine there.
+ */
+export interface SqliteStoreNamespaceOptions {
+  /** Namespace for all entries. Defaults to the empty (unscoped) namespace. */
+  readonly namespace?: string | undefined;
+  /**
+   * Entries older than this are swept when the store opens, so a shared cache
+   * cannot grow without bound. Default: 30 days. `0` disables the sweep.
+   */
+  readonly ttlMs?: number | undefined;
+}
+
+export interface SqliteStoreOptions extends SqliteStoreNamespaceOptions {
+  readonly driver?: SqliteDriver | undefined;
+}
+
+/** Thrown when no usable SQLite driver is available. */
+export class SqliteUnavailableError extends Error {
+  constructor(message: string = sqliteUnavailableMessage()) {
+    super(message);
+    this.name = 'SqliteUnavailableError';
+  }
+}
+
+/** The package a consumer can install to get SQLite caching on older Node. */
+export const SQLITE_COMPAT_PACKAGE = '@gesetz/sqlite-compat';
+
+/** Bump when the table layout changes. A mismatch discards the cache. */
+const SCHEMA_VERSION = 2;
+
+/** Default retention for cache entries. */
+export const DEFAULT_CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
+const SCHEMA = `
+  CREATE TABLE IF NOT EXISTS cache_entries (
+    workdir     TEXT NOT NULL,
+    scope       TEXT NOT NULL,
+    path        TEXT NOT NULL,
+    hash        TEXT NOT NULL,
+    fingerprint TEXT,
+    value       TEXT NOT NULL,
+    updated_at  INTEGER NOT NULL,
+    PRIMARY KEY (workdir, scope, path)
+  );
+  CREATE INDEX IF NOT EXISTS cache_entries_scope ON cache_entries (workdir, scope);
+  CREATE INDEX IF NOT EXISTS cache_entries_age ON cache_entries (updated_at);
+`;
+
+/** Actionable message shown whenever SQLite caching cannot be used. */
+export function sqliteUnavailableMessage(): string {
+  return [
+    'SQLite caching is unavailable, so this run will not persist a cache.',
+    'The built-in driver needs Node >= 23.4 (or Node >= 22.5 with --experimental-sqlite).',
+    'To enable it on this runtime, install the optional compatibility package',
+    `  pnpm add -D ${SQLITE_COMPAT_PACKAGE}`,
+    `and import '${SQLITE_COMPAT_PACKAGE}' from gesetz.config.ts.`,
+  ].join('\n');
+}
+
+let nodeSqliteProbe: Promise<SqliteModule | null> | undefined;
+
+function loadNodeSqlite(): Promise<SqliteModule | null> {
+  nodeSqliteProbe ??= import('node:sqlite')
+    .then((module) => module as unknown as SqliteModule)
+    .catch(() => null);
+  return nodeSqliteProbe;
+}
+
+/** True when the built-in `node:sqlite` module can be imported on this runtime. */
+export async function isNodeSqliteAvailable(): Promise<boolean> {
+  return (await loadNodeSqlite()) !== null;
+}
+
+function toEntry<Value>(row: Row): CacheEntry<Value> {
+  return {
+    hash: row.hash,
+    value: JSON.parse(row.value) as Value,
+    ...(row.fingerprint !== null ? { meta: { fingerprint: row.fingerprint } } : {}),
+  };
+}
+
+/**
+ * Creates (or migrates) the table. A `user_version` mismatch means the layout
+ * changed, and since this is only ever a cache the old contents are dropped
+ * rather than migrated.
+ */
+function prepareSchema(db: SqliteLikeDatabase): void {
+  db.exec('PRAGMA journal_mode = WAL');
+  // A shared cache file can have several gesetz processes writing to it; wait
+  // for the lock instead of failing with SQLITE_BUSY.
+  db.exec('PRAGMA busy_timeout = 5000');
+
+  const row = db.prepare('PRAGMA user_version').get() as { user_version?: unknown } | undefined;
+  const version = Number(row?.user_version ?? 0);
+  if (version === SCHEMA_VERSION) {
+    db.exec(SCHEMA);
+    return;
+  }
+  db.exec('DROP TABLE IF EXISTS cache_entries');
+  db.exec(SCHEMA);
+  db.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`);
+}
+
+function sweepExpired(db: SqliteLikeDatabase, ttlMs: number): void {
+  if (ttlMs <= 0) return;
+  db.prepare('DELETE FROM cache_entries WHERE updated_at < ?').run(Date.now() - ttlMs);
+}
+
+/**
+ * Builds a `CacheStore` over any SQLite database exposing the
+ * better-sqlite3/`node:sqlite` shape. Shared by the built-in driver and the
+ * optional `@gesetz/sqlite-compat` package.
+ */
+export function createSqliteStoreFromDatabase(
+  db: SqliteLikeDatabase,
+  options: SqliteStoreNamespaceOptions = {},
+): CacheStore {
+  const namespace = options.namespace ?? '';
+  const ttlMs = options.ttlMs ?? DEFAULT_CACHE_TTL_MS;
+
+  prepareSchema(db);
+  sweepExpired(db, ttlMs);
+
+  const selectOne = db.prepare(
+    'SELECT path, hash, fingerprint, value FROM cache_entries WHERE workdir = ? AND scope = ? AND path = ?',
+  );
+  const selectScope = db.prepare(
+    'SELECT path, hash, fingerprint, value FROM cache_entries WHERE workdir = ? AND scope = ?',
+  );
+  const upsert = db.prepare(
+    `INSERT INTO cache_entries (workdir, scope, path, hash, fingerprint, value, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT (workdir, scope, path) DO UPDATE SET
+       hash = excluded.hash,
+       fingerprint = excluded.fingerprint,
+       value = excluded.value,
+       updated_at = excluded.updated_at`,
+  );
+  const remove = db.prepare(
+    'DELETE FROM cache_entries WHERE workdir = ? AND scope = ? AND path = ?',
+  );
+
+  return {
+    async get<Value>(scope: string, entryPath: string): Promise<CacheEntry<Value> | undefined> {
+      const row = selectOne.get(namespace, scope, entryPath) as Row | undefined;
+      return row === undefined ? undefined : toEntry<Value>(row);
+    },
+
+    async put<Value>(scope: string, entryPath: string, entry: CacheEntry<Value>): Promise<void> {
+      upsert.run(
+        namespace,
+        scope,
+        entryPath,
+        entry.hash,
+        entry.meta?.['fingerprint'] ?? null,
+        JSON.stringify(entry.value),
+        Date.now(),
+      );
+    },
+
+    async delete(scope: string, entryPath: string): Promise<void> {
+      remove.run(namespace, scope, entryPath);
+    },
+
+    async entries<Value>(scope: string): Promise<ReadonlyMap<string, CacheEntry<Value>>> {
+      const rows = selectScope.all(namespace, scope) as Row[];
+      return new Map(rows.map((row) => [row.path, toEntry<Value>(row)]));
+    },
+
+    async prune(scope: string, keep: ReadonlySet<string>): Promise<readonly string[]> {
+      const rows = selectScope.all(namespace, scope) as Row[];
+      const removed: string[] = [];
+      for (const row of rows) {
+        if (!keep.has(row.path)) {
+          remove.run(namespace, scope, row.path);
+          removed.push(row.path);
+        }
+      }
+      return removed;
+    },
+
+    async close(): Promise<void> {
+      db.close();
+    },
+  };
+}
+
+/**
+ * SQLite-backed store using the built-in `node:sqlite` module.
+ *
+ * `driver` selects the backend:
+ * - `node`   — the built-in module only; fails if unavailable.
+ * - `compat` — a driver registered via `registerCacheDriver` (e.g. from
+ *              `@gesetz/sqlite-compat`); fails if none is registered.
+ * - `auto`   — the built-in module when available, otherwise a registered
+ *              driver; fails with an actionable message when neither works.
+ *
+ * Requires Node >= 23.4 (or >= 22.5 with `--experimental-sqlite`).
+ */
+export async function createSqliteStore(
+  path: string,
+  options: SqliteStoreOptions = {},
+): Promise<CacheStore> {
+  const driver = options.driver ?? 'auto';
+
+  if (driver !== 'compat') {
+    const sqlite = await loadNodeSqlite();
+    if (sqlite !== null) {
+      return createSqliteStoreFromDatabase(new sqlite.DatabaseSync(path), options);
+    }
+    if (driver === 'node') throw new SqliteUnavailableError();
+  }
+
+  const fallback = getCacheDriver('sqlite');
+  if (fallback !== undefined) return fallback(path, options);
+
+  throw new SqliteUnavailableError();
+}

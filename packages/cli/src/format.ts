@@ -247,6 +247,8 @@ interface Envelope {
   violations: EnvelopeViolation[];
   truncated: number;
   hint: string | null;
+  /** Rule ids that could not run. Results are partial when non-empty. */
+  failedRules?: string[] | undefined;
 }
 
 /**
@@ -303,6 +305,9 @@ export function buildEnvelope(
     violations,
     truncated,
     hint: truncated > 0 ? `gesetz check --format=json --all` : null,
+    ...((result.failedRules ?? []).length > 0
+      ? { failedRules: [...(result.failedRules ?? [])] }
+      : {}),
   };
 }
 
@@ -342,7 +347,10 @@ export function formatCi(result: RunResult): string {
  */
 export function formatStatusBanner(result: RunResult): string {
   const verdict = result.passing ? 'pass' : 'fail';
-  return `gesetz: ${verdict} (${result.totalViolations} violation${result.totalViolations === 1 ? '' : 's'})\n`;
+  const line = `gesetz: ${verdict} (${result.totalViolations} violation${result.totalViolations === 1 ? '' : 's'})`;
+  const failed = result.failedRules ?? [];
+  if (failed.length === 0) return `${line}\n`;
+  return `${line}\n  ${failed.length} rule(s) could not run: ${failed.join(', ')} — results are incomplete\n`;
 }
 
 // ─── List output (rule catalog) ───────────────────────────────────────────────

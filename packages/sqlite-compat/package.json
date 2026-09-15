@@ -1,0 +1,32 @@
+{
+  "name": "@gesetz/sqlite-compat",
+  "version": "3.0.0-rc.5",
+  "description": "Optional better-sqlite3 cache driver for gesetz on runtimes without node:sqlite",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "build": "tsdown",
+    "prepack": "tsdown"
+  },
+  "dependencies": {
+    "@gesetz/core": "workspace:*",
+    "better-sqlite3": "^13.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.8.0",
+    "vitest": "^4.0.0"
+  },
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ]
+}

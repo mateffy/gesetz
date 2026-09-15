@@ -1,11 +1,10 @@
 import * as nodePath from 'node:path';
 import { Effect } from 'effect';
-import { resolveImportEdges } from 'netzwerk';
 import { FileSystem, ProjectRoot } from '../services/fs';
 import { SyntaxTree } from '../services/syntax-tree';
 import type { ParsedImport } from '../services/syntax-tree';
 import { ImportResolver } from '../services/import-resolver';
-import type { File, NetworkFileLike, Rule, Violation } from '../engine/rule';
+import type { File, Rule, Violation } from '../engine/rule';
 
 export interface NoCyclesOptions {
   /** Human-readable label / description. */
@@ -129,59 +128,5 @@ export function noCycles(pattern: string | string[], opts: NoCyclesOptions = {})
     id,
     description,
     run,
-    project: {
-      patterns,
-      run: async (ctx) => {
-        const byPath = new Map<string, NetworkFileLike>();
-        for (const pattern of patterns) {
-          for (const file of await ctx.network.glob(pattern)) byPath.set(file.path, file);
-        }
-        const files = [...byPath.values()];
-        if (files.length === 0) return [];
-
-        // Import edges resolved by netzwerk from `file-import` markers — no
-        // re-parsing, no extension probing.
-        const edges = resolveImportEdges(files as never);
-        const adjacency = new Map<string, string[]>();
-        for (const edge of edges) {
-          const deps = adjacency.get(edge.from) ?? [];
-          deps.push(edge.to);
-          adjacency.set(edge.from, deps);
-        }
-
-        const visited = new Set<string>();
-        const inStack = new Set<string>();
-        const violations: Violation[] = [];
-
-        function dfs(node: string, stack: string[]): void {
-          if (inStack.has(node)) {
-            const cycleStart = stack.indexOf(node);
-            const cycle = stack.slice(cycleStart);
-            const chain = cycle.join(' → ') + ' → ' + node;
-            violations.push({
-              rule: id,
-              message: `Circular dependency: ${chain}`,
-              path: stack[stack.length - 1] ?? node,
-              severity: 'error',
-              source: 'custom',
-            });
-            return;
-          }
-          if (visited.has(node)) return;
-          visited.add(node);
-          inStack.add(node);
-          for (const dep of adjacency.get(node) ?? []) {
-            dfs(dep, [...stack, node]);
-          }
-          inStack.delete(node);
-        }
-
-        for (const file of files) {
-          dfs(file.path, []);
-        }
-
-        return violations;
-      },
-    },
   };
 }
