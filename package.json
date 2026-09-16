@@ -25,8 +25,8 @@
     "check": "node packages/cli/dist/main.js check",
     "prepack": "tsdown -W",
     "publish": "pnpm -r publish --access public",
-    "publint": "pnpm -r exec publint",
-    "attw": "pnpm -r exec attw --pack --profile esm-only"
+    "publint": "pnpm -r exec publint --pack=false",
+    "attw": "node scripts/attw.mjs"
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.4",

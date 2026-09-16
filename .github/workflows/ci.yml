@@ -38,11 +38,21 @@ jobs:
       # emits. This caught `@gesetz/core/reporters` pointing at
       # `dist/reporters.js` while tsdown writes `dist/reporters/index.js` — a
       # subpath that had been broken in every published 3.0.0-rc.
+      #
+      # `--pack=false` matters: publint's default is to pack each package, and
+      # `npm pack` runs the package's `prepack` script — a full tsdown build per
+      # package that this step does not need.
       - run: pnpm publint
 
       # Declarations match the runtime. `esm-only` is the correct profile: every
       # package is `"type": "module"` with ESM output, so the strict profile's
       # node10/require-of-ESM findings are expected rather than defects.
+      #
+      # `scripts/attw.mjs` packs with `--ignore-scripts` instead of using
+      # `attw --pack`, which would run `prepack` (a tsdown build) once per
+      # package — measured at ~6.4s and ~315 MB peak extra per package. It also
+      # fails if a package has no `dist/`, so skipping the rebuild cannot hide an
+      # unbuilt package.
       - run: pnpm attw
 
       # Full typecheck across all packages.
