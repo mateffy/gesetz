@@ -147,7 +147,19 @@ function blankStringsAndComments(source: string): string {
  * Flags unexplained numeric literals in code.
  *
  * Numbers assigned to a `SCREAMING_SNAKE_CASE` constant, and any digits inside
- * strings or comments, are ignored.
+ * strings and comments, are ignored.
+ *
+ * @deprecated Use oxlint's `no-magic-numbers`. It reads the AST, so it cannot
+ * mistake a digit inside a string, comment or regex for a literal the way a
+ * textual scan can:
+ *
+ * ```jsonc
+ * // .oxlintrc.json
+ * { "rules": { "no-magic-numbers": ["error", { "ignore": [0, 1, 2, 100] }] } }
+ * ```
+ *
+ * Kept for languages oxlint does not cover and for projects without it. Expect
+ * removal in a future major version.
  */
 export function noMagicNumbers(options: NoMagicNumbersOptions = {}): Check {
   const ignore = new Set<number>(options.ignore ?? [0, 1, -1, 2, 100]);

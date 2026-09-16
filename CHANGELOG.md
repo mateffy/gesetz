@@ -150,6 +150,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   oxlint does not cover, and will be removed in a future major version. It is no
   longer used by gesetz's own configuration.
 
+- **Eight more checks, for the same reason:** Gesetz ships a rule only when
+  nothing better exists, and oxlint already implements these from the AST and
+  maintains them upstream. Each is marked `@deprecated` in its JSDoc (so editors
+  surface it) and in the README, but **nothing was removed or changed** — they
+  still work and are still used by gesetz's own configuration.
+
+  | Deprecated | Use instead |
+  |---|---|
+  | `noGodFile` | `max-lines` |
+  | `noConsoleLog` | `no-console` |
+  | `noEmptyCatch` | `no-empty` |
+  | `noMagicNumbers` | `no-magic-numbers` |
+  | `noTypedAny` | `typescript/no-explicit-any` |
+  | `noDefaultExport` | `import/no-default-export` (enable the `import` plugin) |
+  | `noBarrelFile` | `oxc/no-barrel-file` |
+  | `requireExplicitReturnType` | `typescript/explicit-function-return-type` |
+
+  Moving a rule to oxlint does not lose its score contribution: `@gesetz/oxlint`
+  feeds oxlint's findings into the same report and category scores. The rest of
+  the catalog has no oxlint equivalent — file-pairing rules, architecture layers,
+  pattern rules, secret scanning, the Effect rules, and every PHP/Laravel rule
+  (oxlint is JavaScript/TypeScript only).
+
 ### Notes
 
 - `ProjectRuleContext` no longer has a `network` field; it exposes

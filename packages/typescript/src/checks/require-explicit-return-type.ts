@@ -18,6 +18,15 @@ export interface RequireExplicitReturnTypeOptions {
  *
  * Implemented with ast-grep (syntactic).
  *
+ * @deprecated Use oxlint's `typescript/explicit-function-return-type`:
+ *
+ * ```jsonc
+ * // .oxlintrc.json
+ * { "rules": { "typescript/explicit-function-return-type": "error" } }
+ * ```
+ *
+ * Kept for projects without oxlint. Expect removal in a future major version.
+ *
  * @example
  * select('src/scripts/\*.{ts,tsx}').check(requireExplicitReturnType())
  */

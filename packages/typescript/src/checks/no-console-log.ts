@@ -12,6 +12,16 @@ export interface NoConsoleLogOptions {
  * Bans `console.log` (and optionally all `console.*`) in production files.
  *
  * Moved from `@gesetz/core` — this is a TypeScript/JavaScript-specific check.
+ *
+ * @deprecated Use oxlint's `no-console`, which covers the same ground and is
+ * maintained upstream:
+ *
+ * ```jsonc
+ * // .oxlintrc.json
+ * { "rules": { "no-console": "error" } }
+ * ```
+ *
+ * Kept for projects without oxlint. Expect removal in a future major version.
  */
 export function noConsoleLog(options: NoConsoleLogOptions = {}): Check {
   const pattern = options.allowWarnError

@@ -560,6 +560,49 @@ Prints a markdown agent skill file you can pipe directly into your AI agent's sk
 
 Checks are grouped by **what they need to run** — the thing you actually have to know when composing a config.
 
+> **Deprecated checks.** Gesetz writes a rule only when nothing better exists. For
+> rules that oxlint already implements — and maintains, from the AST rather than
+> from text — the gesetz version is deprecated and marked as such below. It still
+> works and is still supported for now; it will be removed in a future major
+> version. Prefer the oxlint rule, which keeps its score contribution either way
+> because `@gesetz/oxlint` feeds oxlint's findings into the same report:
+>
+> | Deprecated here | Use instead |
+> |---|---|
+> | `noDeepNesting` | `max-depth`, `max-nested-callbacks` |
+> | `noGodFile` | `max-lines` |
+> | `noConsoleLog` | `no-console` |
+> | `noEmptyCatch` | `no-empty` |
+> | `noMagicNumbers` | `no-magic-numbers` |
+> | `noTypedAny` | `typescript/no-explicit-any` |
+> | `noDefaultExport` | `import/no-default-export` (enable the `import` plugin) |
+> | `noBarrelFile` | `oxc/no-barrel-file` |
+> | `requireExplicitReturnType` | `typescript/explicit-function-return-type` |
+>
+> ```jsonc
+> // .oxlintrc.json
+> {
+>   "plugins": ["import"],
+>   "rules": {
+>     "max-depth": ["error", { "max": 4 }],
+>     "max-nested-callbacks": ["error", { "max": 3 }],
+>     "max-lines": ["error", { "max": 400 }],
+>     "no-console": "error",
+>     "no-empty": "error",
+>     "no-magic-numbers": ["error", { "ignore": [0, 1, 2, 100] }],
+>     "typescript/no-explicit-any": "error",
+>     "typescript/explicit-function-return-type": "error",
+>     "import/no-default-export": "error",
+>     "oxc/no-barrel-file": "error"
+>   }
+> }
+> ```
+>
+> The rest of the catalog is unaffected: file-pairing rules (`requireSibling`,
+> `requireChildren`, `forbidFile`), architecture layers, pattern rules, secret
+> scanning, the Effect rules, and every PHP/Laravel rule have no oxlint
+> equivalent. oxlint only covers JavaScript and TypeScript.
+
 ### A. Universal text/regex checks (core, any file, no backend)
 
 These live in `@gesetz/core` and work on any file using text analysis or the file system. No AST, no type-checker, no language-specific parser. Fast and universal.
@@ -603,7 +646,7 @@ requirePattern(/declare\(strict_types=1\)/)
 
 #### Structure checks
 
-**`noGodFile({ maxLines?, message? })`** — flags files exceeding a line-count threshold. Default `maxLines: 400`, severity `warn`.
+**`noGodFile({ maxLines?, message? })`** — flags files exceeding a line-count threshold. Default `maxLines: 400`, severity `warn`. **Deprecated** — use oxlint's `max-lines`.
 
 ```ts
 noGodFile({ maxLines: 300 })
@@ -792,9 +835,9 @@ This package exports `typescriptSyntaxBackend` (oxc-parser for imports/exports +
 
 These used to live in core; they were moved because they're TypeScript/JavaScript-specific:
 
-- **`noConsoleLog({ allowWarnError?, message? })`** — bans `console.*`. `allowWarnError: true` allows `console.warn`/`console.error`.
-- **`noEmptyCatch({ message? })`** — flags empty or comment-only catch blocks. Severity `error`.
-- **`noMagicNumbers({ ignore?, message? })`** — flags unexplained numeric literals (skips `const UPPER_SNAKE = N` and the default ignore list `[0, 1, -1, 2, 100]`). Capped at 20/file.
+- **`noConsoleLog({ allowWarnError?, message? })`** — bans `console.*`. `allowWarnError: true` allows `console.warn`/`console.error`. **Deprecated** — use oxlint's `no-console`.
+- **`noEmptyCatch({ message? })`** — flags empty or comment-only catch blocks. Severity `error`. **Deprecated** — use oxlint's `no-empty`.
+- **`noMagicNumbers({ ignore?, message? })`** — flags unexplained numeric literals (skips `const UPPER_SNAKE = N` and the default ignore list `[0, 1, -1, 2, 100]`). Capped at 20/file. **Deprecated** — use oxlint's `no-magic-numbers`.
 - **`noTrivialComment({ message? })`** — flags AI-narration comments (`// Import the module`) and decorative dividers (`// ======`). Severity `info`.
 - **`relativeImports({ message? })`** — every relative `import … from './foo'` must resolve to an existing file (`.ts`, `.tsx`, `/index.ts`, `/index.tsx`).
 
@@ -819,17 +862,17 @@ requireOptionsObject('useMutation', { argIndex: 1, requiredKeys: ['onMutate', 'o
 
 #### TypeScript strictness (new, ast-grep based)
 
-**`noTypedAny({ message? })`** — bans `any` type annotations (`: any`, `as any`, `<any>`).
+**`noTypedAny({ message? })`** — bans `any` type annotations (`: any`, `as any`, `<any>`). **Deprecated** — use oxlint's `typescript/no-explicit-any`.
 
 **`noAsUnknownAs({ message? })`** — bans double casts `as unknown as X` (and `as any as X`). Use a type guard instead.
 
-**`noDefaultExport({ message? })`** — bans `export default`. Named exports improve refactorability and IDE auto-import.
+**`noDefaultExport({ message? })`** — bans `export default`. Named exports improve refactorability and IDE auto-import. **Deprecated** — use oxlint's `import/no-default-export`.
 
 **`noEnum({ message? })`** — bans TypeScript `enum`. Prefer union types or `as const` object maps.
 
-**`noBarrelFile({ maxReexports?, message? })`** — flags `index.{ts,tsx}` files that re-export more than `maxReexports` (default 5) modules. Barrel files harm tree-shaking.
+**`noBarrelFile({ maxReexports?, message? })`** — flags `index.{ts,tsx}` files that re-export more than `maxReexports` (default 5) modules. Barrel files harm tree-shaking. **Deprecated** — use oxlint's `oxc/no-barrel-file`.
 
-**`requireExplicitReturnType({ kinds?, ignore?, message? })`** — public functions and methods must declare an explicit return type. `kinds` default `['function', 'method']`.
+**`requireExplicitReturnType({ kinds?, ignore?, message? })`** — public functions and methods must declare an explicit return type. `kinds` default `['function', 'method']`. **Deprecated** — use oxlint's `typescript/explicit-function-return-type`.
 
 ```ts
 requireExplicitReturnType({ ignore: /^test[A-Z]/ })  // ignore test functions

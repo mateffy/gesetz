@@ -10,6 +10,17 @@ export interface NoTypedAnyOptions {
  *
  * Implemented with ast-grep (syntactic). No type checker required.
  *
+ * @deprecated Use oxlint's `typescript/no-explicit-any` (the `typescript` plugin
+ * is enabled by default), which is the same rule ESLint users know and is
+ * maintained upstream:
+ *
+ * ```jsonc
+ * // .oxlintrc.json
+ * { "rules": { "typescript/no-explicit-any": "error" } }
+ * ```
+ *
+ * Kept for projects without oxlint. Expect removal in a future major version.
+ *
  * @example
  * select('src/scripts/\*.{ts,tsx}').check(noTypedAny())
  */

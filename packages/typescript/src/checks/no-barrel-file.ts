@@ -20,6 +20,16 @@ export interface NoBarrelFileOptions {
  *
  * Implemented with ast-grep (syntactic).
  *
+ * @deprecated Use oxlint's `oxc/no-barrel-file` (the `oxc` plugin is enabled by
+ * default), which is the same rule and is maintained upstream:
+ *
+ * ```jsonc
+ * // .oxlintrc.json
+ * { "rules": { "oxc/no-barrel-file": "error" } }
+ * ```
+ *
+ * Kept for projects without oxlint. Expect removal in a future major version.
+ *
  * @example
  * select('src/scripts/index.{ts,tsx}').check(noBarrelFile())
  */

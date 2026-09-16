@@ -11,6 +11,15 @@ export interface NoEmptyCatchOptions {
  * Detects empty or trivially-commented catch blocks that swallow errors.
  *
  * Moved from `@gesetz/core` — this is a TypeScript/JavaScript-specific check.
+ *
+ * @deprecated Use oxlint's `no-empty`:
+ *
+ * ```jsonc
+ * // .oxlintrc.json
+ * { "rules": { "no-empty": "error" } }
+ * ```
+ *
+ * Kept for projects without oxlint. Expect removal in a future major version.
  */
 export function noEmptyCatch(options: NoEmptyCatchOptions = {}): Check {
   return async (file) => {

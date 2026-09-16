@@ -23,6 +23,16 @@ export interface NoGodFileOptions {
 /**
  * Flags files that exceed a line-count threshold.
  *
+ * @deprecated Use oxlint's `max-lines`, which is maintained upstream:
+ *
+ * ```jsonc
+ * // .oxlintrc.json
+ * { "rules": { "max-lines": ["error", { "max": 400 }] } }
+ * ```
+ *
+ * Kept for languages oxlint does not cover and for projects without it. Expect
+ * removal in a future major version.
+ *
  * @example
  * select('src/scripts/\*.ts').category('structure').check(noGodFile({ maxLines: 300 }))
  */
