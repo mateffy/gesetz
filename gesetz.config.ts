@@ -10,7 +10,6 @@ import {
   defineConfig,
   select,
   noGodFile,
-  noDeepNesting,
   noDebuggingResidueFiles,
   noHardcodedSecret,
   noPattern,
@@ -66,17 +65,10 @@ export default defineConfig({
       .category('structure')
       .check(noGodFile({ maxLines: 400 })),
 
-    // `noDeepNesting` counts *indentation*, not control-flow depth: a callback
-    // passed to `.pipe(...)` adds a level exactly as a nested `if` does, and this
-    // codebase indents to 6 routinely (Effect generators, nested callbacks).
-    // The threshold is therefore set to where indentation stops being readable
-    // here — 8 — rather than to a control-flow number that would flag the house
-    // style 160+ times. The one file that exceeded it was refactored instead.
-    select('packages/**/*.ts')
-      .exclude('**/*.test.ts', '**/tests/**', '**/node_modules/**')
-      .label('No deep nesting')
-      .category('structure')
-      .check(noDeepNesting({ maxLevels: 8 })),
+    // Nesting depth is deliberately NOT checked here. `noDeepNesting` is
+    // deprecated: it measures indentation, not control-flow depth, and flagged
+    // this codebase 227 times for ordinary formatting. Use oxlint's
+    // `eslint/max-depth` instead — see the deprecation note on that check.
 
     select('packages/**/*.ts')
       .exclude('**/*.test.ts', '**/tests/**', '**/node_modules/**', '**/dist/**')

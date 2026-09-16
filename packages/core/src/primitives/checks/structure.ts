@@ -54,8 +54,31 @@ export interface NoDeepNestingOptions {
 }
 
 /**
- * Detects deep brace/control-flow nesting via indentation heuristic.
- * Counts leading spaces / tab-width (4) as nesting level.
+ * Flags deeply nested code using an **indentation** heuristic: it counts leading
+ * whitespace, so a callback passed to `.pipe(...)` adds a level exactly as a
+ * nested `if` does, and continuation lines are counted too.
+ *
+ * That is not control-flow depth, and the difference is not academic: run against
+ * this repository it reported 227 warnings, the large majority of which were not
+ * nesting at all (164 of them were ordinary level-6 indentation).
+ *
+ * @deprecated Use oxlint's `eslint/max-depth`, which measures real block nesting
+ * from the AST, plus `eslint/max-nested-callbacks` for callback depth. Both match
+ * ESLint's semantics, are maintained upstream, and live in oxlint's `pedantic`
+ * category (off by default):
+ *
+ * ```jsonc
+ * // .oxlintrc.json
+ * {
+ *   "rules": {
+ *     "max-depth": ["error", { "max": 4 }],
+ *     "max-nested-callbacks": ["error", { "max": 3 }]
+ *   }
+ * }
+ * ```
+ *
+ * Kept only for languages oxlint does not cover and for projects without it.
+ * Expect removal in a future major version.
  */
 export function noDeepNesting(options: NoDeepNestingOptions = {}): Check {
   const maxLevels = options.maxLevels ?? DEFAULT_MAX_LEVELS;

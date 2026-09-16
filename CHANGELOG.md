@@ -125,6 +125,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Discovery honours `.gitignore` via `git ls-files`, including files deleted from
   the working tree but still present in the git index.
 
+### Deprecated
+
+- **`noDeepNesting` from `@gesetz/core`.** It flags *indentation*, not control-flow
+  depth: a callback passed to `.pipe(...)` counts as a level exactly as a nested
+  `if` does, and continuation lines are counted too. Against this repository it
+  reported 227 warnings, of which the large majority were ordinary formatting.
+  Use oxlint's `eslint/max-depth` and `eslint/max-nested-callbacks` instead —
+  both measure real nesting from the AST, match ESLint's semantics, and sit in
+  oxlint's `pedantic` category (enable them explicitly):
+
+  ```jsonc
+  // .oxlintrc.json
+  {
+    "rules": {
+      "max-depth": ["error", { "max": 4 }],
+      "max-nested-callbacks": ["error", { "max": 3 }]
+    }
+  }
+  ```
+
+  Gesetz recommends oxlint and oxfmt for TypeScript/JavaScript, so for TS/JS
+  projects its own nesting check has no reason to exist. It is kept for languages
+  oxlint does not cover, and will be removed in a future major version. It is no
+  longer used by gesetz's own configuration.
+
 ### Notes
 
 - `ProjectRuleContext` no longer has a `network` field; it exposes

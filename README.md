@@ -611,6 +611,26 @@ noGodFile({ maxLines: 300 })
 
 **`noDeepNesting({ maxLevels?, message? })`** — flags lines whose indentation exceeds a threshold (2-space or tab). Default `maxLevels: 4`, severity `warn`, capped at 10 violations/file.
 
+> **Deprecated for TypeScript/JavaScript.** It measures *indentation*, not
+> control-flow depth — a callback passed to `.pipe(...)` counts as a level exactly
+> as a nested `if` does — so it reports formatting as nesting. Use oxlint's
+> `eslint/max-depth` (and `eslint/max-nested-callbacks` for callback depth)
+> instead; oxlint is what Gesetz recommends for TS/JS and its rules measure real
+> nesting from the AST:
+>
+> ```jsonc
+> // .oxlintrc.json
+> {
+>   "rules": {
+>     "max-depth": ["error", { "max": 4 }],
+>     "max-nested-callbacks": ["error", { "max": 3 }]
+>   }
+> }
+> ```
+>
+> This check remains for languages oxlint does not cover and for projects without
+> it, and is expected to be removed in a future major version.
+
 ```ts
 noDeepNesting({ maxLevels: 3 })
 ```
