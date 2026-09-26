@@ -49,10 +49,9 @@ describe('prettier adapter', () => {
   });
 
   it('returns empty array when all files are formatted', async () => {
-    const execError = Object.assign(new Error('exit 1'), { stdout: '', status: 1 });
-    (childProcess.execFileSync as ReturnType<typeof vi.fn>).mockImplementation(() => {
-      throw execError;
-    });
+    // A clean --list-different run exits 0 and prints nothing. A non-zero exit
+    // with empty stdout is a tool that could not run; execTool dies on it.
+    (childProcess.execFileSync as ReturnType<typeof vi.fn>).mockImplementation(() => '');
 
     const rule = prettier({ cwd: '/project' });
     const violations = await Effect.runPromise(Effect.provide(rule.run, TestLayer));

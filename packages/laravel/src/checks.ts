@@ -5,7 +5,7 @@
  * All checks here assume a standard Laravel project structure.
  */
 import { select } from '@gesetz/core';
-import { strictTypes, psrNamespace, noInlineQueries } from '@gesetz/php';
+import { strictTypes, psrNamespace, noInlineQueries, indexOfCall } from '@gesetz/php';
 import type { Rule, Check, Violation } from '@gesetz/core';
 
 // ─── declare strict_types=1 ───────────────────────────────────────────────────
@@ -143,7 +143,7 @@ export function noDd(opts: NoDdOptions = {}): Check {
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i] ?? '';
       for (const p of patterns) {
-        if (line.includes(p)) {
+        if (indexOfCall(line, p) >= 0) {
           violations.push({
             severity: opts.severity ?? 'error',
             source: 'core',
@@ -165,6 +165,17 @@ export interface NoFacadesOptions {
   readonly facades?: string[];
   readonly message?: string;
   readonly severity?: Violation['severity'];
+}
+
+/** A PHP line that is comment-only: `//`, `#`, `/*`, or a continuation `*`. */
+function isComment(line: string): boolean {
+  const trimmed = line.trimStart();
+  return (
+    trimmed.startsWith('//') ||
+    trimmed.startsWith('#') ||
+    trimmed.startsWith('/*') ||
+    trimmed.startsWith('*')
+  );
 }
 
 const DEFAULT_FACADES = [
@@ -192,6 +203,8 @@ export function noFacades(opts: NoFacadesOptions = {}): Check {
     const lines = file.content.split('\n');
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i] ?? '';
+      // A facade named in a comment is documentation, not usage.
+      if (isComment(line)) continue;
       for (const f of facades) {
         if (line.includes(f)) {
           violations.push({

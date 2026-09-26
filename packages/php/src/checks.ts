@@ -85,6 +85,25 @@ export function psrNamespace(opts: {
  * // Laravel — no inline raw DB queries
  * noInlineQueries(['DB::table', 'DB::raw'], { message: 'Use Eloquent instead of DB::' })
  */
+const IDENT_CHAR = /[A-Za-z0-9_$]/;
+
+/**
+ * Index of the first occurrence of `needle` in `line` that is not preceded by an
+ * identifier character, or -1.
+ *
+ * Patterns are call names (`dd(`, `env(`), so a plain `includes` matches the tail
+ * of a longer identifier: `dd(` matched `add(` and `env(` matched `getenv(`.
+ */
+export function indexOfCall(line: string, needle: string): number {
+  let from = 0;
+  for (;;) {
+    const at = line.indexOf(needle, from);
+    if (at < 0) return -1;
+    if (at === 0 || !IDENT_CHAR.test(line[at - 1] ?? '')) return at;
+    from = at + 1;
+  }
+}
+
 export function noInlineQueries(
   patterns: string[],
   opts: { message?: string; severity?: Violation['severity'] } = {},
@@ -95,7 +114,7 @@ export function noInlineQueries(
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i] ?? '';
-      const matched = patterns.find((pattern) => line.includes(pattern));
+      const matched = patterns.find((pattern) => indexOfCall(line, pattern) >= 0);
       if (matched) {
         violations.push({
           severity: opts.severity ?? 'error',

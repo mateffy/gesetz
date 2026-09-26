@@ -41,6 +41,7 @@ export function requireRelatedExports(
               opts.message?.(exp.name, missing) ??
               `Export '${exp.name}' requires related exports: ${missing.join(', ')}`,
             path: file.path,
+            line: exp.line,
           });
         }
       }

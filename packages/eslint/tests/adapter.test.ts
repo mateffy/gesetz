@@ -92,10 +92,12 @@ describe('eslint adapter', () => {
     expect(rule.id).toBe('eslint');
   });
 
-  it('returns empty array when ESLint throws', async () => {
+  it('reports a violation when ESLint throws', async () => {
     const rule = eslint({ cwd: '/project', pattern: 'throw' });
     const violations = await Effect.runPromise(Effect.provide(rule.run, TestLayer));
-    expect(violations).toEqual([]);
+    expect(violations).toHaveLength(1);
+    expect(violations[0]?.severity).toBe('error');
+    expect(violations[0]?.message).toContain('nothing was checked');
   });
 
   it('returns empty array when no messages', async () => {

@@ -1645,18 +1645,75 @@ User instructed: "fix everything" — resolve all remaining violations to get to
 01a0d92e-338b-7628-a543-fca767ff4d5f
 ```
 
-Investigating and fixing the stale 43-vs-38 discrepancy.
+Investigating and fixing the stale 43-vs-38 discrepancy, then writing test files for every check.
 
 - [x] Traced source of stale results: gesetz passes `{kind:'sqlite', path}` to netzwerk, which only accepts `'memory' | 'libsql'`. Unknown kind silently falls through to netzwerk's **default: `~/.fabrik/netzwerk.db`** — a 159 MB global cache shared across *every* project.
-      - BLOCKER: Stale entries from unrelated runs leaked into current results.
-        - FINAL FIX: Mapping `{kind:'sqlite', path}` → `{kind:'libsql', url:'file:<path>'}` in runner.ts.
+  - BLOCKER: Stale entries from unrelated runs leaked into current results.
+    - FINAL FIX: Mapping `{kind:'sqlite', path}` → `{kind:'libsql', url:'file:<path>'}` in runner.ts.
 - [x] Added `toNetworkStorage()` helper (exported), replacing the `as NetworkStorageConfig` cast.
 - [x] Documented in config.ts why the two config types are NOT identical (correcting the old comment).
 - [x] Added 5 tests in `tests/engine/storage-mapping.test.ts` covering the mapping, memory passthrough, netzwerk acceptance, and project isolation.
 - [x] Rebuilt CLI; after trashing the stale global cache, results match: **38 source-files-need-tests** (down from 43).
 - [x] Verified `.gesetz/cache.db` is now written locally (~1.4 MB) instead of `~/.fabrik/netzwerk.db`.
-
-Also fixed oxlint/oxfmt wiring — still pending: 43 test files are missing (separate task, not the gate bug).
+- [x] Fix oxlint/oxfmt wiring (pending from earlier).
+- [o] Write test files for all 38 content checks:
+  - [x] typescript: `no-literal-jsx-text`, `no-literal-non-jsx-text`, `no-literal-string-jsx-attr`, `no-expression-tostring-context`
+  - [x] typescript: `disallow-instanceof-arraycheck`, `disallow-redundant-optional-chain`
+  - [x] typescript: `require-related-exports`, `require-options-object`, `require-explicit-return-type`
+  - [x] typescript: `no-void-liars` (no-void-return-type), `no-boolean-literal-return`
+  - [x] typescript: `no-assert-tautology` (test vs source), `no-magic-arguments`, `no-sensitive-innerhtml`
+  - [x] typescript: `no-unbound-method`, `no-array-mutation`, `no-object-property`
+  - [x] typescript: `no-duplicate-string` — 22 tests, detected an oidc-client duplicate (real issue)
+  - [x] typescript: `await-promise-then`, `disallow-settimeout`, `disallow-setinterval`
+  - [x] typescript: `no-force-call`, `no-null-reference`, `no-nested-conditional`
+  - [x] typescript: `no-sensitive-data-exposure`, `no-hardcoded-credentials`
+  - [x] typescript: `no-implied-eval`, `no-new-func`, `no-invalid-regexp`
+  - [x] typescript: `no-sparse-array`, `no-redundant-parentheses`, `no-param-reassign`
+  - [x] typescript: `disallow-redundant-enum-value`, `no-import-side-effect`
+  - [x] typescript: `assert-runtime-type`, `no-bad-lodash-mutation`
+  - [x] typescript: `ensure-error-boundary` — test-only file, the rule itself lives in `packages/react`
+  - [x] typescript: all 20 test files pass, 176 tests green
+  - [x] typescript: write `shared.ts` tests — 11 it blocks, covers getParser, parseFile, findByKind, findChildText, startLine, getCallArgs, walkDescendants
+  - [o] typescript: write `test-score.ts` tests — 11 it blocks covering scoring mechanics, thresholds, penalties, variety bonus, error/async bonuses
+    - [x] Written, but 2 failures to fix:
+      - FIX: severity is `'warn'` not `'error'` — fix expectation in test
+      - FIX: shared.test.ts has an assertion mismatch — investigate and fix
+  - [ ] core: write tests for errors, helpers, graph, architecture, architecture/helpers, import-resolver, test-helpers (8 files)
+    - [x] tests/primitives/graph.test.ts — noCycles rule tests (10 it blocks)
+    - [x] tests/engine/architecture.test.ts — defineArchitecture rule tests (9 it blocks)
+    - [x] tests/services/import-resolver.test.ts — import resolution tests
+    - [x] Fixed `write()` helper in graph.test.ts and architecture.test.ts to create parent dirs (ENOENT on src/other/a.ts)
+    - [x] Fixed fixture paths in architecture.test.ts (`../../ui/b` → `../ui/b` — was a relative-level bug)
+  - [ ] core: write tests for 5 reporters (github-actions, json, junit, process, test-runner)
+  - [ ] cli: write tests for 9 files (blueprints, detect, presets, prompt, rules, write, load-config, main, skill)
+    - [x] init-blueprints.test.ts (7 it blocks)
+    - [x] init-detect.test.ts (5 it blocks)
+    - [x] init-presets.test.ts (4 it blocks)
+    - [x] init-write.test.ts — written, 2 assertions failing
+    - [x] load-config.test.ts — written, passes 6/6
+    - [x] skill.test.ts — written, passes 5/5
+    - [o] init-prompt.test.ts
+    - [ ] init-rules.test.ts
+    - [ ] main.test.ts
+  - [o] laravel: write tests for laravel checks
+    - [x] Exported `indexOfCall` from `@gesetz/php` so laravel check can use it
+    - [x] Rebuilt `@gesetz/php` so laravel tsc passes (consumes dist output)
+    - [x] `packages/laravel/tests/checks.test.ts` — 34 tests covering requireStrictTypes, requirePsrNamespaces, noRawDbQueries, noEnvOutsideConfig, noDebugHelpers, noDd, noFacades, indexOfCall
+    - [x] Fixed 2 test expectations: one-violation-per-line is deliberate (break after first match)
+    - [x] All 34 tests green
+- [o] Real bugs found and fixed during testing:
+  - [x] `no-literal-string-jsx-attr`: kept stale empty-payload violations after `continue`.
+  - [x] `no-expression-tostring-context`: escaped HTML entities are NOT a problem (reverted experiment).
+  - [x] `disallow-redundant-optional-chain`: `startLine("Accessor")` returns **line 0**, but `getCallArgs` returned a synthetic node — nested `undefined` check couldn't see the param. Fixed with `walkDescendants` fallback.
+  - [x] `no-magic-arguments`: string-lit check was `node.text()` on a non-existent child — null pointer. Added guard.
+  - [x] `no-sensitive-innerhtml`: `call.ancestor("method")` could return null. Added guard.
+  - [x] `no-unbound-method`: regex check for `object[method]()` was too strict — `[\w$]` missed multi-line/arrow. Fixed regex.
+  - [x] `no-array-mutation`: splice detection tripped on comments. Patched logic.
+  - [x] `no-object-property`: multi-line object never satisfied `insideNested === 0` because the open brace on the same line incremented the counter before the check. Fixed with `atObjectTopLevel` detection.
+  - [x] `no-duplicate-string`: started at 98 violations, fixed loop to only compare with *earlier* strings (was comparing every pair = O(n²) with all pairs). Real duplicates found in oidc-client config.
+  - [x] `await-promise-then`: false positive on `Promise.all(...).then` — fixed.
+  - [x] `no-sensitive-data-exposure`: regex `/(key|secret|password|token|credential|api[-_]?key)/i` matched too broadly (e.g. `authToken`). Tightened to require WHOLE-WORD match with `/\b(key|secret|password|token|credential|api[-_]?key)\b/i`.
+  - [x] `no-implied-eval`: `new Function(...)` detection fell through if th
 
 ## 2026-09-26 22:46:12Z — Wiring oxlint + oxfmt; fixed stale-gate bug + no-god-files; 43 test files missing
 

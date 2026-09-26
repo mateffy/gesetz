@@ -9,6 +9,7 @@ export type {
   Exemption,
   RuleCategory,
   RuleGuidance,
+  BaselineMessageMode,
 } from './engine/rule';
 
 // ─── Tagged errors ────────────────────────────────────────────────────────────
@@ -19,6 +20,7 @@ export {
   PhpstanError,
   ExecError,
   ReporterError,
+  BaselineFileError,
 } from './engine/errors';
 
 // ─── Config ───────────────────────────────────────────────────────────────────
@@ -27,6 +29,7 @@ export type {
   UserConfig,
   ResolvedConfig,
   CategoryThreshold,
+  BaselineConfig,
   GesetzStorageConfig,
 } from './engine/config';
 
@@ -39,6 +42,34 @@ export type {
   RunAllOptions,
   ScanStats,
 } from './engine/runner';
+
+// ─── Violation baseline ───────────────────────────────────────────────────────
+export {
+  BASELINE_FILE_NAME,
+  BASELINE_FILE_VERSION,
+  STALE_RULE_ID,
+  buildBaselineFile,
+  normalizeMessage,
+  normalizePath,
+  violationHash,
+} from './engine/baseline';
+export type { BaselineEntry, BaselineFile, BaselineViolationGroup } from './engine/baseline';
+export {
+  baselinePathFor,
+  readBaselineFile,
+  serializeBaseline,
+  writeBaselineFile,
+} from './engine/baseline-file';
+export { partitionByBaseline, planBaselineWrite } from './engine/baseline-apply';
+export type {
+  BaselinePartition,
+  BaselinePartitionOptions,
+  BaselineRefusal,
+  BaselineRuleCounts,
+  BaselineRuleDelta,
+  BaselineStats,
+  BaselineWritePlan,
+} from './engine/baseline-apply';
 
 // ─── Exec helpers ─────────────────────────────────────────────────────────────
 export { execTool, runWithTempFile, extractLocation } from './engine/exec';

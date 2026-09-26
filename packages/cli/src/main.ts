@@ -12,8 +12,9 @@ import { Command, Options } from '@effect/cli';
 import { NodeContext, NodeRuntime } from '@effect/platform-node';
 import { Console, Effect, Option } from 'effect';
 import * as nodePath from 'node:path';
-import { runAll } from '@gesetz/core';
+import { runAll, baselinePathFor, type BaselineFile } from '@gesetz/core';
 import { loadConfig } from './load-config';
+import { baselineCommand, loadBaseline } from './baseline';
 import {
   formatCategoryTable,
   formatViolations,
@@ -104,6 +105,16 @@ const checkCommand = Command.make(
       ),
       Options.withDefault(false),
     ),
+    baseline: Options.boolean('baseline').pipe(
+      Options.withDescription(
+        'Report against .gesetz-baseline.json (the default when the file exists)',
+      ),
+      Options.withDefault(false),
+    ),
+    noBaseline: Options.boolean('no-baseline').pipe(
+      Options.withDescription('Ignore .gesetz-baseline.json and report the full inventory'),
+      Options.withDefault(false),
+    ),
   },
   (opts) =>
     Effect.gen(function* () {
@@ -129,6 +140,37 @@ const checkCommand = Command.make(
           }),
         ),
       );
+
+      // Resolves the baseline once per command. `--baseline` demands the file;
+      // otherwise an existing file is used automatically.
+      let baseline: BaselineFile | null = null;
+      if (opts.baseline && opts.noBaseline) {
+        yield* Console.error('--baseline and --no-baseline are mutually exclusive.');
+        yield* Effect.sync(() => {
+          process.exitCode = 1;
+        });
+        return;
+      }
+      if (!opts.noBaseline) {
+        const loaded = yield* loadBaseline(root).pipe(Effect.either);
+        if (loaded._tag === 'Left') {
+          yield* Console.error(loaded.left.message);
+          yield* Effect.sync(() => {
+            process.exitCode = 1;
+          });
+          return;
+        }
+        baseline = loaded.right;
+        if (baseline === null && opts.baseline) {
+          yield* Console.error(
+            `No baseline file at ${baselinePathFor(root)}. A maintainer creates it with \`gesetz baseline\`.`,
+          );
+          yield* Effect.sync(() => {
+            process.exitCode = 1;
+          });
+          return;
+        }
+      }
 
       // Apply category filter
       const filteredConfig = Option.isSome(categoryFilter)
@@ -164,6 +206,7 @@ const checkCommand = Command.make(
         const result = yield* runAll(
           { ...filteredConfig, thresholds, storage: resolveStorage(root, opts.full) },
           {
+            baseline,
             fileFilter: Option.getOrUndefined(filesGlobs) ?? null,
             onScan: (scan) => {
               process.stderr.write(
@@ -296,7 +339,7 @@ const gesetzCommand = Command.make('gesetz', {}, () =>
   Console.log('Run `gesetz --help` to see available commands.'),
 ).pipe(
   Command.withDescription('Unified code quality gate \u2014 Gesetz v0.1.0'),
-  Command.withSubcommands([checkCommand, listCommand, skillCommand, initCommand]),
+  Command.withSubcommands([checkCommand, listCommand, skillCommand, baselineCommand, initCommand]),
 );
 
 // ─── Entry point ─────────────────────────────────────────────────────────────

@@ -108,7 +108,7 @@ describe('bun-test adapter', () => {
     );
   });
 
-  it('returns empty array when JUnit file is unreadable', async () => {
+  it('reports a violation when the JUnit file is unreadable', async () => {
     const tmpDir = '/tmp/gesetz-bun-test-4';
     (nodeFs.mkdtempSync as ReturnType<typeof vi.fn>).mockReturnValue(tmpDir);
     (nodeFs.readFileSync as ReturnType<typeof vi.fn>).mockImplementation(() => {
@@ -118,7 +118,9 @@ describe('bun-test adapter', () => {
 
     const rule = bunTest({ cwd: '/project' });
     const violations = await Effect.runPromise(Effect.provide(rule.run, TestLayer));
-    expect(violations).toEqual([]);
+    expect(violations).toHaveLength(1);
+    expect(violations[0]?.severity).toBe('error');
+    expect(violations[0]?.message).toContain('nothing was checked');
   });
 
   describe('FileFilter integration', () => {

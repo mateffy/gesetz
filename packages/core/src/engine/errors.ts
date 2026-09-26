@@ -28,3 +28,9 @@ export class ExecError extends Data.TaggedError('ExecError')<{
 export class ReporterError extends Data.TaggedError('ReporterError')<{
   readonly cause: unknown;
 }> {}
+
+export class BaselineFileError extends Data.TaggedError('BaselineFileError')<{
+  readonly path: string;
+  readonly message: string;
+  readonly cause?: unknown;
+}> {}

@@ -51,15 +51,28 @@ async function executeOxlint(
   const args = ['--format=json', ...patterns];
   if (opts.configFile) args.push('--config', opts.configFile);
 
-  const stdout = await Effect.runPromise(execTool(bin, args, cwd, 'oxlint'));
+  const stdout = await Effect.runPromise(
+    execTool(bin, args, cwd, 'oxlint', { requireStdout: true }),
+  );
 
+  // Empty stdout without a non-zero exit is a clean run: oxlint writes nothing
+  // when it finds nothing. A non-zero exit with empty stdout already died in
+  // execTool.
   if (!stdout.trim()) return [];
 
   let output: OxlintJsonOutput;
   try {
     output = JSON.parse(stdout) as OxlintJsonOutput;
-  } catch {
-    return [];
+  } catch (cause) {
+    return [
+      {
+        rule: id,
+        message: `oxlint produced output that is not a JSON report, so nothing was checked: ${String(cause)}. Fix the tool, then re-run.`,
+        path: '.',
+        severity: 'error',
+        source: 'oxlint',
+      },
+    ];
   }
 
   const diagnostics = output.diagnostics ?? [];

@@ -7,6 +7,16 @@ import type { ImportResolver } from '../services/import-resolver';
 export type Severity = 'error' | 'warn' | 'info';
 export type ViolationSource = 'core' | 'eslint' | 'phpstan' | 'oxlint' | 'custom';
 
+/**
+ * How the violation baseline hashes this rule's messages.
+ *
+ * `normalized` (the default) strips volatile tokens — numbers, UUIDs, paths —
+ * so a message that only changed its count keeps its identity. `exact` hashes
+ * the message verbatim and is the opt-out for a rule whose message is already
+ * stable and whose exact text is the identity.
+ */
+export type BaselineMessageMode = 'normalized' | 'exact';
+
 export interface Violation {
   /** Rule ID — injected by the builder when absent. */
   readonly rule?: string | undefined;
@@ -117,6 +127,11 @@ export interface Rule {
    * Used by `gesetz list` and the `gesetz skill` command.
    */
   readonly guidance?: RuleGuidance | undefined;
+  /**
+   * Overrides how the violation baseline hashes this rule's messages.
+   * Default: `normalized`. See `BaselineMessageMode`.
+   */
+  readonly baselineMessage?: BaselineMessageMode | undefined;
   /** The Effect that produces violations when run */
   readonly run: Effect.Effect<
     Violation[],

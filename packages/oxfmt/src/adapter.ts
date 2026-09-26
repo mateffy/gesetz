@@ -46,7 +46,9 @@ async function executeOxfmt(
   const args = ['--list-different', ...patterns];
   if (opts.configFile) args.push('-c', opts.configFile);
 
-  const stdout = await Effect.runPromise(execTool(bin, args, cwd, 'oxfmt'));
+  const stdout = await Effect.runPromise(
+    execTool(bin, args, cwd, 'oxfmt', { requireStdout: true }),
+  );
 
   if (!stdout) return [];
 

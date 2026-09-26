@@ -37,11 +37,16 @@ export function noObjectProperty(
 
     for (const line of lines) {
       lineNumber++;
+      // A property of the object itself sits at depth 1: the opening line
+      // carries the brace, so counting it first left `insideNested` at 1 for
+      // every property line and the check could only ever fire on an object
+      // written entirely on one line.
+      const atObjectTopLevel = insideNested === 1 || (insideNested === 0 && line.includes('{'));
       const openBraces = (line.match(/\{/g) ?? []).length;
       const closeBraces = (line.match(/\}/g) ?? []).length;
       insideNested += openBraces - closeBraces;
 
-      if (insideNested === 0) {
+      if (atObjectTopLevel) {
         const titleProp = new RegExp(`\\b${propName}\\s*:`).exec(line);
         if (titleProp) {
           violations.push({

@@ -110,14 +110,16 @@ describe('oxlint', () => {
     );
   });
 
-  it('returns empty array when stdout is not valid JSON', async () => {
+  it('reports a violation when stdout is not valid JSON', async () => {
     (childProcess.execFileSync as ReturnType<typeof vi.fn>).mockImplementation(
       () => 'not json at all',
     );
 
     const rule = oxlint({ cwd: '/project' });
     const violations = await Effect.runPromise(Effect.provide(rule.run, TestLayer));
-    expect(violations).toEqual([]);
+    expect(violations).toHaveLength(1);
+    expect(violations[0]?.severity).toBe('error');
+    expect(violations[0]?.message).toContain('nothing was checked');
   });
 
   describe('FileFilter integration', () => {

@@ -50,7 +50,27 @@ gesetz check                          # full scan from project root
 gesetz check --since HEAD~5           # only changed files
 gesetz check --category strictness    # one category
 gesetz check --format=json             # machine-readable envelope for agents
+gesetz check --no-baseline            # ignore the baseline; full inventory
 \`\`\`
+
+### Violation baseline
+
+A legacy codebase reports hundreds of violations from the first day, so the
+project records them in \`.gesetz-baseline.json\`. \`gesetz check\` then fails on
+new violations only and reports the split:
+
+\`\`\`
+gesetz: fail (3 new, 522 baselined, 2 stale)
+\`\`\`
+
+- Read \`baseline\` in the JSON envelope for \`new\`, \`baselined\` and \`stale\` counts.
+- Fix every new violation. It is not in the baseline.
+- A new file is fully enforced. It has no baseline entries, so every violation
+  in it fails. Do not expect an allowance for code you add.
+- A stale entry means a baselined violation was fixed. Report it; a maintainer
+  deletes the entry.
+- **Never run \`gesetz baseline\`.** Re-baselining is a maintainer action. An agent
+  that can re-baseline can erase its own failure.
 
 ### Read the rule catalog
 \`\`\`bash
@@ -64,8 +84,8 @@ gesetz list --category cleanup        # filter by category
 3. For each failing rule in that category, read the guidance:
    \`gesetz list --category <cat>\`
 4. Apply the fix structurally \u2014 never silence diagnostics
-5. Re-run \`gesetz check\` to confirm the score improved
-6. Repeat until all categories are at or above threshold (default: 7/10)
+5. Re-run \`gesetz check\` to confirm the score improved and \`baseline.new\` is 0
+6. Repeat until all categories are at or above threshold and no violation is new
 
 > When stdout is not a TTY or an agent env var is set, \`gesetz check\`
 > automatically emits the JSON envelope \u2014 no flag needed.

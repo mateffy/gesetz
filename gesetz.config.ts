@@ -58,12 +58,12 @@ export default defineConfig({
   adapters: [typescriptSyntaxBackend],
 
   thresholds: [
-    // Source files with no test yet. Reported so the gap is visible; the
-    // threshold is 0 until they are written, then raise it.
-    { category: 'testing', minScore: 0 },
-    // 116 files are not yet in oxfmt's output format. Reported so the number is
-    // visible; run `pnpm exec oxfmt --write packages` once, then raise this.
-    // Making it blocking today would mean a 116-file reformat in one commit.
+    // Every source file has a test now, so this is a keep-it-at-zero gate: a new
+    // file must arrive with a test, or with an exclusion and a reason. Files that
+    // are types only — no callable code — are excluded by the rule itself.
+    { category: 'testing', minScore: 10 },
+    // Raised to 10 in the commit that runs `pnpm format`; `pnpm format` is the
+    // fix, so any drift is a file somebody forgot to format.
     { category: 'formatting', minScore: 0 },
   ],
 
@@ -135,11 +135,21 @@ export default defineConfig({
       requireTest({ message: 'Adapter files must have a matching test file' }),
     ),
 
-    // The rest of the source tree: reported, not enforced. 42 files have no test
-    // yet, and the `testing` threshold below is set to 0 so the gap is visible in
-    // the report without failing the build. Raise it as coverage grows.
+    // The rest of the source tree. Three exclusions are not source at all, so a
+    // test would have nothing to call:
+    //   rule.ts               — the Check/Rule/Violation types only
+    //   reporter.ts           — the Reporter Tag and its type aliases
+    //   directory-structure.ts — a type alias re-exported from the core primitive
     select('packages/**/src/**/*.ts')
-      .exclude('**/index.ts', '**/*.d.ts', '**/*.test.ts', '**/tests/**')
+      .exclude(
+        '**/index.ts',
+        '**/*.d.ts',
+        '**/*.test.ts',
+        '**/tests/**',
+        'packages/core/src/engine/rule.ts',
+        'packages/core/src/reporters/reporter.ts',
+        'packages/typescript/src/checks/directory-structure.ts',
+      )
       .label('Source files need tests')
       .category('testing')
       .check(requireTest({ severity: 'info' })),

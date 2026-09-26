@@ -102,12 +102,14 @@ describe('phpstan adapter', () => {
     expect(violations).toEqual([]);
   });
 
-  it('returns empty array for invalid JSON', async () => {
+  it('reports a violation when phpstan output is not valid JSON', async () => {
     (childProcess.execFileSync as ReturnType<typeof vi.fn>).mockImplementation(() => 'not json');
 
     const rule = phpstan({ cwd: '/project' });
     const violations = await Effect.runPromise(Effect.provide(rule.run, TestLayer));
-    expect(violations).toEqual([]);
+    expect(violations).toHaveLength(1);
+    expect(violations[0]?.rule).toBe('phpstan');
+    expect(violations[0]?.message).toContain('nothing was checked');
   });
 
   it('passes config file and memory limit', async () => {

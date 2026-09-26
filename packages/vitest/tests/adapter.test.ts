@@ -120,12 +120,13 @@ describe('vitest adapter', () => {
     );
   });
 
-  it('returns empty array for invalid JSON', async () => {
+  it('reports a violation when stdout is not valid JSON', async () => {
     (childProcess.execFileSync as ReturnType<typeof vi.fn>).mockImplementation(() => 'not json');
 
     const rule = vitest({ cwd: '/project' });
     const violations = await Effect.runPromise(Effect.provide(rule.run, TestLayer));
-    expect(violations).toEqual([]);
+    expect(violations).toHaveLength(1);
+    expect(violations[0]?.message).toContain('nothing was checked');
   });
 
   describe('FileFilter integration', () => {

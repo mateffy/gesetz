@@ -62,7 +62,18 @@ async function executePest(
           catch: (cause) => cause,
         }).pipe(Effect.catchAll(() => Effect.succeed('')));
 
-        if (!xml) return [];
+        if (!xml) {
+          return [
+            {
+              rule: id,
+              message:
+                'pest wrote no JUnit report, so nothing was checked. The tool failed to run or to write its report. Fix the tool, then re-run.',
+              path: '.',
+              severity: 'error',
+              source: 'custom',
+            },
+          ];
+        }
 
         const cases = parseJUnitXml(xml, cwd);
         return junitToViolations(cases, id);

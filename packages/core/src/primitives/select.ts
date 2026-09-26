@@ -2,6 +2,7 @@ import { Effect, Runtime } from 'effect';
 import micromatch from 'micromatch';
 import { FileSystem, ProjectRoot, FileFilter } from '../services/fs';
 import type {
+  BaselineMessageMode,
   Check,
   CheckServices,
   File,
@@ -68,6 +69,12 @@ export interface Selector {
   guidance(g: RuleGuidance): Selector;
 
   /**
+   * Overrides how the violation baseline hashes this rule's messages.
+   * Default: `normalized`. See `BaselineMessageMode`.
+   */
+  baselineMessage(mode: BaselineMessageMode): Selector;
+
+  /**
    * Applies one or more Check functions to each matched file.
    * Terminates the selector and returns a Rule.
    */
@@ -86,6 +93,7 @@ interface SelectorState {
   readonly humanLabel: string | null;
   readonly category: RuleCategory | undefined;
   readonly guidance: RuleGuidance | undefined;
+  readonly baselineMessage: BaselineMessageMode | undefined;
 }
 
 function buildRule(state: SelectorState, checks: Check[]): Rule {
@@ -182,6 +190,7 @@ function buildRule(state: SelectorState, checks: Check[]): Rule {
     description,
     category: state.category,
     guidance: state.guidance,
+    ...(state.baselineMessage !== undefined ? { baselineMessage: state.baselineMessage } : {}),
     run,
     perFile: {
       patterns: state.patterns,
@@ -208,6 +217,8 @@ function createSelector(state: SelectorState): Selector {
     category: (cat) => createSelector({ ...state, category: cat }),
 
     guidance: (g) => createSelector({ ...state, guidance: g }),
+
+    baselineMessage: (mode) => createSelector({ ...state, baselineMessage: mode }),
 
     check: (...checks) => buildRule(state, checks),
 
@@ -237,5 +248,6 @@ export function select(...patterns: string[]): Selector {
     humanLabel: null,
     category: undefined,
     guidance: undefined,
+    baselineMessage: undefined,
   });
 }

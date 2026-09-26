@@ -131,4 +131,19 @@ describe('storybook', () => {
     const violations = await Effect.runPromise(Effect.provide(rule.run, TestLayer));
     expect(violations).toEqual([]);
   });
+
+  it('reports a violation when no results file was written', async () => {
+    const tmpDir = '/tmp/gesetz-storybook-test-4';
+    (nodeFs.mkdtempSync as ReturnType<typeof vi.fn>).mockReturnValue(tmpDir);
+    (nodeFs.readFileSync as ReturnType<typeof vi.fn>).mockImplementation(() => {
+      throw new Error('ENOENT');
+    });
+    (childProcess.execFileSync as ReturnType<typeof vi.fn>).mockImplementation(() => '');
+
+    const rule = storybook({ cwd: '/project' });
+    const violations = await Effect.runPromise(Effect.provide(rule.run, TestLayer));
+    expect(violations).toHaveLength(1);
+    expect(violations[0]?.severity).toBe('error');
+    expect(violations[0]?.message).toContain('nothing was checked');
+  });
 });

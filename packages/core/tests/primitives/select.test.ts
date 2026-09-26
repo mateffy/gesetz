@@ -75,6 +75,18 @@ describe('select', () => {
     });
   });
 
+  describe('.baselineMessage()', () => {
+    it('leaves the mode unset by default, so the baseline normalises', () => {
+      const rule = select('src/**/*.ts').label('Default mode').check(noop);
+      expect(rule.baselineMessage).toBeUndefined();
+    });
+
+    it('sets an exact message mode on the produced rule', () => {
+      const rule = select('src/**/*.ts').label('Exact mode').baselineMessage('exact').check(noop);
+      expect(rule.baselineMessage).toBe('exact');
+    });
+  });
+
   describe('.check()', () => {
     it('produces no violations when no files match', async () => {
       const rule = select('src/**/*.nonexistent').label('No files test').check(noop);

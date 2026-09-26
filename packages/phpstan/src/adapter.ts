@@ -38,8 +38,16 @@ function parsePhpstanOutput(stdout: string, cwd: string): Violation[] {
   let parsed: PhpstanJsonOutput;
   try {
     parsed = JSON.parse(stdout) as PhpstanJsonOutput;
-  } catch {
-    return [];
+  } catch (cause) {
+    return [
+      {
+        rule: '',
+        message: `phpstan produced output that is not a JSON report, so nothing was checked: ${String(cause)}. Fix the tool, then re-run.`,
+        path: cwd,
+        severity: 'error',
+        source: 'phpstan',
+      },
+    ];
   }
 
   const violations: Violation[] = [];
@@ -97,7 +105,9 @@ async function executePhpstan(
   if (opts.configFile) args.push(`--configuration=${opts.configFile}`);
   if (patterns) args.push(...patterns);
 
-  const stdout = await Effect.runPromise(execTool(bin, args, cwd, 'phpstan'));
+  const stdout = await Effect.runPromise(
+    execTool(bin, args, cwd, 'phpstan', { requireStdout: true }),
+  );
 
   // each violation gets the adapter's rule id; a shallow copy per item is the
   // clearest way to express that, and this runs once per phpstan report

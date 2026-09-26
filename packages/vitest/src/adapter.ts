@@ -49,8 +49,16 @@ function parseVitestJson(stdout: string, cwd: string, ruleId: string): Violation
   let parsed: VitestJsonResult;
   try {
     parsed = JSON.parse(stdout) as VitestJsonResult;
-  } catch {
-    return [];
+  } catch (cause) {
+    return [
+      {
+        rule: ruleId,
+        message: `vitest produced output that is not a JSON report, so nothing was checked: ${String(cause)}. Fix the tool, then re-run.`,
+        path: '.',
+        severity: 'error',
+        source: 'custom',
+      },
+    ];
   }
 
   const violations: Violation[] = [];
@@ -106,9 +114,14 @@ async function executeVitest(
   }
   if (patterns) args.push(...patterns);
 
-  const stdout = await Effect.runPromise(execTool(bin, args, cwd, 'vitest'));
+  const stdout = await Effect.runPromise(
+    execTool(bin, args, cwd, 'vitest', { requireStdout: true }),
+  );
 
-  if (!stdout) return [];
+  // Empty stdout without a non-zero exit is a clean run: the reporter emitted
+  // nothing because nothing ran. A non-zero exit with empty stdout already
+  // died inside execTool.
+  if (!stdout.trim()) return [];
   return parseVitestJson(stdout, cwd, id);
 }
 

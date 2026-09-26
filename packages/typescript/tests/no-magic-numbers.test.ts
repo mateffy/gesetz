@@ -1,10 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import * as nodePath from 'node:path';
 import { makeFile, makeCheckServices, runCheck } from '@gesetz/core';
 
 import { noMagicNumbers } from '../src';
-
-const CWD = process.cwd();
 
 // ─── Pure sync checks — need no services at all ─────────────────────────────
 

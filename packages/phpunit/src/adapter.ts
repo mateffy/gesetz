@@ -67,10 +67,21 @@ async function executePhpunit(
         try {
           xml = nodeFs.readFileSync(tmpFile, 'utf-8');
         } catch {
-          return [] as Violation[];
+          xml = '';
         }
 
-        if (!xml) return [] as Violation[];
+        if (!xml) {
+          return [
+            {
+              rule: id,
+              message:
+                'phpunit wrote no JUnit report, so nothing was checked. The tool failed to run or to write its report. Fix the tool, then re-run.',
+              path: '.',
+              severity: 'error',
+              source: 'custom',
+            },
+          ];
+        }
 
         const cases = parseJUnitXml(xml, cwd);
         return junitToViolations(cases, id);

@@ -107,20 +107,23 @@ describe('phpunit', () => {
     );
   });
 
-  it('returns empty array when JUnit file is empty', async () => {
+  it('reports a violation when the JUnit file is empty', async () => {
     const tmpFile = nodePath.join(nodeOs.tmpdir(), 'gesetz-phpunit-test-junit3.xml');
     (nodeFs.mkdtempSync as ReturnType<typeof vi.fn>).mockReturnValue(nodePath.dirname(tmpFile));
     (nodeFs.readFileSync as ReturnType<typeof vi.fn>).mockReturnValue('');
     // A non-zero exit is the tool reporting findings, not a tool that could not
-    // run: test-storybook exits 1 when stories fail. The error must therefore
-    // carry captured stdout, exactly as execFileSync produces it.
+    // run: test runners exit 1 when tests fail. The error therefore carries
+    // captured stdout, exactly as execFileSync produces it. The empty report
+    // file is the failure this test covers.
     (childProcess.execFileSync as ReturnType<typeof vi.fn>).mockImplementation(() => {
       throw exitFailure(1, '');
     });
 
     const rule = phpunit({ cwd: '/project' });
     const violations = await Effect.runPromise(Effect.provide(rule.run, TestLayer));
-    expect(violations).toEqual([]);
+    expect(violations).toHaveLength(1);
+    expect(violations[0]?.severity).toBe('error');
+    expect(violations[0]?.message).toContain('nothing was checked');
   });
 
   it('passes the filter option as --filter', async () => {

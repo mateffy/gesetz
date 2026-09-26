@@ -39,6 +39,12 @@ interface EslintModule {
   };
 }
 
+/** True when the dynamic import has the ESLint constructor this adapter needs. */
+function isEslintModule(value: unknown): value is EslintModule {
+  if (typeof value !== 'object' || value === null) return false;
+  return typeof (value as { ESLint?: unknown }).ESLint === 'function';
+}
+
 /**
  * Creates a Rule that runs ESLint programmatically and maps output to Violations.
  * Requires `eslint` to be installed as a peer dependency.
@@ -52,37 +58,41 @@ async function executeEslint(
   cwd: string,
   patterns: readonly string[],
 ): Promise<Violation[]> {
-  const results = await Effect.runPromise(
-    Effect.tryPromise({
-      try: async () => {
-        // @ts-ignore — eslint is an optional peer dep; present in some
-        // workspaces, absent in others. Cast to EslintModule for a typed surface.
-        const eslintModule = (await import('eslint')) as unknown as EslintModule;
-        if (typeof eslintModule.ESLint !== 'function') {
-          throw new Error('eslint module does not export ESLint class');
-        }
-        const ESLint = eslintModule.ESLint;
-        const linter = new ESLint({
-          cwd,
-          ...(opts.overrideConfigFile ? { overrideConfigFile: opts.overrideConfigFile } : {}),
-        });
-        return linter.lintFiles([...patterns]);
-      },
-      catch: (cause) => cause,
-    }).pipe(
-      Effect.catchAll((cause) =>
-        Effect.gen(function* () {
-          yield* Effect.logWarning(
-            `[gesetz] eslint failed (${String(cause)}) — eslint() produced no violations.`,
-          );
-          return [] as EslintResult[];
-        }),
-      ),
+  const outcome = await Effect.runPromise(
+    Effect.either(
+      Effect.tryPromise({
+        try: async (): Promise<EslintResult[]> => {
+          const eslintModule: unknown = await import('eslint');
+          if (!isEslintModule(eslintModule)) {
+            throw new Error('the eslint module does not export an ESLint class');
+          }
+          const linter = new eslintModule.ESLint({
+            cwd,
+            ...(opts.overrideConfigFile ? { overrideConfigFile: opts.overrideConfigFile } : {}),
+          });
+          return linter.lintFiles([...patterns]);
+        },
+        catch: (cause) => cause,
+      }),
     ),
   );
 
+  // A broken ESLint used to log a warning and return no violations, which read
+  // as a clean lint. A check that cannot run must fail.
+  if (outcome._tag === 'Left') {
+    return [
+      {
+        rule: id,
+        message: `eslint could not run, so nothing was checked: ${String(outcome.left)}. Fix the tool, then re-run.`,
+        path: '.',
+        severity: 'error',
+        source: 'eslint',
+      },
+    ];
+  }
+
   const violations: Violation[] = [];
-  for (const result of results) {
+  for (const result of outcome.right) {
     for (const msg of result.messages) {
       violations.push({
         rule: id,

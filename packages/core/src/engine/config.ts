@@ -25,6 +25,18 @@ export interface CategoryThreshold {
   readonly minScore: number;
 }
 
+/** Baseline behaviour a project can pin in its config. */
+export interface BaselineConfig {
+  /**
+   * When true, `gesetz baseline` refuses to write the baseline file.
+   *
+   * The baseline is a maintainer decision. Agent batches must never absorb
+   * their own regressions, so a project that runs agents against the gate sets
+   * this flag and flips it only in a reviewed change.
+   */
+  readonly readOnly?: boolean | undefined;
+}
+
 export interface UserConfig {
   /**
    * Root directory for the project. All rule paths are relative to this.
@@ -38,6 +50,11 @@ export interface UserConfig {
   readonly tsConfigPath?: string | undefined;
   readonly rules: Rule[];
   readonly exemptions?: Exemption[] | undefined;
+  /**
+   * Violation baseline behaviour. The baseline file itself lives at
+   * `.gesetz-baseline.json` in the project root.
+   */
+  readonly baseline?: BaselineConfig | undefined;
   /**
    * Only report violations in files changed since this git ref.
    * e.g. `'HEAD~5'`, `'main'`, a commit SHA.
@@ -77,6 +94,7 @@ export interface ResolvedConfig {
   readonly tsConfigPath: string;
   readonly rules: Rule[];
   readonly exemptions: Exemption[];
+  readonly baseline: BaselineConfig;
   readonly changedSince: string | undefined;
   readonly thresholds: CategoryThreshold[];
   readonly adapters: readonly SyntaxBackend[];
@@ -102,6 +120,7 @@ export function defineConfig(config: UserConfig): ResolvedConfig {
     tsConfigPath: nodePath.resolve(projectRoot, config.tsConfigPath ?? 'tsconfig.json'),
     rules: config.rules,
     exemptions: config.exemptions ?? [],
+    baseline: config.baseline ?? {},
     changedSince: config.changedSince,
     thresholds: config.thresholds ?? [],
     adapters: config.adapters ?? [],

@@ -43,12 +43,28 @@ function getExecStdout(e: unknown): string | undefined {
  * This branch is the tool failing to start at all — a missing binary, a bad
  * working directory, a crash before any output. It dies, which the runner
  * surfaces as a violation naming the rule, so the run fails and says why.
+ *
+ * With `requireStdout`, a non-zero exit with no stdout is the same failure. A
+ * stdout-parsing adapter cannot tell an empty report from a tool that crashed,
+ * and returning `''` made it read that as "no violations found". A tool whose
+ * report is a file leaves the option off: a failing test suite exits non-zero
+ * with nothing on stdout and still writes its report.
  */
+export interface ExecToolOptions {
+  /**
+   * Treat a non-zero exit with empty stdout as a failure to run.
+   * Set it when the tool's report is its stdout. A missing report then fails
+   * the run instead of reading as a clean result.
+   */
+  readonly requireStdout?: boolean | undefined;
+}
+
 export function execTool(
   bin: string,
   args: string[],
   cwd: string,
   toolName: string,
+  options: ExecToolOptions = {},
 ): Effect.Effect<string, never> {
   return Effect.try({
     try: () => {
@@ -62,8 +78,9 @@ export function execTool(
           .toString();
       } catch (e: unknown) {
         const out = getExecStdout(e);
-        if (out !== undefined) return out;
-        throw e;
+        if (out === undefined) throw e;
+        if (options.requireStdout === true && out.trim() === '') throw e;
+        return out;
       }
     },
     catch: (cause) => cause,

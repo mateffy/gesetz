@@ -38,6 +38,11 @@ import { violationToMarker } from './violation-markers';
 export interface CompileContext {
   readonly rootDir: string;
   /**
+   * Fingerprint of the project's file set. Mixed into every rule fingerprint so
+   * that adding or deleting a file invalidates cached violations.
+   */
+  readonly fileSet?: string | undefined;
+  /**
    * Lazy: the CheckServices are created from the network, which is created
    * from the compiled extensions — resolved by the time scan() calls hooks.
    */
@@ -60,8 +65,9 @@ function hash(material: unknown): string {
   return createHash('sha256').update(JSON.stringify(material)).digest('hex');
 }
 
-function ruleFingerprint(rule: Rule): string {
+function ruleFingerprint(rule: Rule, fileSet: string): string {
   return hash({
+    fileSet,
     id: rule.id,
     category: rule.category ?? null,
     patterns: rule.perFile?.patterns ?? rule.project?.patterns ?? null,
@@ -100,7 +106,7 @@ function compilePerFileRule(rule: Rule, ctx: CompileContext): NetworkExtension {
   const perFile = rule.perFile!;
   return {
     name: rule.id,
-    fingerprint: ruleFingerprint(rule),
+    fingerprint: ruleFingerprint(rule, ctx.fileSet ?? ''),
     include: [...perFile.patterns],
     ...(perFile.exclusions.length > 0 ? { exclude: [...perFile.exclusions] } : {}),
 
@@ -279,7 +285,7 @@ function projectRuleContext(
 function compileRunOnlyRule(rule: Rule, ctx: CompileContext): NetworkExtension {
   return {
     name: rule.id,
-    fingerprint: ruleFingerprint(rule),
+    fingerprint: ruleFingerprint(rule, ctx.fileSet ?? ''),
 
     // Conservative: re-executes on every scan (legacy behavior). Violation
     // markers are replaced wholesale per path, so warm runs stay correct.
@@ -311,7 +317,7 @@ function compileProjectRule(rule: Rule, ctx: CompileContext): NetworkExtension {
   const project = rule.project!;
   return {
     name: rule.id,
-    fingerprint: ruleFingerprint(rule),
+    fingerprint: ruleFingerprint(rule, ctx.fileSet ?? ''),
 
     async after(entries, extCtx) {
       // Skip when nothing relevant changed — cached markers survive. Runs
@@ -327,7 +333,23 @@ function compileProjectRule(rule: Rule, ctx: CompileContext): NetworkExtension {
       if (!relevant && (await hasStoredMarkers(extCtx.storage, rule.id))) return;
 
       await refreshSharedPaths(ctx, extCtx);
-      const violations = await project.run(projectRuleContext(extCtx, ctx, changed));
+      let violations: Violation[];
+      try {
+        violations = await project.run(projectRuleContext(extCtx, ctx, changed));
+      } catch (cause) {
+        // A project rule that threw contributes nothing otherwise, which is
+        // indistinguishable from "this project is clean". Adapters reach here
+        // when their tool cannot run, so the failure must be reported.
+        violations = [
+          {
+            rule: rule.id,
+            message: `Rule threw an unexpected error: ${String(cause)}`,
+            path: ctx.rootDir,
+            severity: 'error',
+            source: 'core',
+          },
+        ];
+      }
       await storeProjectViolations(extCtx.storage, rule, violations, ctx);
     },
   };

@@ -80,6 +80,33 @@ describe('execTool', () => {
     }
   });
 
+  it('fails closed when a stdout-parsing adapter gets a non-zero exit with no stdout', async () => {
+    // The tool ran but wrote no report. An adapter that parses stdout used to
+    // read '' as "no violations found", so a crashed linter passed the gate.
+    const spy = childProcess.execFileSync as ReturnType<typeof vi.fn>;
+    spy.mockImplementation(() => {
+      throw Object.assign(new Error('exit 1'), { stdout: '', stderr: 'bad config', status: 1 });
+    });
+
+    const exit = await Effect.runPromiseExit(
+      execTool('cmd', [], '/cwd', 'tool', { requireStdout: true }),
+    );
+    expect(exit._tag).toBe('Failure');
+    expect(exit._tag === 'Failure' && Cause.isDie(exit.cause)).toBe(true);
+  });
+
+  it('keeps empty stdout for a file-report adapter that exits non-zero', async () => {
+    // A failing test suite exits non-zero with nothing on stdout and still
+    // writes its report file. The adapter reads the file, not the stdout.
+    const spy = childProcess.execFileSync as ReturnType<typeof vi.fn>;
+    spy.mockImplementation(() => {
+      throw Object.assign(new Error('exit 1'), { stdout: '', stderr: '1 failing test', status: 1 });
+    });
+
+    const result = await Effect.runPromise(execTool('cmd', [], '/cwd', 'tool'));
+    expect(result).toBe('');
+  });
+
   it('handles Buffer stdout', async () => {
     const spy = childProcess.execFileSync as ReturnType<typeof vi.fn>;
     spy.mockReturnValue(Buffer.from('buffer output'));

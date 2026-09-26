@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { generateConfig, BLUEPRINTS, blueprintsForPreset } from '../src/init/rules';
-import { PRESETS } from '../src/init/presets';
-import type { Plan } from '../src/init/rules';
-import type { ProjectProfile } from '../src/init/detect';
+import { generateConfig, BLUEPRINTS, blueprintsForPreset } from '../../src/init/rules';
+import { PRESETS } from '../../src/init/presets';
+import type { Plan } from '../../src/init/rules';
+import type { ProjectProfile } from '../../src/init/detect';
 
 function makeProfile(overrides: Partial<ProjectProfile> = {}): ProjectProfile {
   return {

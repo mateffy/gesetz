@@ -124,10 +124,21 @@ async function executeStorybook(
         try {
           stdout = nodeFs.readFileSync(tmpFile, 'utf-8');
         } catch {
-          return [] as Violation[];
+          stdout = '';
         }
 
-        if (!stdout.trim()) return [] as Violation[];
+        if (!stdout.trim()) {
+          return [
+            {
+              rule: id,
+              message:
+                'test-storybook wrote no results file, so nothing was checked. The tool failed to run or to write its report. Fix the tool, then re-run.',
+              path: '.',
+              severity: 'error',
+              source: 'custom',
+            },
+          ];
+        }
         return parseJestJson(stdout, cwd, id);
       }),
     ),

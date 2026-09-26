@@ -12,9 +12,8 @@
  * never mojibake-prone.
  */
 import type { RunResult, RuleResult, Violation } from '@gesetz/core';
+import { BASELINE_FILE_NAME } from '@gesetz/core';
 
-/** Mirrors the runner's default: a category must score at least this to pass. */
-const DEFAULT_CATEGORY_THRESHOLD = 7;
 // ─── Output format ──────────────────────────────────────────────────────────
 
 export type OutputFormat = 'pretty' | 'json' | 'ci';
@@ -134,6 +133,7 @@ export function formatCategoryTable(result: RunResult): string {
     return color('  No categories defined. Add .category("strictness") to your rules.\n', C.dim);
   }
 
+  const baselineCounts = categoryBaselineCounts(result);
   const colWidths = { category: 14, bar: 20, score: 6, errors: 8, warnings: 9, status: 8 };
 
   const header =
@@ -155,17 +155,64 @@ export function formatCategoryTable(result: RunResult): string {
         ? color(`  ${g.pass} pass`, C.green)
         : color(`  ${g.fail} fail`, C.red);
       const scoreCol = scoreColor(cat.score);
-      return `  ${color(catName, C.bold)}  ${bar(cat.score)}  ${color(scoreStr, scoreCol)}  ${errStr}  ${warnStr}${status}`;
+      const counts = baselineCounts.get(cat.category);
+      const baselineNote =
+        counts === undefined
+          ? ''
+          : color(
+              `  (${counts.new} new, ${counts.baselined} baselined, ${counts.stale} stale)`,
+              C.dim,
+            );
+      return `  ${color(catName, C.bold)}  ${bar(cat.score)}  ${color(scoreStr, scoreCol)}  ${errStr}  ${warnStr}${status}${baselineNote}`;
     })
     .join('\n');
 
-  const total = `\n  ${color('Total violations:', C.bold)} ${color(result.totalViolations.toString(), result.totalViolations > 0 ? C.red : C.green)}`;
+  const baseline = result.baseline;
+  const total = `\n  ${color('Total violations:', C.bold)} ${color(
+    result.totalViolations.toString(),
+    baseline === undefined || result.totalViolations > 0 ? C.red : C.green,
+  )}${
+    baseline === undefined
+      ? ''
+      : color(
+          ` (${baseline.new} new, ${baseline.baselined} baselined, ${baseline.stale} stale)`,
+          C.dim,
+        )
+  }`;
   const overall = `\n  ${color('Overall:', C.bold)} ${result.passing ? color('PASS', C.green + C.bold) : color('FAIL', C.red + C.bold)}`;
 
   return `\n${header}${divider}${rows}\n${divider}${total}${overall}\n`;
 }
 
 // ─── Violation list (pretty, grouped by file) ───────────────────────────────
+
+/**
+ * Per-category baseline split, for the score table.
+ *
+ * The runner reports the split per rule; the category of each rule comes from
+ * `byRule`. A stale entry carries the rule it came from, so a removed rule's
+ * stale entries have no category and are not shown here.
+ */
+function categoryBaselineCounts(
+  result: RunResult,
+): Map<string, { new: number; baselined: number; stale: number }> {
+  const categories = new Map<string, string>();
+  for (const ruleResult of result.byRule) {
+    if (ruleResult.category !== undefined) categories.set(ruleResult.ruleId, ruleResult.category);
+  }
+  const counts = new Map<string, { new: number; baselined: number; stale: number }>();
+  for (const rule of result.baseline?.byRule ?? []) {
+    const category = categories.get(rule.rule);
+    if (category === undefined) continue;
+    const existing = counts.get(category) ?? { new: 0, baselined: 0, stale: 0 };
+    counts.set(category, {
+      new: existing.new + rule.new,
+      baselined: existing.baselined + rule.baselined,
+      stale: existing.stale + rule.stale,
+    });
+  }
+  return counts;
+}
 
 /**
  * Groups violations by file path, sorted by path then by line. Matches how a
@@ -218,107 +265,9 @@ export function formatViolations(byRule: RuleResult[]): string {
 
 // ─── JSON envelope (agents / machines) ──────────────────────────────────────
 
-/**
- * Default cap on the number of violations emitted in JSON mode. Keeps agent
- * context windows small; mirrors PAO/PHPStan capping. `--all` disables it.
- */
-export const MAX_VIOLATIONS = 50;
-
-interface EnvelopeViolation {
-  sev: 'error' | 'warn' | 'info';
-  rule: string;
-  path: string;
-  line: number | null;
-  col: number | null;
-  msg: string;
-}
-
-interface EnvelopeCategory {
-  name: string;
-  score: number;
-  errors: number;
-  warnings: number;
-  infos: number;
-  passing: boolean;
-  threshold: number;
-}
-
-interface Envelope {
-  v: 1;
-  status: 'pass' | 'fail';
-  passing: boolean;
-  total: number;
-  summary: Record<string, number>;
-  categories: EnvelopeCategory[];
-  violations: EnvelopeViolation[];
-  truncated: number;
-  hint: string | null;
-}
-
-/**
- * Builds the compact JSON envelope for `--format=json`. A single document on
- * stdout: versioned, flat violation array, stable short keys, capped lists
- * with a hint. Passing runs compress to a small fixed-size payload.
- *
- * `thresholds` maps category -> configured min score (for the `threshold`
- * field). Pass the resolved config thresholds; defaults to 7 when absent.
- */
-export function buildEnvelope(
-  result: RunResult,
-  opts: { all?: boolean; thresholds?: Record<string, number> } = {},
-): Envelope {
-  const allViolations: EnvelopeViolation[] = [];
-  for (const r of result.byRule) {
-    for (const v of r.violations) {
-      allViolations.push({
-        sev: v.severity,
-        rule: r.ruleId,
-        path: v.path,
-        line: v.line ?? null,
-        col: v.column ?? null,
-        msg: v.message,
-      });
-    }
-  }
-
-  const cap = opts.all === true ? Infinity : MAX_VIOLATIONS;
-  const truncated = Math.max(0, allViolations.length - cap);
-  const violations = truncated > 0 ? allViolations.slice(0, cap) : allViolations;
-
-  const thresholds = opts.thresholds ?? {};
-  const categories: EnvelopeCategory[] = result.byCategory.map((c) => ({
-    name: c.category,
-    score: c.score,
-    errors: c.errors,
-    warnings: c.warnings,
-    infos: c.infos,
-    passing: c.passing,
-    threshold: thresholds[c.category] ?? DEFAULT_CATEGORY_THRESHOLD,
-  }));
-
-  const summary: Record<string, number> = {};
-  for (const c of result.byCategory) summary[c.category] = c.score;
-
-  return {
-    v: 1,
-    status: result.passing ? 'pass' : 'fail',
-    passing: result.passing,
-    total: result.totalViolations,
-    summary,
-    categories,
-    violations,
-    truncated,
-    hint: truncated > 0 ? `gesetz check --format=json --all` : null,
-  };
-}
-
-/** Renders the envelope as a single compact JSON line + trailing newline. */
-export function formatEnvelope(
-  result: RunResult,
-  opts: { all?: boolean; thresholds?: Record<string, number> } = {},
-): string {
-  return JSON.stringify(buildEnvelope(result, opts)) + '\n';
-}
+// The envelope lives in ./envelope.ts to keep this module under the file-size
+// limit. Re-exported here so existing imports keep working.
+export { buildEnvelope, formatEnvelope, MAX_VIOLATIONS } from './envelope';
 
 // ─── CI annotations (GitHub Actions) ─────────────────────────────────────────
 
@@ -348,7 +297,25 @@ export function formatCi(result: RunResult): string {
  */
 export function formatStatusBanner(result: RunResult): string {
   const verdict = result.passing ? 'pass' : 'fail';
-  return `gesetz: ${verdict} (${result.totalViolations} violation${result.totalViolations === 1 ? '' : 's'})\n`;
+  const baseline = result.baseline;
+  if (baseline === undefined) {
+    return `gesetz: ${verdict} (${result.totalViolations} violation${result.totalViolations === 1 ? '' : 's'})\n`;
+  }
+  const lines = [
+    `gesetz: ${verdict} (${baseline.new} new, ${baseline.baselined} baselined, ${baseline.stale} stale)`,
+  ];
+  if (baseline.new > 0) {
+    lines.push(
+      'new violations are not in the baseline and must be fixed.',
+      'Re-baselining is a maintainer action. Do not run `gesetz baseline`.',
+    );
+  }
+  if (baseline.stale > 0) {
+    lines.push(
+      `stale baseline entries no longer match a violation. A maintainer deletes them from ${BASELINE_FILE_NAME} by running \`gesetz baseline\`.`,
+    );
+  }
+  return `${lines.join('\n')}\n`;
 }
 
 // ─── List output (rule catalog) ───────────────────────────────────────────────

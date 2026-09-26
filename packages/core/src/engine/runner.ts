@@ -1,10 +1,13 @@
 import * as childProcess from 'node:child_process';
 import { Effect } from 'effect';
 import micromatch from 'micromatch';
+import { fileSetFingerprint } from './file-set';
 import { createNetwork } from 'netzwerk';
 import type { NetworkStorageConfig } from 'netzwerk';
 import type { Violation, Exemption, CheckServices } from './rule';
 import type { ResolvedConfig } from './config';
+import { partitionByBaseline, type BaselineStats } from './baseline-apply';
+import { STALE_RULE_ID, type BaselineFile } from './baseline';
 import { compileConfig, type CompileContext } from '../backend/compile';
 import { createCheckServices } from '../backend/check-services';
 import { isViolationMarker, markerToViolation } from '../backend/violation-markers';
@@ -50,6 +53,14 @@ export interface RunResult {
   readonly totalViolations: number;
   /** True when all category scores are at or above their thresholds */
   readonly passing: boolean;
+  /**
+   * Baseline split for this run. Absent when no baseline was applied.
+   *
+   * `byRule` holds the violations that count (new, plus one synthetic rule for
+   * stale entries); baselined violations are counted here and reported in
+   * `byRule[].violations` nowhere, matching the pass/fail decision.
+   */
+  readonly baseline?: BaselineStats | undefined;
 }
 
 export interface RunAllOptions {
@@ -61,6 +72,11 @@ export interface RunAllOptions {
   readonly fileFilter?: readonly string[] | null | undefined;
   /** Called with the scan statistics after each scan (for CLI reporting). */
   readonly onScan?: ((result: ScanStats) => void) | undefined;
+  /**
+   * Violation baseline to check against. `null` or absent means no baseline:
+   * every violation is new, exactly as before this feature existed.
+   */
+  readonly baseline?: BaselineFile | null | undefined;
 }
 
 /** Scan statistics from the incremental scanner (netzwerk ScanResult). */
@@ -213,6 +229,7 @@ export const runAll = (
     let services: CheckServices;
     const compileCtx: CompileContext = {
       rootDir: config.projectRoot,
+      fileSet: fileSetFingerprint(config.projectRoot),
       getServices: () => services,
       pendingViolations,
       sharedPaths,
@@ -266,6 +283,16 @@ export const runAll = (
       const changedFiles = resolveChangedFiles(config.changedSince, config.projectRoot);
       const fileFilter = options.fileFilter ?? null;
       const fileFilterActive = fileFilter !== null && fileFilter.length > 0;
+      /**
+       * Whether a path is inside the examined scope. A `--since` or `--files`
+       * run cannot see files outside it, so a baseline entry for such a file is
+       * not stale — it was simply not looked at.
+       */
+      const inScope = (path: string): boolean => {
+        if (fileFilterActive && !micromatch.isMatch(path, fileFilter)) return false;
+        if (changedFiles !== null && !changedFiles.has(path)) return false;
+        return true;
+      };
 
       const buildResult = (
         ruleId: string,
@@ -286,7 +313,7 @@ export const runAll = (
       // Rule results in config order; ids seen only in storage (stale rules
       // from a previous config) trail at the end.
       const configIds = new Set(config.rules.map((r) => r.id));
-      const results: RuleResult[] = config.rules.map((rule) =>
+      let results: RuleResult[] = config.rules.map((rule) =>
         buildResult(rule.id, rule.description, rule.category),
       );
       for (const [ruleId, violations] of violationsByRule) {
@@ -295,12 +322,53 @@ export const runAll = (
         results.push(buildResult(ruleId, meta?.description ?? ruleId, meta?.category));
       }
 
+      let baselineStats: BaselineStats | undefined;
+      if (options.baseline !== undefined && options.baseline !== null) {
+        const modes = new Map(
+          config.rules.map((rule) => [rule.id, rule.baselineMessage ?? 'normalized'] as const),
+        );
+        const partition = partitionByBaseline(
+          results.map((result) => ({ rule: result.ruleId, violations: result.violations })),
+          options.baseline,
+          {
+            modes,
+            inScope,
+            allowStale: (path) =>
+              applyExemptions(
+                [{ message: '', path, severity: 'error', source: 'core' }],
+                config.exemptions,
+                STALE_RULE_ID,
+              ).length > 0,
+          },
+        );
+        results = results.map((result) => ({
+          ...result,
+          violations: partition.newByRule.get(result.ruleId) ?? [],
+        }));
+        if (partition.stale.length > 0) {
+          results.push({
+            ruleId: STALE_RULE_ID,
+            description: 'A baseline entry no longer matches a violation',
+            category: undefined,
+            violations: [...partition.stale],
+          });
+        }
+        baselineStats = partition.stats;
+      }
+
       const totalViolations = results.reduce((sum, r) => sum + r.violations.length, 0);
       const byCategory = computeCategoryScores(results, config.thresholds);
       // `every` is vacuously true on an empty list, so no separate length check is needed
-      const passing = byCategory.every((c) => c.passing);
+      const categoriesPass = byCategory.every((c) => c.passing);
+      // A baseline turns the score gate into a zero-tolerance gate for new
+      // violations: the score may still clear its threshold with one new
+      // violation, and the point of the baseline is to catch exactly that one.
+      const passing =
+        baselineStats === undefined
+          ? categoriesPass
+          : categoriesPass && baselineStats.new === 0 && baselineStats.stale === 0;
 
-      return { byRule: results, byCategory, totalViolations, passing };
+      return { byRule: results, byCategory, totalViolations, passing, baseline: baselineStats };
     } finally {
       await network.close();
     }

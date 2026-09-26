@@ -116,6 +116,111 @@ gesetz check --watch  # re-run incrementally on every file change
 
 ---
 
+## Violation baseline
+
+A legacy codebase reports hundreds of violations from the first day. A gate that
+is red on day one is worse than no gate: nobody reads the output, and a new
+violation hides in the pile. The baseline records the violations that already
+exist. The gate then fails on new violations only.
+
+```bash
+gesetz check                        # uses .gesetz-baseline.json when it exists
+gesetz check --baseline             # require the baseline (fails when the file is missing)
+gesetz check --no-baseline          # ignore the baseline; report the full inventory
+gesetz baseline                     # write or update .gesetz-baseline.json (maintainer action)
+gesetz baseline --dry-run           # show the delta; write nothing
+gesetz baseline --rule <id>         # re-baseline one rule; the explicit accept for a new rule
+```
+
+### The rules
+
+- **A violation, not a file.** Three baselined violations in a file and a fourth
+  new one is a failure. `exemptions` match a file; a baseline matches one violation.
+- **Identity survives a line shift.** The identity is a hash of the rule id, the
+  path and a normalised message. It excludes the line number, so adding an import
+  at the top of a file does not invalidate every entry below it.
+- **Stale entries fail.** When a baselined violation no longer occurs, the run
+  reports `baseline-entry-is-stale`. Delete the entry. The baseline must shrink,
+  not grow.
+- **New files are fully enforced.** A file with no baseline entries has nothing
+  suppressed, so every violation in it fails. An agent batch that writes new files
+  gets no allowance at all.
+- **The score sees new violations only.** A baselined violation is still counted
+  and printed; it does not lower the category score or fail the gate. With a
+  baseline active, any new violation fails the run.
+- **`--since` composes.** `--since` narrows which files are examined. The
+  baseline covers what remains. An entry for a file outside the `--since` set is
+  not stale: the run simply did not look at that file.
+
+### Writing the baseline is a maintainer action
+
+**An agent must never run `gesetz baseline`.** An agent that can re-baseline can
+erase its own failure. To enforce this in a project that runs agents, set:
+
+```ts
+export default defineConfig({
+  baseline: { readOnly: true },
+  rules: [...],
+});
+```
+
+`gesetz baseline` then refuses, even for a maintainer, until someone flips the
+flag in a reviewed change.
+
+The write refuses when the run finds a violation that the current baseline does
+not cover. Fix the violation, or accept a rule explicitly with
+`gesetz baseline --rule <rule-id>`. That flag is the workflow for the day a new
+rule lands: re-baseline the new rule and leave every other entry untouched.
+
+### The file
+
+`.gesetz-baseline.json` lives at the project root and belongs in git. Entries
+group by path. The order is deterministic, so the diff is stable.
+
+```json
+{
+  "version": 1,
+  "gesetz": "3.0.0",
+  "total": 412,
+  "entries": {
+    "app/Domains/Files/Services/DeleteFile.php": [
+      {
+        "rule": "a-service-class-docblock-must-carry-an-example-tag",
+        "hash": "a1b2c3d4e5f6a7b8",
+        "message": "Add an `@example` tag ...",
+        "line": 12,
+        "count": 1
+      }
+    ]
+  }
+}
+```
+
+`line` is for a human reader. It is not part of the hash. `count` records how
+many violations share one key, which happens when a rule reports the same message
+on several lines of one file.
+
+Before hashing, Gesetz normalises the message: it replaces bare integers, UUIDs,
+hex ids, quoted and bare paths, and `{{...}}` placeholders. Volatile tokens then
+do not churn the baseline. A rule whose message must stay whole sets
+`.baselineMessage('exact')`.
+
+The score table and the JSON envelope report the split:
+
+```
+structure  10/10   (7 new, 412 baselined, 3 stale)
+```
+
+```json
+"baseline": { "new": 7, "baselined": 412, "stale": 3, "total": 422, "byRule": [] }
+```
+
+With a baseline active, `violations` and `total` list only the violations that
+count: the new ones and the stale entries. `baseline.baselined` carries the
+suppressed count.
+
+---
+
 ## Write your own project rules in 5 lines
 
 A rule is just a glob + a check. Enforce any convention your team agrees on:
@@ -441,7 +546,20 @@ gesetz check --format ci                  # GitHub Actions annotations
 gesetz check --threshold 8                # override all thresholds
 gesetz check --files "src/components/**"  # subset of files
 gesetz check --project-root ./apps/web    # monorepo workspace
+gesetz check --baseline                   # require the violation baseline
+gesetz check --no-baseline                # ignore the baseline; full inventory
 ```
+
+### `gesetz baseline`
+
+```bash
+gesetz baseline                # write .gesetz-baseline.json (maintainer action)
+gesetz baseline --dry-run      # show the delta; write nothing
+gesetz baseline --rule <id>    # re-baseline one rule; accepts its new violations
+```
+
+The command refuses to absorb a violation that the current baseline does not
+cover. Read [Violation baseline](#violation-baseline) before you use it.
 
 ### `gesetz list`
 

@@ -31,7 +31,9 @@ describe('toNetworkStorage', () => {
       { kind: 'sqlite', path: '/a/b.db' } as const,
     ]) {
       const mapped = toNetworkStorage(storage);
-      expect(allowed.has(mapped.kind as string), `${JSON.stringify(mapped)} must be accepted`).toBe(true);
+      expect(allowed.has(mapped.kind as string), `${JSON.stringify(mapped)} must be accepted`).toBe(
+        true,
+      );
     }
   });
 
