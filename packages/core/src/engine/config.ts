@@ -4,9 +4,15 @@ import type { SyntaxBackend } from '../services/syntax-tree';
 
 /**
  * Where the violation-marker cache lives. Structurally identical to
- * netzwerk's NetworkStorageConfig, but declared here so the public d.ts
- * has no netzwerk references (consumers would otherwise typecheck
- * netzwerk's TS source).
+ * netzwerk's NetworkStorageConfig, but declared here so the public d.ts has no
+ * netzwerk references (consumers would otherwise typecheck netzwerk's TS
+ * source).
+ *
+ * These two are **not** interchangeable, and mistaking them is a real bug: the
+ * runner used to cast one to the other, so `{ kind: 'sqlite', path }` reached
+ * netzwerk, which accepts only `'memory'` or `'libsql'` and quietly fell back to
+ * a database in the user's home directory shared across every project.
+ * `toNetworkStorage` in the runner owns that mapping.
  */
 export type GesetzStorageConfig =
   | { readonly kind?: 'memory' | undefined }

@@ -2,6 +2,7 @@ import * as childProcess from 'node:child_process';
 import { Effect } from 'effect';
 import micromatch from 'micromatch';
 import { createNetwork } from 'netzwerk';
+import type { NetworkStorageConfig } from 'netzwerk';
 import type { Violation, Exemption, CheckServices } from './rule';
 import type { ResolvedConfig } from './config';
 import { compileConfig, type CompileContext } from '../backend/compile';
@@ -178,6 +179,22 @@ export function applyExemptions(
 }
 
 /**
+ * Maps gesetz's storage config onto netzwerk's.
+ *
+ * They are **not** structurally identical, which an earlier `as
+ * NetworkStorageConfig` cast hid from the type checker. netzwerk accepts only
+ * `{ kind: 'memory' }` or `{ kind: 'libsql', url }`; gesetz's `{ kind: 'sqlite',
+ * path }` was neither, so the unknown kind fell through to netzwerk's default —
+ * a database in the user's home directory, shared by every project, rather than
+ * the project-local `.gesetz/cache.db` that gesetz documents. Stale entries from
+ * an unrelated run then looked like current results.
+ */
+export function toNetworkStorage(storage: ResolvedConfig['storage']): NetworkStorageConfig {
+  if (storage.kind !== 'sqlite') return { kind: 'memory' };
+  return { kind: 'libsql', url: `file:${storage.path}` };
+}
+
+/**
  * Runs all rules in the config and returns a RunResult.
  *
  * Backend: rules are compiled to netzwerk extensions, the project is scanned
@@ -203,8 +220,7 @@ export const runAll = (
     const network = createNetwork({
       rootPath: config.projectRoot,
       extensions: compileConfig(config, compileCtx),
-      // GesetzStorageConfig is structurally identical to NetworkStorageConfig.
-      storage: config.storage as import('netzwerk').NetworkStorageConfig,
+      storage: toNetworkStorage(config.storage),
     });
 
     try {
