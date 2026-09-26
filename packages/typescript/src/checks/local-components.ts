@@ -29,8 +29,18 @@ export function noLocalFunctionComponents(
       try {
         const result = await syntax.process(file, { exports: true });
         exportedNames = new Set(result.exports.map((e) => e.name));
-      } catch {
-        // ignore parse errors
+      } catch (cause) {
+        // The file could not be parsed, so this check cannot run on it. Saying so
+        // is the difference between "no local components" and "not checked".
+        return [
+          {
+            rule: 'no-local-function-components',
+            message: `Could not parse ${file.path}, so local components were not checked: ${String(cause)}`,
+            path: file.path,
+            severity: 'info',
+            source: 'core',
+          },
+        ];
       }
     }
 

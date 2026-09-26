@@ -30,8 +30,12 @@ jobs:
       # Build first — the CLI and adapters depend on compiled output.
       - run: pnpm build
 
-      # Dogfood: run gesetz against its own codebase.
-      - run: pnpm check
+      # Dogfood: build, then run gesetz against its own codebase.
+      #
+      # `pnpm dogfood` builds first on purpose. Running `pnpm check` alone uses
+      # whatever is already in packages/*/dist, and a stale dist once meant the
+      # dogfood silently evaluated an older version of its own rules.
+      - run: pnpm dogfood
 
       # Full typecheck across all packages.
       - run: pnpm typecheck

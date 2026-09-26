@@ -36,6 +36,12 @@ import type { ParsedImport } from './services/syntax-tree';
 import { ImportResolver } from './services/import-resolver';
 import type { NetworkFileLike, Rule, Violation } from './engine/rule';
 import { SYNTAX_EXTENSION } from './backend/syntax-extension';
+import {
+  bannedForForLayer,
+  isExternalPackage,
+  isRelativeImport,
+  regexExtractImports,
+} from './architecture/helpers';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -82,31 +88,23 @@ export interface ArchitectureConfig {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-/** Returns true if the import path is a relative or absolute path, not a package. */
-function isRelativeImport(importPath: string): boolean {
-  return importPath.startsWith('.') || importPath.startsWith('/') || importPath.startsWith('~');
-}
-
-/** Returns true if the import path is an external npm package. */
-function isExternalPackage(importPath: string): boolean {
-  return !isRelativeImport(importPath);
-}
-
-/** Regex fallback for extracting import specifiers from JS/TS-like source. */
-function regexExtractImports(content: string): string[] {
-  const results: string[] = [];
-  const patterns = [
-    /(?:^|\n)\s*import\s+(?:type\s+)?(?:[^'"]+\s+from\s+)?['"]([^'"]+)['"]/g,
-    /require\(['"]([^'"]+)['"]\)/g,
-    /\bimport\(['"]([^'"]+)['"]\)/g,
-  ];
-  for (const p of patterns) {
-    let m: RegExpExecArray | null;
-    while ((m = p.exec(content)) !== null) {
-      if (m[1]) results.push(m[1]);
-    }
+/** The first layer whose pattern matches `path`, or null. */
+function layerFor(
+  path: string,
+  layers: readonly { readonly name: string; readonly pattern: string | readonly string[] }[],
+): string | null {
+  for (const layer of layers) {
+    const patterns = Array.isArray(layer.pattern) ? layer.pattern : [layer.pattern];
+    if (micromatch.isMatch(path, patterns as string[])) return layer.name;
   }
-  return results;
+  return null;
+}
+
+/** The package an external specifier belongs to: `@scope/pkg`, or `pkg`. */
+function packageOf(specifier: string): string {
+  return specifier.startsWith('@')
+    ? specifier.split('/').slice(0, 2).join('/')
+    : (specifier.split('/')[0] ?? specifier);
 }
 
 // ─── Rule builder ─────────────────────────────────────────────────────────────
@@ -151,7 +149,6 @@ function buildLayerRule(config: ArchitectureConfig): Rule {
       }
     }
 
-    // Build forbidden pairs map
     const forbiddenPairs = new Map<string, Set<string>>();
     for (const forbidden of config.forbidden ?? []) {
       const set = forbiddenPairs.get(forbidden.from) ?? new Set();
@@ -159,7 +156,6 @@ function buildLayerRule(config: ArchitectureConfig): Rule {
       forbiddenPairs.set(forbidden.from, set);
     }
 
-    // Build banned externals map
     const bannedExternals = config.bannedExternals ?? {};
 
     // Build a lookup of absolute path -> layer name for resolved-import matching.
@@ -190,7 +186,6 @@ function buildLayerRule(config: ArchitectureConfig): Rule {
       const bannedForFrom = bannedExternals[fromLayer] ?? [];
 
       for (const importPath of importSpecifiers) {
-        // Check banned external packages
         if (isExternalPackage(importPath) && bannedForFrom.length > 0) {
           const pkg = importPath.startsWith('@')
             ? importPath.split('/').slice(0, 2).join('/')
@@ -239,7 +234,6 @@ function buildLayerRule(config: ArchitectureConfig): Rule {
 
         if (!toLayer || toLayer === fromLayer) continue;
 
-        // Check canImportFrom allowlist
         if (allowedForFrom !== undefined && !allowedForFrom.has(toLayer)) {
           violations.push({
             rule: id,
@@ -251,7 +245,6 @@ function buildLayerRule(config: ArchitectureConfig): Rule {
           continue;
         }
 
-        // Check explicit forbidden pairs
         if (forbiddenForFrom?.has(toLayer)) {
           const pair = config.forbidden?.find((f) => f.from === fromLayer && f.to === toLayer);
           violations.push({
@@ -273,9 +266,6 @@ function buildLayerRule(config: ArchitectureConfig): Rule {
   return { id, description, category: 'organization', run };
 }
 
-function bannedForForLayer(banned: string[], importPath: string): boolean {
-  return banned.includes(importPath);
-}
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 
@@ -320,13 +310,8 @@ function buildLayerProject(config: ArchitectureConfig): NonNullable<Rule['projec
 
       const fileToLayer = new Map<string, string>();
       for (const file of files) {
-        for (const layer of config.layers) {
-          const patterns = Array.isArray(layer.pattern) ? layer.pattern : [layer.pattern];
-          if (micromatch.isMatch(file.path, patterns)) {
-            fileToLayer.set(file.path, layer.name);
-            break;
-          }
-        }
+        const layer = layerFor(file.path, config.layers);
+        if (layer !== null) fileToLayer.set(file.path, layer);
       }
 
       const allowedImports = new Map<string, Set<string>>();
@@ -352,21 +337,23 @@ function buildLayerProject(config: ArchitectureConfig): NonNullable<Rule['projec
         if (!fromLayer) continue;
         const banned = bannedExternals[fromLayer] ?? [];
         if (banned.length === 0) continue;
-        for (const marker of file.markersOf<{ specifier: string }>(`${SYNTAX_EXTENSION}.import`)) {
-          const specifier = marker.data.specifier;
-          if (!isExternalPackage(specifier)) continue;
-          const pkg = specifier.startsWith('@')
-            ? specifier.split('/').slice(0, 2).join('/')
-            : (specifier.split('/')[0] ?? specifier);
-          if (banned.includes(pkg) || banned.includes(specifier)) {
-            violations.push({
-              rule: id,
-              message: `Layer '${fromLayer}' must not import external package '${pkg}'.`,
-              path: file.path,
-              severity: 'error',
-              source: 'core',
-            });
-          }
+        // Filter on extension + raw type rather than a `gesetz-syntax.import`
+        // string: `markersOf` matches the raw type, and the same convention is
+        // what netzwerk's own import resolver expects.
+        for (const marker of file.markers.filter(
+          (m) => m.extension === SYNTAX_EXTENSION && m.type === 'import',
+        )) {
+          const specifier = (marker.data as { specifier?: string }).specifier;
+          if (specifier === undefined || !isExternalPackage(specifier)) continue;
+          const pkg = packageOf(specifier);
+          if (!banned.includes(pkg) && !banned.includes(specifier)) continue;
+          violations.push({
+            rule: id,
+            message: `Layer '${fromLayer}' must not import external package '${pkg}'.`,
+            path: file.path,
+            severity: 'error',
+            source: 'core',
+          });
         }
       }
 

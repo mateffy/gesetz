@@ -8,10 +8,21 @@ export interface NoConsoleLogOptions {
   readonly message?: string | undefined;
 }
 
+/** A line that is a comment, or a continuation line of a block comment. */
+const COMMENT_LINE = /^\s*(?:\/\/|\*|\/\*)/;
+
 /**
- * Bans `console.log` (and optionally all `console.*`) in production files.
+ * Bans `console.log` (and optionally all `console.*`) in production calls.
  *
  * Moved from `@gesetz/core` — this is a TypeScript/JavaScript-specific check.
+ *
+ * Comment lines are skipped: this rule's own documentation contains the example
+ * `"console.log(" matches but "notconsole.log(" does not`, and the check was
+ * reporting itself. A mention in prose is not a call.
+ *
+ * Known limit: a trailing comment on a line of code is not distinguished,
+ * because this check is deliberately regex-based rather than parse-based. A real
+ * call on such a line is still reported.
  */
 export function noConsoleLog(options: NoConsoleLogOptions = {}): Check {
   const pattern = options.allowWarnError
@@ -23,6 +34,7 @@ export function noConsoleLog(options: NoConsoleLogOptions = {}): Check {
     const lines = file.content.split('\n');
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i] ?? '';
+      if (COMMENT_LINE.test(line)) continue;
       if (pattern.test(line)) {
         violations.push({
           rule: 'no-console-log',

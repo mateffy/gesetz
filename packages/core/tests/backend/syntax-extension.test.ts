@@ -34,12 +34,23 @@ describe('syntaxExtension', () => {
     const markers = await ext.process!(FILE, 'content', CTX);
 
     expect(markers).toEqual([
-      { type: 'import', data: { specifier: './foo', names: ['a', 'b'], line: 1 }, lines: [1] },
-      { type: 'file-import', data: { file: './foo', language: 'typescript' }, lines: [1] },
-      { type: 'call', data: { name: 'console.log', line: 3 }, lines: [3] },
-      { type: 'export', data: { name: 'doThing', kind: 'function', line: 5 }, lines: [5] },
+      {
+        type: 'import',
+        extension: 'gesetz-syntax',
+        data: {
+          file: './foo',
+          language: 'typescript',
+          specifier: './foo',
+          names: ['a', 'b'],
+          line: 1,
+        },
+        lines: [1],
+      },
+      { type: 'call', extension: 'gesetz-syntax', data: { name: 'console.log', line: 3 }, lines: [3] },
+      { type: 'export', extension: 'gesetz-syntax', data: { name: 'doThing', kind: 'function', line: 5 }, lines: [5] },
       {
         type: 'structure',
+        extension: 'gesetz-syntax',
         data: {
           kind: 'function',
           name: 'doThing',

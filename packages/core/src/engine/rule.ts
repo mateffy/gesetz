@@ -90,6 +90,7 @@ export type RuleCategory =
   | 'organization'
   | 'cleanup'
   | 'security'
+  | 'testing'
   | 'react'
   | 'effect-ts'
   | string; // extensible
@@ -154,7 +155,13 @@ export interface Rule {
  */
 export interface NetworkFileLike {
   readonly path: string;
-  readonly markers: readonly { readonly type: string; readonly data: unknown; readonly lines?: readonly number[] | undefined }[];
+  readonly markers: readonly {
+    readonly type: string;
+    /** the extension namespace the marker was written under, e.g. `gesetz-syntax` */
+    readonly extension?: string | undefined;
+    readonly data: unknown;
+    readonly lines?: readonly number[] | undefined;
+  }[];
   hasMarker(type: string): boolean;
   markersOf<D = unknown>(type: string): readonly { readonly type: string; readonly data: D; readonly lines?: readonly number[] | undefined }[];
   content(): Promise<string>;

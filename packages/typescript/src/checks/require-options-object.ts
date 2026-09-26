@@ -1,4 +1,4 @@
-import type { SgNode } from '@ast-grep/napi';
+
 import type { Check, Violation } from '@gesetz/core';
 import { parseFile, findByKind, getCallArgs, startLine } from './shared';
 

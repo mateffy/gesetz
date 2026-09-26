@@ -3,6 +3,9 @@ import { Effect } from 'effect';
 import type { Rule, Violation } from '@gesetz/core';
 import { execTool, extractLocation, FileFilter } from '@gesetz/core';
 
+/** Lines of a failure message kept as violation context. */
+const FAILURE_CONTEXT_LINES = 6;
+
 export interface VitestOptions {
   /**
    * File glob(s) or paths to test. Passed to `vitest run <pattern>`.
@@ -69,7 +72,7 @@ function parseVitestJson(stdout: string, cwd: string, ruleId: string): Violation
         line,
         severity: 'error',
         source: 'custom',
-        context: failure.split('\n').slice(0, 6).join('\n') || undefined,
+        context: failure.split('\n').slice(0, FAILURE_CONTEXT_LINES).join('\n') || undefined,
       });
     }
   }

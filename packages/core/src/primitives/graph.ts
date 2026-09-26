@@ -42,6 +42,50 @@ function candidatePaths(resolved: string): string[] {
  * @example
  * noCycles('src/**\/*.{ts,tsx}', { label: 'No circular dependencies' })
  */
+/** The violation for `node` closing a cycle found along `stack`. */
+function cycleViolation(ruleId: string, node: string, stack: readonly string[]): Violation {
+  const cycle = stack.slice(stack.indexOf(node));
+  return {
+    rule: ruleId,
+    message: `Circular dependency: ${[...cycle, node].join(' → ')}`,
+    path: stack[stack.length - 1] ?? node,
+    severity: 'error',
+    source: 'custom',
+  };
+}
+
+/**
+ * Depth-first search recording one violation per back edge.
+ *
+ * Lives at module scope rather than inside the rule's generator: as a closure it
+ * sat inside an object literal inside a generator callback, so a two-line loop
+ * read as six levels of nesting.
+ */
+function findCycles(
+  files: readonly { readonly path: string }[],
+  adjacency: ReadonlyMap<string, string[]>,
+  ruleId: string,
+): Violation[] {
+  const visited = new Set<string>();
+  const inStack = new Set<string>();
+  const violations: Violation[] = [];
+
+  const walk = (node: string, stack: string[]): void => {
+    if (inStack.has(node)) {
+      violations.push(cycleViolation(ruleId, node, stack));
+      return;
+    }
+    if (visited.has(node)) return;
+    visited.add(node);
+    inStack.add(node);
+    for (const dep of adjacency.get(node) ?? []) walk(dep, [...stack, node]);
+    inStack.delete(node);
+  };
+
+  for (const file of files) walk(file.path, []);
+  return violations;
+}
+
 export function noCycles(pattern: string | string[], opts: NoCyclesOptions = {}): Rule {
   const id = opts.id ?? 'no-cycles';
   const description = opts.label ?? 'No circular dependencies';
@@ -133,14 +177,14 @@ export function noCycles(pattern: string | string[], opts: NoCyclesOptions = {})
       patterns,
       run: async (ctx) => {
         const byPath = new Map<string, NetworkFileLike>();
-        for (const pattern of patterns) {
-          for (const file of await ctx.network.glob(pattern)) byPath.set(file.path, file);
+        for (const single of patterns) {
+          for (const file of await ctx.network.glob(single)) byPath.set(file.path, file);
         }
         const files = [...byPath.values()];
         if (files.length === 0) return [];
 
-        // Import edges resolved by netzwerk from `file-import` markers — no
-        // re-parsing, no extension probing.
+        // Import edges resolved by netzwerk from the syntax extension's `import`
+        // markers, so nothing is re-parsed and no extension probing is needed.
         const edges = resolveImportEdges(files as never);
         const adjacency = new Map<string, string[]>();
         for (const edge of edges) {
@@ -149,38 +193,7 @@ export function noCycles(pattern: string | string[], opts: NoCyclesOptions = {})
           adjacency.set(edge.from, deps);
         }
 
-        const visited = new Set<string>();
-        const inStack = new Set<string>();
-        const violations: Violation[] = [];
-
-        function dfs(node: string, stack: string[]): void {
-          if (inStack.has(node)) {
-            const cycleStart = stack.indexOf(node);
-            const cycle = stack.slice(cycleStart);
-            const chain = cycle.join(' → ') + ' → ' + node;
-            violations.push({
-              rule: id,
-              message: `Circular dependency: ${chain}`,
-              path: stack[stack.length - 1] ?? node,
-              severity: 'error',
-              source: 'custom',
-            });
-            return;
-          }
-          if (visited.has(node)) return;
-          visited.add(node);
-          inStack.add(node);
-          for (const dep of adjacency.get(node) ?? []) {
-            dfs(dep, [...stack, node]);
-          }
-          inStack.delete(node);
-        }
-
-        for (const file of files) {
-          dfs(file.path, []);
-        }
-
-        return violations;
+        return findCycles(files, adjacency, id);
       },
     },
   };

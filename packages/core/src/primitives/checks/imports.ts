@@ -61,8 +61,10 @@ export function noImportFrom(
           }
         }
         return violations;
-      } catch {
-        // fall through to regex fallback
+      } catch (cause) {
+        // Only an unregistered backend is expected here; anything else is a real
+        // failure and must not be turned into a silent fallback.
+        if (!String(cause).includes('No SyntaxBackend registered')) throw cause;
       }
     }
 

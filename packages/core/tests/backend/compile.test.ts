@@ -3,10 +3,10 @@ import { tmpdir } from 'node:os';
 import * as nodePath from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { Effect } from 'effect';
-import { defineNetwork, type Network, type SourceFile } from 'netzwerk';
+import { createNetwork, type Network, type SourceFile } from 'netzwerk';
 import { compileConfig, compileRule, type CompileContext } from '../../src/backend/compile';
 import { createCheckServices } from '../../src/backend/check-services';
-import { syntaxExtension, SYNTAX_EXTENSION } from '../../src/backend/syntax-extension';
+import { SYNTAX_EXTENSION } from '../../src/backend/syntax-extension';
 import { isViolationMarker } from '../../src/backend/violation-markers';
 import { defineConfig } from '../../src/engine/config';
 import type { Check, Rule, Violation } from '../../src/engine/rule';
@@ -77,7 +77,11 @@ describe('compileRule (per-file rules)', () => {
     expect(data.severity).toBe('warn');
   });
 
-  it('absorbs check errors into an empty marker list', async () => {
+  it('reports a throwing check instead of reporting nothing', async () => {
+    // A check that threw used to contribute no markers at all, which is
+    // indistinguishable from "this file is clean". Silence on failure is the
+    // fail-open shape this project exists to find in other codebases, so the
+    // error is surfaced as an explicit violation.
     const rule = select('src/**/*.ts')
       .label('Boom')
       .check(async () => {
@@ -85,8 +89,14 @@ describe('compileRule (per-file rules)', () => {
       });
     const ext = compileRule(rule, stubCtx());
     const markers = await ext.process!(sourceFile('src/a.ts'), 'x', stubExtCtx());
-    expect(markers).toEqual([]);
+    expect(markers).toHaveLength(1);
+    const data = markers[0]!.data as { severity: string; message: string };
+    expect(data.severity).toBe('error');
+    expect(data.message).toContain('Check #1 threw');
+    expect(data.message).toContain('check exploded');
+    expect(data.message).toContain('not fully checked');
   });
+
 
   it('applies predicates before running checks', async () => {
     let ran = 0;
@@ -128,7 +138,7 @@ describe('compileRule (run-only rules)', () => {
     };
 
     const network = track(
-      defineNetwork({ rootPath: dir, extensions: [compileRule(rule, stubCtx())] }),
+      createNetwork({ rootPath: dir, extensions: [compileRule(rule, stubCtx())] }),
     );
     await network.scan();
 
@@ -149,7 +159,7 @@ describe('compileRule (run-only rules)', () => {
       run: Effect.suspend(() => Effect.succeed(violations)),
     };
     const network = track(
-      defineNetwork({ rootPath: dir, extensions: [compileRule(rule, stubCtx())] }),
+      createNetwork({ rootPath: dir, extensions: [compileRule(rule, stubCtx())] }),
     );
     await network.scan();
     expect((await network.file('src/a.ts'))?.markers.filter(isViolationMarker)).toHaveLength(1);
@@ -185,7 +195,7 @@ describe('compileConfig', () => {
 
     let services: Awaited<ReturnType<typeof createCheckServices>>;
     const network = track(
-      defineNetwork({
+      createNetwork({
         rootPath: dir,
         extensions: compileConfig(config, {
           rootDir: dir,

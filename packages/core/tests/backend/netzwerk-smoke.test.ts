@@ -8,6 +8,7 @@ import { defineConfig, select, noGodFile, requireSibling } from '../../src/index
 import { noImportFrom } from '../../src/primitives/checks/imports.js';
 import { compileConfig, type CompileContext } from '../../src/backend/compile.js';
 import { createCheckServices } from '../../src/backend/check-services.js';
+import type { CheckServices } from '../../src/engine/rule.js';
 import { isViolationMarker, markerToViolation } from '../../src/backend/violation-markers.js';
 
 let dir: string;
@@ -20,12 +21,15 @@ afterEach(async () => {
   await rm(dir, { recursive: true, force: true });
 });
 
-function aNetwork(options?: { storage?: 'memory' | 'sqlite' }): Network {
+function aNetwork(options?: { storage?: 'memory' | 'file' }): Network {
   return createNetwork({
     rootPath: dir,
     extensions: [],
-    storage: options?.storage === 'sqlite'
-      ? { kind: 'sqlite', path: nodePath.join(dir, 'cache.db') }
+    // netzwerk's file-backed store is libsql, configured by url — not a
+    // `{ kind: 'sqlite', path }` pair. GesetzStorageConfig uses the latter, and
+    // the cast in the runner asserts the two are identical; they are not.
+    storage: options?.storage === 'file'
+      ? { kind: 'libsql', url: `file:${nodePath.join(dir, 'cache.db')}` }
       : { kind: 'memory' },
   });
 }
@@ -74,6 +78,7 @@ describe('netzwerk runtime API', () => {
     const net = aNetwork();
     await net.scan();
     await net.createMarker('src/a.ts', {
+      extension: 'test',
       type: 'smoke.test',
       data: { rule: 'r1', message: 'hello', severity: 'error', source: 'core' },
     });
@@ -92,10 +97,11 @@ describe('netzwerk runtime API', () => {
     const net = createNetwork({
       rootPath: dir,
       extensions: [],
-      storage: { kind: 'sqlite', path: dbPath },
+      storage: { kind: 'libsql', url: `file:${dbPath}` },
     });
     await net.scan();
     await net.createMarker('src/a.ts', {
+      extension: 'test',
       type: 'smoke',
       data: { key: 'value' },
     });
@@ -104,7 +110,7 @@ describe('netzwerk runtime API', () => {
     const reopened = createNetwork({
       rootPath: dir,
       extensions: [],
-      storage: { kind: 'sqlite', path: dbPath },
+      storage: { kind: 'libsql', url: `file:${dbPath}` },
     });
     const file = await reopened.file('src/a.ts');
     expect(file?.hasMarker('smoke')).toBe(true);
@@ -130,7 +136,7 @@ describe('compile pipeline (integration)', () => {
     let services: Awaited<ReturnType<typeof createCheckServices>>;
     const compileCtx: CompileContext = {
       rootDir: dir,
-      getServices: () => services as ReturnType<typeof createCheckServices>,
+      getServices: () => services as CheckServices,
       pendingViolations: pendingViolations as never,
       sharedPaths,
     };
@@ -181,7 +187,7 @@ describe('compile pipeline (integration)', () => {
     let services: Awaited<ReturnType<typeof createCheckServices>>;
     const compileCtx: CompileContext = {
       rootDir: dir,
-      getServices: () => services as ReturnType<typeof createCheckServices>,
+      getServices: () => services as CheckServices,
       pendingViolations: pendingViolations as never,
       sharedPaths,
     };
@@ -227,7 +233,7 @@ describe('compile pipeline (integration)', () => {
     let services: Awaited<ReturnType<typeof createCheckServices>>;
     const compileCtx: CompileContext = {
       rootDir: dir,
-      getServices: () => services as ReturnType<typeof createCheckServices>,
+      getServices: () => services as CheckServices,
       pendingViolations: pendingViolations as never,
       sharedPaths,
     };
@@ -270,7 +276,7 @@ describe('compile pipeline (integration)', () => {
     let services: Awaited<ReturnType<typeof createCheckServices>>;
     const compileCtx: CompileContext = {
       rootDir: dir,
-      getServices: () => services as ReturnType<typeof createCheckServices>,
+      getServices: () => services as CheckServices,
       pendingViolations: pendingViolations as never,
       sharedPaths,
     };

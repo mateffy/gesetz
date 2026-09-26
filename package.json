@@ -4,7 +4,6 @@
   "type": "module",
   "packageManager": "pnpm@11.9.0",
   "dependencies": {
-    "gesetz": "workspace:*",
     "@gesetz/bun-test": "workspace:*",
     "@gesetz/core": "workspace:*",
     "@gesetz/effect-ts": "workspace:*",
@@ -16,7 +15,8 @@
     "@gesetz/prettier": "workspace:*",
     "@gesetz/storybook": "workspace:*",
     "@gesetz/typescript": "workspace:*",
-    "@gesetz/vitest": "workspace:*"
+    "@gesetz/vitest": "workspace:*",
+    "gesetz": "workspace:*"
   },
   "scripts": {
     "test": "pnpm -r run test",
@@ -26,10 +26,16 @@
     "prepack": "tsdown -W",
     "publish": "pnpm -r publish --access public",
     "publint": "pnpm -r exec publint",
-    "attw": "pnpm -r exec attw --pack"
+    "attw": "pnpm -r exec attw --pack",
+    "dogfood": "pnpm build && node packages/cli/dist/main.js check",
+    "dogfood:json": "pnpm build && node packages/cli/dist/main.js check --format=json --all",
+    "format": "oxfmt --write packages",
+    "lint": "oxlint packages"
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.4",
+    "oxfmt": "^0.70.0",
+    "oxlint": "^1.85.0",
     "publint": "^0.3.21",
     "tsdown": "^0.22.3"
   }

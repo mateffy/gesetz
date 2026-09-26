@@ -1,8 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import * as childProcess from 'node:child_process';
 import * as nodeFs from 'node:fs';
-import * as nodeOs from 'node:os';
-import * as nodePath from 'node:path';
+
 import { Effect, Layer } from 'effect';
 import { bunTest } from '../src/adapter';
 import { MemoryFileSystem, ProjectRootLive, FileFilterLive, SyntaxTreeStub, ImportResolverDefault } from '@gesetz/core';
@@ -51,7 +50,6 @@ describe('bun-test adapter', () => {
 
   it('parses failed tests from JUnit XML', async () => {
     const tmpDir = '/tmp/gesetz-bun-test-1';
-    const tmpFile = nodePath.join(tmpDir, 'junit.xml');
     (nodeFs.mkdtempSync as ReturnType<typeof vi.fn>).mockReturnValue(tmpDir);
     (nodeFs.readFileSync as ReturnType<typeof vi.fn>).mockReturnValue(JUNIT_XML);
     (childProcess.execFileSync as ReturnType<typeof vi.fn>).mockImplementation(() => '');

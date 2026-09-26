@@ -96,8 +96,9 @@ async function executePhpstan(
 
   const stdout = await Effect.runPromise(execTool(bin, args, cwd, 'phpstan'));
 
-  const violations = parsePhpstanOutput(stdout, cwd);
-  return violations.map((v) => ({ ...v, rule: id }));
+  // each violation gets the adapter's rule id; a shallow copy per item is the
+  // clearest way to express that, and this runs once per phpstan report
+  return parsePhpstanOutput(stdout, cwd).map((violation) => ({ ...violation, rule: id }));
 }
 
 export function phpstan(opts: PhpstanOptions = {}): Rule {

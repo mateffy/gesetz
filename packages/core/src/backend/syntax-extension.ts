@@ -64,21 +64,36 @@ export function syntaxExtension(backends: readonly SyntaxBackend[]): NetworkExte
       const language = languageForExt(ext);
       const markers: FileMarker[] = [];
       for (const imp of backend.extractImports(content, file.relativePath)) {
+        // One marker carries two consumers' fields.
+        //
+        // netzwerk's `resolveImportEdges` reads `type: 'import'` and requires
+        // string `data.file` and `data.language`; anything else is skipped
+        // silently, which left the whole import graph empty and cycle detection
+        // reporting nothing. `language` must be one of netzwerk's resolver keys
+        // ('typescript', 'php-laravel', ...) because it drives resolution.
+        //
+        // gesetz's own `services.syntax.process` reads `specifier`, `names` and
+        // `line` from the same marker.
+        //
+        // The previous `file-import` marker was a third shape that nothing
+        // consumed: it is not a netzwerk marker type.
         markers.push({
           type: 'import',
-          data: { specifier: imp.specifier, names: imp.names, line: imp.line },
-          lines: [imp.line],
-        });
-        // netzwerk's canonical import marker — drives resolveImportEdges.
-        markers.push({
-          type: 'file-import',
-          data: { file: imp.specifier, language },
+          extension: SYNTAX_EXTENSION,
+          data: {
+            file: imp.specifier,
+            language,
+            specifier: imp.specifier,
+            names: imp.names,
+            line: imp.line,
+          },
           lines: [imp.line],
         });
       }
       for (const call of backend.extractCalls(content, file.relativePath)) {
         markers.push({
           type: 'call',
+          extension: SYNTAX_EXTENSION,
           data: { name: call.name, line: call.line },
           lines: [call.line],
         });
@@ -86,6 +101,7 @@ export function syntaxExtension(backends: readonly SyntaxBackend[]): NetworkExte
       for (const exp of backend.extractExports(content, file.relativePath)) {
         markers.push({
           type: 'export',
+          extension: SYNTAX_EXTENSION,
           data: { name: exp.name, kind: exp.kind, line: exp.line },
           lines: [exp.line],
         });
@@ -93,6 +109,7 @@ export function syntaxExtension(backends: readonly SyntaxBackend[]): NetworkExte
       for (const item of backend.extractStructure(content, file.relativePath, true)) {
         markers.push({
           type: 'structure',
+          extension: SYNTAX_EXTENSION,
           data: item as unknown as Record<string, unknown>,
           lines: [item.startLine, item.endLine],
         });

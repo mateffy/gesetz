@@ -1,5 +1,100 @@
+import * as nodeFs from 'node:fs';
 import * as nodePath from 'node:path';
 import type { Check, Violation } from '../../engine/rule';
+
+/** How far up to look for a package.json before giving up. */
+const MAX_PACKAGE_WALK = 12;
+
+/** The nearest directory at or above `dir` that holds a package.json. */
+function findPackageRoot(dir: string): string | null {
+  let current = dir;
+  for (let depth = 0; depth < MAX_PACKAGE_WALK; depth++) {
+    if (nodeFs.existsSync(nodePath.join(current, 'package.json'))) return current;
+    const parent = nodePath.dirname(current);
+    if (parent === current) return null;
+    current = parent;
+  }
+  return null;
+}
+
+/**
+ * Every path a test for `file` could plausibly live at.
+ *
+ * Two conventions are supported, because real repositories use both:
+ *
+ *   co-located   `src/foo/bar.ts`          -> `src/foo/bar.test.ts`
+ *   tests dir    `src/foo/bar.ts`          -> `tests/foo/bar.test.ts`
+ *                `src/foo/bar.ts`          -> `tests/bar.test.ts`
+ *
+ * The `tests` form mirrors the path under `src`, which is what this repository
+ * does. Exported so the discovery rules can be tested directly rather than only
+ * through a filesystem.
+ */
+export function testCandidates(
+  absolutePath: string,
+  suffixes: readonly string[],
+): string[] {
+  const dir = nodePath.dirname(absolutePath);
+  const stem = nodePath.basename(absolutePath).replace(/\.[^.]+$/, '');
+  const out: string[] = [];
+
+  // co-located
+  for (const suffix of suffixes) out.push(nodePath.join(dir, stem + suffix));
+
+  const pkgRoot = findPackageRoot(dir);
+  if (pkgRoot === null) return out;
+
+  // under `tests/`, mirroring the path below `src` when the file is inside src
+  const srcDir = nodePath.join(pkgRoot, 'src');
+  const rel = nodePath.relative(srcDir, dir);
+  const mirrored = rel.startsWith('..') || nodePath.isAbsolute(rel) ? '' : rel;
+  for (const suffix of suffixes) {
+    out.push(nodePath.join(pkgRoot, 'tests', mirrored, stem + suffix));
+    out.push(nodePath.join(pkgRoot, 'tests', stem + suffix));
+  }
+  return out;
+}
+
+export interface RequireTestOptions {
+  /** Test file suffixes to look for. Default: `.test.ts`, `.test.tsx`, `.spec.ts`. */
+  readonly suffixes?: readonly string[] | undefined;
+  readonly message?: string | undefined;
+  readonly severity?: Violation['severity'] | undefined;
+}
+
+/**
+ * Checks that a test file exists for this file, under either convention.
+ *
+ * `requireSibling('.test.ts')` only ever looked next to the source. A repository
+ * that keeps tests in `tests/` therefore reported a missing test for every file
+ * even when the test existed two directories away, and seven such false errors
+ * were failing the build here. This finds both layouts and, when it fails, names
+ * every path it looked in so the mismatch is visible.
+ *
+ * @example
+ * // every source file in a package
+ * select('packages/core/src').check(requireTest())
+ */
+export function requireTest(options: RequireTestOptions = {}): Check {
+  const suffixes = options.suffixes ?? ['.test.ts', '.test.tsx', '.spec.ts'];
+  return async (file, { fs }) => {
+    const candidates = testCandidates(file.absolutePath, suffixes);
+    for (const candidate of candidates) {
+      if (await fs.exists(candidate)) return [];
+    }
+    const looked = candidates.map((c) => nodePath.relative(process.cwd(), c)).join('\n  ');
+    return [
+      {
+        severity: options.severity ?? 'error',
+        source: 'core',
+        message:
+          options.message ??
+          `No test file found for ${file.path}. Looked in:\n  ${looked}`,
+        path: file.path,
+      },
+    ];
+  };
+}
 
 /**
  * Checks that a sibling file with the given suffix exists.

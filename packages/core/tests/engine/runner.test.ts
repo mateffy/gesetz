@@ -9,7 +9,6 @@ import { ImportResolverDefault } from '../../src/services/import-resolver';
 
 const TestLayer = Layer.mergeAll(MemoryFileSystem({}), SyntaxTreeStub, ImportResolverDefault, ProjectRootLive(process.cwd()), FileFilterLive(null));
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-type AnyServiceContext = any;
 
 function makeRule(id: string, violations: Violation[]): Rule {
   return {
@@ -29,9 +28,6 @@ function makeThrowingRule(id: string): Rule {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const runWith = (effect: Effect.Effect<any, any, any>): Promise<any> =>
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  Effect.provide(effect, TestLayer as any).pipe(Effect.runPromise as any);
 
 const violation = (path: string, ruleId: string): Violation => ({
   rule: ruleId,

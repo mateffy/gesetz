@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { Effect, Exit, Cause, Layer } from 'effect';
+import { Effect, Exit, Cause } from 'effect';
 import { SyntaxTreeLive, SyntaxTreeError, SyntaxTree } from '../../src/services/syntax-tree';
 import type { SyntaxBackend } from '../../src/services/syntax-tree';
 import type { File } from '../../src/engine/rule';

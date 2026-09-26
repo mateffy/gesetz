@@ -65,7 +65,15 @@ export { makeFile, makeCheckServices, runCheck } from './test-helpers';
 export type { MakeCheckServicesOptions } from './test-helpers';
 
 // ─── Primitive checks (language-agnostic) ─────────────────────────────────────
-export { requireSibling, requireChildren, forbidFile } from './primitives/checks/fs';
+export {
+  requireSibling,
+  requireChildren,
+  requireTest,
+  forbidFile,
+  relativeImports,
+  testCandidates,
+} from './primitives/checks/fs';
+export type { RequireTestOptions } from './primitives/checks/fs';
 export { noImportFrom, requireImportFrom } from './primitives/checks/imports';
 export { noPattern, requirePattern } from './primitives/checks/patterns';
 export {

@@ -1,10 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import * as childProcess from 'node:child_process';
 import * as nodeFs from 'node:fs';
-import * as nodePath from 'node:path';
 import { Effect, Layer } from 'effect';
 import { storybook } from '../src/adapter';
 import { MemoryFileSystem, ProjectRootLive, FileFilterLive, SyntaxTreeStub, ImportResolverDefault } from '@gesetz/core';
+
+/** A child-process failure as `execFileSync` really throws it: status plus captured stdout. */
+function exitFailure(status: number, stdout = ''): Error & { status: number; stdout: string } {
+  const e = new Error(`Command failed: exit ${status}`) as Error & { status: number; stdout: string };
+  e.status = status;
+  e.stdout = stdout;
+  return e;
+}
 
 const TestLayer = Layer.mergeAll(
   MemoryFileSystem({}),
@@ -66,11 +73,13 @@ describe('storybook', () => {
 
   it('maps failed story assertions to violations', async () => {
     const tmpDir = '/tmp/gesetz-storybook-test-1';
-    const tmpFile = nodePath.join(tmpDir, 'results.json');
     (nodeFs.mkdtempSync as ReturnType<typeof vi.fn>).mockReturnValue(tmpDir);
     (nodeFs.readFileSync as ReturnType<typeof vi.fn>).mockReturnValue(STORYBOOK_JSON);
+    // A non-zero exit is the tool reporting findings, not a tool that could not
+    // run: test-storybook exits 1 when stories fail. The error must therefore
+    // carry captured stdout, exactly as execFileSync produces it.
     (childProcess.execFileSync as ReturnType<typeof vi.fn>).mockImplementation(() => {
-      throw new Error('exit 1');
+      throw exitFailure(1, '');
     });
 
     const rule = storybook({ cwd: '/project', url: 'http://localhost:6006' });

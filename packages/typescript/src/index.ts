@@ -29,6 +29,7 @@ export {
   noEnum,
   noBarrelFile,
   requireExplicitReturnType,
+  noCrossModuleImports,
 } from './checks';
 export type {
   NoHardcodedStringsOptions,
@@ -44,4 +45,5 @@ export type {
   NoEnumOptions,
   NoBarrelFileOptions,
   RequireExplicitReturnTypeOptions,
+  NoCrossModuleImportsOptions,
 } from './checks';

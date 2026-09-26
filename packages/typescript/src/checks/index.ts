@@ -32,6 +32,8 @@ export { noDefaultExport } from './no-default-export';
 export type { NoDefaultExportOptions } from './no-default-export';
 export { noEnum } from './no-enum';
 export type { NoEnumOptions } from './no-enum';
+export { noCrossModuleImports } from './no-cross-module-imports';
+export type { NoCrossModuleImportsOptions } from './no-cross-module-imports';
 export { noBarrelFile } from './no-barrel-file';
 export type { NoBarrelFileOptions } from './no-barrel-file';
 export { requireExplicitReturnType } from './require-explicit-return-type';

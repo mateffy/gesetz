@@ -1,9 +1,9 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import * as childProcess from 'node:child_process';
 import * as nodeFs from 'node:fs';
-import * as nodeOs from 'node:os';
+
 import * as nodePath from 'node:path';
-import { Effect } from 'effect';
+import { Effect, Cause } from 'effect';
 import { execTool, runWithTempFile, extractLocation } from '../../src/engine/exec';
 
 vi.mock('node:child_process', async () => {
@@ -57,14 +57,27 @@ describe('execTool', () => {
     expect(result).toBe('violation output');
   });
 
-  it('returns empty string and logs warning on failure without stdout', async () => {
+  it('fails closed when the tool cannot run at all', async () => {
+    // A tool that is not installed used to resolve to '' and every adapter turned
+    // that into "no violations found" — a missing linter reported a clean scan.
+    // Five of five adapters did this when pointed at a nonexistent binary, so the
+    // failure is now a defect the caller must handle rather than a silent pass.
     const spy = childProcess.execFileSync as ReturnType<typeof vi.fn>;
     spy.mockImplementation(() => {
       throw new Error('command not found');
     });
 
-    const result = await Effect.runPromise(execTool('missing', [], '/cwd', 'tool'));
-    expect(result).toBe('');
+    const exit = await Effect.runPromiseExit(execTool('missing', [], '/cwd', 'tool'));
+    expect(exit._tag).toBe('Failure');
+    expect(exit._tag === 'Failure' && Cause.isDie(exit.cause)).toBe(true);
+    if (exit._tag === 'Failure') {
+      const defect = Cause.dieOption(exit.cause);
+      expect(defect._tag).toBe('Some');
+      if (defect._tag === 'Some') {
+        expect(String(defect.value)).toContain('could not run');
+        expect(String(defect.value)).toContain('must not pass');
+      }
+    }
   });
 
   it('handles Buffer stdout', async () => {
@@ -96,7 +109,6 @@ describe('runWithTempFile', () => {
 
   it('cleans up temp directory after success', async () => {
     const tmpDir = '/tmp/gesetz-test-456';
-    const tmpFile = nodePath.join(tmpDir, 'output.xml');
     (nodeFs.mkdtempSync as ReturnType<typeof vi.fn>).mockReturnValue(tmpDir);
 
     await Effect.runPromise(
@@ -111,7 +123,6 @@ describe('runWithTempFile', () => {
 
   it('cleans up temp directory even when callback fails', async () => {
     const tmpDir = '/tmp/gesetz-test-789';
-    const tmpFile = nodePath.join(tmpDir, 'output.xml');
     (nodeFs.mkdtempSync as ReturnType<typeof vi.fn>).mockReturnValue(tmpDir);
 
     await Effect.runPromise(

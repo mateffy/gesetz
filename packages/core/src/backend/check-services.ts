@@ -10,7 +10,7 @@
  */
 import * as nodeFs from 'node:fs';
 import * as nodePath from 'node:path';
-import type { Network, NetworkFile } from 'netzwerk';
+import type { FileMarker, Network, NetworkFile } from 'netzwerk';
 import { resolverForLanguage } from 'netzwerk';
 import type { CheckServices, File } from '../engine/rule';
 import type {
@@ -120,12 +120,12 @@ export async function createCheckServices(
       async glob(pattern, _options): Promise<File[]> {
         const patterns = Array.isArray(pattern) ? pattern : [pattern];
         const byPath = new Map<string, File>();
-        for (const single of patterns) {
-          for (const networkFile of await network.glob(single)) {
-            if (!byPath.has(networkFile.path)) {
-              byPath.set(networkFile.path, toGesetzFile(rootDir, networkFile));
-            }
-          }
+        // patterns are resolved together; Promise.all keeps their order, so the
+        // first pattern to match a path still wins
+        const matches = (await Promise.all(patterns.map((p) => network.glob(p)))).flat();
+        for (const networkFile of matches) {
+          if (byPath.has(networkFile.path)) continue;
+          byPath.set(networkFile.path, toGesetzFile(rootDir, networkFile));
         }
         return [...byPath.values()].sort((a, b) => a.path.localeCompare(b.path));
       },
@@ -160,27 +160,38 @@ export async function createCheckServices(
         const networkFile = await markersOf(file);
         if (networkFile === null) return EMPTY_RESULT;
 
+        /**
+         * Read this extension's markers of one kind.
+         *
+         * `markersOf` matches the RAW `type` field, not a namespaced
+         * `extension.type` name. Asking for `'gesetz-syntax.import'` therefore
+         * matched nothing, so imports, calls, exports and structure all came back
+         * empty and every syntax-backed rule — architecture boundaries, cycle
+         * detection, import rules, docstring and naming rules that read structure
+         * — silently reported zero violations.
+         *
+         * Filtering on both fields keeps other extensions that happen to use a
+         * type called `import` out of the result.
+         */
+        const syntaxMarkers = <D>(kind: string): readonly FileMarker<D>[] =>
+          networkFile.markers.filter(
+            (m) => m.extension === SYNTAX_EXTENSION && m.type === kind,
+          ) as readonly FileMarker<D>[];
+
         const imports: ParsedImport[] = options.imports
-          ? networkFile
-              .markersOf<{ specifier: string; names: readonly string[]; line: number }>(
-                `${SYNTAX_EXTENSION}.import`,
-              )
+          ? syntaxMarkers<{ specifier: string; names: readonly string[]; line: number }>('import')
               .map((m) => ({ specifier: m.data.specifier, names: m.data.names, line: m.data.line }))
           : [];
         const calls: ParsedCall[] = options.calls
-          ? networkFile
-              .markersOf<{ name: string; line: number }>(`${SYNTAX_EXTENSION}.call`)
+          ? syntaxMarkers<{ name: string; line: number }>('call')
               .map((m) => ({ name: m.data.name, line: m.data.line }))
           : [];
         const exports_: ParsedExport[] = options.exports
-          ? networkFile
-              .markersOf<{ name: string; kind: string; line: number }>(`${SYNTAX_EXTENSION}.export`)
+          ? syntaxMarkers<{ name: string; kind: string; line: number }>('export')
               .map((m) => ({ name: m.data.name, kind: m.data.kind, line: m.data.line }))
           : [];
         const structure: StructureItem[] = options.structure
-          ? networkFile
-              .markersOf<StructureItem>(`${SYNTAX_EXTENSION}.structure`)
-              .map((m) => m.data)
+          ? syntaxMarkers<StructureItem>('structure').map((m) => m.data)
           : [];
 
         return { imports, calls, exports: exports_, structure };

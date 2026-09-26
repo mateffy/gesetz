@@ -8,6 +8,13 @@ import { compileConfig, type CompileContext } from '../backend/compile';
 import { createCheckServices } from '../backend/check-services';
 import { isViolationMarker, markerToViolation } from '../backend/violation-markers';
 
+/** A category starts at this score and loses weight per violation. */
+const MAX_SCORE = 10;
+/** What each severity costs, matching the documented scoring formula. */
+const SEVERITY_WEIGHT = { error: 1, warn: 0.5, info: 0.1 } as const;
+/** A category must reach this score unless the config sets its own threshold. */
+const DEFAULT_MIN_SCORE = 7;
+
 export interface RuleResult {
   readonly ruleId: string;
   readonly description: string;
@@ -111,9 +118,12 @@ function computeCategoryScores(
   }
 
   return Array.from(byCategory.entries()).map(([category, counts]) => {
-    const weighted = counts.errors * 1.0 + counts.warnings * 0.5 + counts.infos * 0.1;
-    const score = Math.max(0, Math.round((10 - weighted) * 10) / 10);
-    const threshold = thresholds.find((t) => t.category === category)?.minScore ?? 7;
+    const weighted =
+      counts.errors * SEVERITY_WEIGHT.error +
+      counts.warnings * SEVERITY_WEIGHT.warn +
+      counts.infos * SEVERITY_WEIGHT.info;
+    const score = Math.max(0, Math.round((MAX_SCORE - weighted) * 10) / 10);
+    const threshold = thresholds.find((t) => t.category === category)?.minScore ?? DEFAULT_MIN_SCORE;
     return {
       category,
       score,
@@ -141,21 +151,15 @@ export function applyExemptions(
 ): Violation[] {
   const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
 
-  return violations.filter((violation) => {
-    return !exemptions.some((exemption) => {
-      // Check expiry
-      if (exemption.until !== undefined && exemption.until < today) {
-        return false; // Expired exemption — does not suppress
-      }
-      // Check rule match
-      const rulePattern = exemption.rule ?? '*';
-      if (!micromatch.isMatch(ruleId, rulePattern)) {
-        return false;
-      }
-      // Check path match
+  // An exemption suppresses only when all three hold: it has not expired, its
+  // rule glob matches (default `*`), and its path glob matches.
+  return violations.filter((violation) =>
+    !exemptions.some((exemption) => {
+      if (exemption.until !== undefined && exemption.until < today) return false;
+      if (!micromatch.isMatch(ruleId, exemption.rule ?? '*')) return false;
       return micromatch.isMatch(violation.path, exemption.path);
-    });
-  });
+    }),
+  );
 }
 
 /**
@@ -262,7 +266,8 @@ export const runAll = (
 
       const totalViolations = results.reduce((sum, r) => sum + r.violations.length, 0);
       const byCategory = computeCategoryScores(results, config.thresholds);
-      const passing = byCategory.length === 0 || byCategory.every((c) => c.passing);
+      // `every` is vacuously true on an empty list, so no separate length check is needed
+      const passing = byCategory.every((c) => c.passing);
 
       return { byRule: results, byCategory, totalViolations, passing };
     } finally {

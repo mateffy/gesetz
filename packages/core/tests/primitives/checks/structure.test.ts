@@ -32,21 +32,98 @@ describe('noDeepNesting', () => {
     expect(v).toHaveLength(0);
   });
 
-  it('fails when indentation exceeds limit', async () => {
-    const v = await runCheck(noDeepNesting({ maxLevels: 2 }), makeFile('src/foo.ts', '      deep();'), makeCheckServices());
+  it('fails when brace depth exceeds the limit', async () => {
+    // function { if { for { w(); } } } — w() sits inside three open braces
+    const deep = 'function a() {\n  if (x) {\n    for (const y of z) {\n      w();\n    }\n  }\n}';
+    const v = await runCheck(noDeepNesting({ maxLevels: 2 }), makeFile('src/foo.ts', deep), makeCheckServices());
     expect(v).toHaveLength(1);
     expect(v[0]?.severity).toBe('warn');
+    expect(v[0]?.message).toContain('3 levels deep');
   });
 
-  it('caps at 10 violations per file', async () => {
-    const lines = Array.from({ length: 20 }, () => '      deep();').join('\n');
-    const v = await runCheck(noDeepNesting({ maxLevels: 2 }), makeFile('src/foo.ts', lines), makeCheckServices());
-    expect(v.length).toBeLessThanOrEqual(10);
+  it('ignores indentation that is layout rather than nesting', async () => {
+    // Regression: depth came from indentation width, so a wrapped expression —
+    // a chained call, a multi-line ternary — was reported as deep nesting. At
+    // two-space indentation twelve columns scored as level six.
+    const wrapped = [
+      'function a() {',
+      '  return items',
+      '    .filter((x) => x.ok)',
+      '    .map((x) => ({',
+      '      id: x.id,',
+      '      name: x.name,',
+      '    }))',
+      '    .join(",");',
+      '}',
+    ].join('\n');
+    const v = await runCheck(noDeepNesting({ maxLevels: 2 }), makeFile('src/foo.ts', wrapped), makeCheckServices());
+    expect(v).toHaveLength(0);
+  });
+
+  it('reports one violation per deep region, not one per line', async () => {
+    // Regression: every line of a block was reported and the list was then
+    // truncated at ten behind a comment claiming it had deduplicated.
+    const oneRegion = 'function a() {\n  if (x) {\n    if (y) {\n      if (z) {\n        w();\n        u();\n        t();\n      }\n    }\n  }\n}';
+    const v = await runCheck(noDeepNesting({ maxLevels: 3 }), makeFile('src/foo.ts', oneRegion), makeCheckServices());
+    expect(v).toHaveLength(1);
+  });
+
+  it('is not capped at ten violations', async () => {
+    const lines = Array.from({ length: 20 }, () => 'function f() { if (a) { if (b) { if (c) { x(); } } } }').join('\n');
+    const v = await runCheck(noDeepNesting({ maxLevels: 3 }), makeFile('src/foo.ts', lines), makeCheckServices());
+    expect(v.length).toBe(20);
+  });
+
+  it('sees a whole nest written on one line', async () => {
+    // Regression: depth was sampled only at line start, so a minified or
+    // generated line beginning and ending at depth zero was invisible.
+    const oneLine = 'function f() { if (a) { if (b) { if (c) { x(); } } } }';
+    const v = await runCheck(noDeepNesting({ maxLevels: 3 }), makeFile('src/foo.ts', oneLine), makeCheckServices());
+    expect(v).toHaveLength(1);
+    expect(v[0]?.message).toContain('4 levels deep');
+  });
+
+  it('reports each of two separate deep regions', async () => {
+    const two = [
+      'function a() { if (x) { if (y) { if (z) { w(); } } } }',
+      '',
+      'function b() { if (x) { if (y) { if (z) { w(); } } } }',
+    ].join('\n');
+    const v = await runCheck(noDeepNesting({ maxLevels: 3 }), makeFile('src/foo.ts', two), makeCheckServices());
+    expect(v).toHaveLength(2);
+    expect(v[0]?.line).toBe(1);
+    expect(v[1]?.line).toBe(3);
+  });
+
+  it('does not count braces inside strings or comments', async () => {
+    const tricky = [
+      'function a() {',
+      '  if (x) {',
+      '    // } } }',
+      '    const s = "} } }";',
+      '    return s;',
+      '  }',
+      '}',
+    ].join('\n');
+    const v = await runCheck(noDeepNesting({ maxLevels: 3 }), makeFile('src/foo.ts', tricky), makeCheckServices());
+    expect(v).toHaveLength(0);
+  });
+
+  it('reports the peak depth reached in the region', async () => {
+    const deeper = 'function a() {\n  if (x) {\n    if (y) {\n      if (z) {\n        if (q) {\n          w();\n        }\n      }\n    }\n  }\n}';
+    const v = await runCheck(noDeepNesting({ maxLevels: 3 }), makeFile('src/foo.ts', deeper), makeCheckServices());
+    expect(v).toHaveLength(1);
+    expect(v[0]?.message).toContain('5 levels deep');
   });
 
   it('skips empty lines', async () => {
-    const v = await runCheck(noDeepNesting({ maxLevels: 2 }), makeFile('src/foo.ts', '\n\n      deep();'), makeCheckServices());
+    const v = await runCheck(noDeepNesting({ maxLevels: 2 }), makeFile('src/foo.ts', '\n\nfunction a() { if (x) { if (y) { z(); } } }'), makeCheckServices());
     expect(v).toHaveLength(1);
+  });
+
+  it('tolerates unbalanced braces without throwing', async () => {
+    const v = await runCheck(noDeepNesting({ maxLevels: 2 }), makeFile('src/foo.ts', '} } }\nfunction a() {'), makeCheckServices());
+    expect(Array.isArray(v)).toBe(true);
   });
 });
 

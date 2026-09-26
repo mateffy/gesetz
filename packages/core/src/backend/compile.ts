@@ -110,11 +110,22 @@ function compilePerFileRule(rule: Rule, ctx: CompileContext): NetworkExtension {
       if (!perFile.predicates.every((pred) => pred(gesetzFile))) return [];
 
       const violations: Violation[] = [];
-      for (const check of perFile.checks) {
+      for (const [index, check] of perFile.checks.entries()) {
         try {
           violations.push(...(await check(gesetzFile, services)));
-        } catch {
-          // Checks never throw — same contract as the legacy runner.
+        } catch (cause) {
+          // A throwing check used to contribute nothing, which is
+          // indistinguishable from "this file is clean" — the fail-open shape
+          // this project exists to find in other codebases. A broken check is
+          // reported instead, matching how a throwing rule is handled in
+          // compileRunOnlyRule.
+          violations.push({
+            rule: rule.id,
+            message: `Check #${index + 1} threw: ${String(cause)}. This file was not fully checked.`,
+            path: gesetzFile.path,
+            severity: 'error',
+            source: 'core',
+          });
         }
       }
       return violations.map((violation) =>
@@ -216,8 +227,14 @@ async function networkFileFromStorage(
   path: string,
 ): Promise<NetworkFile> {
   const stored = await storage.markersFor(path);
+  // Raw `type` plus `extension`, matching what netzwerk hands back for a file it
+  // processed. Prefixing the type instead produced `gesetz-syntax.import`, which
+  // this module's own `markersOf` matched but netzwerk did not: `resolveImportEdges`
+  // requires `type === 'import'` and silently skips anything else, so the import
+  // graph and cycle detection were dead on every path that reads from storage.
   const markers = stored.map((m) => ({
-    type: `${m.extension}.${m.type}`,
+    type: m.type,
+    extension: m.extension,
     data: m.data,
     ...(m.lines === undefined ? {} : { lines: m.lines }),
   }));
@@ -227,7 +244,7 @@ async function networkFileFromStorage(
     hasMarker(type: string) {
       return markers.some((m) => m.type === type);
     },
-    markersOf<D>(type: string) {
+    markersOf(type: string) {
       return markers.filter((m) => m.type === type) as never;
     },
     content: () => readFile(nodePath.join(rootDir, path), 'utf8'),

@@ -14,10 +14,12 @@ import {
   noHardcodedSecret,
   noPattern,
   requirePattern,
-  requireSibling,
+  requireTest,
   noImportFrom,
   defineArchitecture,
 } from '@gesetz/core';
+import { oxlint } from '@gesetz/oxlint';
+import { oxfmt } from '@gesetz/oxfmt';
 import {
   noConsoleLog,
   noEmptyCatch,
@@ -54,6 +56,17 @@ export default defineConfig({
   // Enable the TypeScript SyntaxBackend so defineArchitecture can extract
   // imports accurately (via oxc-parser) instead of falling back to regex.
   adapters: [typescriptSyntaxBackend],
+
+  thresholds: [
+    // Source files with no test yet. Reported so the gap is visible; the
+    // threshold is 0 until they are written, then raise it.
+    { category: 'testing', minScore: 0 },
+    // 116 files are not yet in oxfmt's output format. Reported so the number is
+    // visible; run `pnpm exec oxfmt --write packages` once, then raise this.
+    // Making it blocking today would mean a 116-file reformat in one commit.
+    { category: 'formatting', minScore: 0 },
+  ],
+
   rules: [
     // Architecture
     ...arch,
@@ -112,35 +125,46 @@ export default defineConfig({
       .category('cleanup')
       .check(noDebuggingResidueFiles()),
 
-    // ─── Tests must exist for adapters ──────────────────────────────────────
+    // ─── Tests must exist ───────────────────────────────────────────────────
 
-    select('packages/vitest/src/adapter.ts').label('vitest needs tests').check(
-      requireSibling('.test.ts', { message: 'Adapter files must have a matching test file' }),
+    // Every adapter is the integration point with an external tool, so it needs
+    // a test. `requireTest` looks co-located AND under `tests/`, because this
+    // repository uses the latter — `requireSibling` only ever looked next to the
+    // source and reported a missing test for every adapter as a result.
+    select('packages/*/src/adapter.ts').label('Adapter files need tests').category('testing').check(
+      requireTest({ message: 'Adapter files must have a matching test file' }),
     ),
 
-    select('packages/prettier/src/adapter.ts').label('prettier needs tests').check(
-      requireSibling('.test.ts', { message: 'Adapter files must have a matching test file' }),
-    ),
+    // The rest of the source tree: reported, not enforced. 42 files have no test
+    // yet, and the `testing` threshold below is set to 0 so the gap is visible in
+    // the report without failing the build. Raise it as coverage grows.
+    select('packages/**/src/**/*.ts')
+      .exclude('**/index.ts', '**/*.d.ts', '**/*.test.ts', '**/tests/**')
+      .label('Source files need tests')
+      .category('testing')
+      .check(requireTest({ severity: 'info' })),
 
-    select('packages/eslint/src/adapter.ts').label('eslint needs tests').check(
-      requireSibling('.test.ts', { message: 'Adapter files must have a matching test file' }),
-    ),
+    // ─── External tools ─────────────────────────────────────────────────────
+    //
+    // These run the repo's own adapters against the repo. `bin` is explicit
+    // because a plain `node` invocation does not put node_modules/.bin on PATH.
+    //
+    // Both adapters now fail closed: a missing tool reports an error instead of
+    // silently producing no violations, so a gate that cannot run cannot pass.
 
-    select('packages/bun-test/src/adapter.ts').label('bun-test needs tests').check(
-      requireSibling('.test.ts', { message: 'Adapter files must have a matching test file' }),
-    ),
+    oxlint({
+      pattern: 'packages',
+      bin: 'node_modules/.bin/oxlint',
+      label: 'oxlint',
+      category: 'strictness',
+    }),
 
-    select('packages/pest/src/adapter.ts').label('pest needs tests').check(
-      requireSibling('.test.ts', { message: 'Adapter files must have a matching test file' }),
-    ),
-
-    select('packages/phpstan/src/adapter.ts').label('phpstan needs tests').check(
-      requireSibling('.test.ts', { message: 'Adapter files must have a matching test file' }),
-    ),
-
-    select('packages/oxfmt/src/adapter.ts').label('oxfmt needs tests').check(
-      requireSibling('.test.ts', { message: 'Adapter files must have a matching test file' }),
-    ),
+    oxfmt({
+      pattern: 'packages',
+      bin: 'node_modules/.bin/oxfmt',
+      label: 'oxfmt',
+      category: 'formatting',
+    }),
 
     // ─── Patterns ───────────────────────────────────────────────────────────
 

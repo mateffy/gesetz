@@ -15,6 +15,11 @@ export interface NoGodFileOptions {
   readonly message?: string | undefined;
 }
 
+/** Default line budget for a single file. */
+const DEFAULT_MAX_LINES = 400;
+/** Default block-nesting budget. */
+const DEFAULT_MAX_LEVELS = 4;
+
 /**
  * Flags files that exceed a line-count threshold.
  *
@@ -22,7 +27,7 @@ export interface NoGodFileOptions {
  * select('src/scripts/\*.ts').category('structure').check(noGodFile({ maxLines: 300 }))
  */
 export function noGodFile(options: NoGodFileOptions = {}): Check {
-  const maxLines = options.maxLines ?? 400;
+  const maxLines = options.maxLines ?? DEFAULT_MAX_LINES;
   return async (file) => {
     const count = file.content.split('\n').length;
     if (count <= maxLines) return [];
@@ -49,196 +54,157 @@ export interface NoDeepNestingOptions {
 }
 
 /**
- * Detects deep brace/control-flow nesting via indentation heuristic.
- * Counts leading spaces / tab-width (4) as nesting level.
+ * Net change in brace depth across one line.
+ *
+ * Braces inside string literals and comments are skipped, so a quoted brace, a
+ * line comment ending in a brace, or a block comment containing one do not
+ * affect the count. (The first attempt at this docblock contained a literal
+ * comment terminator, which ended the docblock early — the same class of mistake
+ * this function exists to avoid.)
+ */
+/** Scanner state carried across lines: a block can open on one line and close on another. */
+interface DepthState {
+  /** current block nesting, counting only braces that open a block */
+  blocks: number;
+  /** whether each currently-open brace was counted as a block */
+  open: boolean[];
+  /** () and [] nesting, used to recognise an expression-position brace */
+  expression: number;
+}
+
+const newDepthState = (): DepthState => ({ blocks: 0, open: [], expression: 0 });
+
+/**
+ * Scan one line, updating `st`.
+ *
+ * A brace only counts as nesting when it is not inside parentheses or brackets.
+ * `violations.push({ ... })`, `x as { a: string }` and `=> ({ ... })` all put
+ * their brace in expression position: they are object literals inside a call or
+ * a cast, not blocks. Counting them reported two extra levels for idiomatic code
+ * — the difference between a rule that finds nesting and one that finds
+ * house style. A stack records whether each open brace was counted so the
+ * matching close decrements only when it should.
+ *
+ * Known limit: a top-level object literal assigned with `const x = {` is still
+ * counted, because nothing distinguishes it from a block without a parse tree.
+ */
+function scanLine(line: string, st: DepthState): { peakWithin: number } {
+  let peakWithin = 0;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i]!;
+    const next = line[i + 1];
+    if (c === '/' && next === '/') break;
+    if (c === '#' && next !== '[') break;
+    if (c === '/' && next === '*') {
+      const end = line.indexOf('*/', i + 2);
+      if (end < 0) break;
+      i = end + 1;
+      continue;
+    }
+    if (c === "'" || c === '"' || c === '`') {
+      i++;
+      while (i < line.length && line[i] !== c) {
+        if (line[i] === '\\') i++;
+        i++;
+      }
+      continue;
+    }
+    if (c === '(' || c === '[') {
+      st.expression++;
+    } else if (c === ')' || c === ']') {
+      if (st.expression > 0) st.expression--;
+    } else if (c === '{') {
+      const isBlock = st.expression === 0;
+      st.open.push(isBlock);
+      if (isBlock) {
+        st.blocks++;
+        if (st.blocks > peakWithin) peakWithin = st.blocks;
+      }
+    } else if (c === '}') {
+      if (st.open.pop() === true && st.blocks > 0) st.blocks--;
+    }
+  }
+  return { peakWithin };
+}
+
+/**
+ * Reports blocks nested deeper than `maxLevels`, measured by brace depth.
+ *
+ * Depth used to be measured from indentation width: `Math.floor(indent.length / 2)`.
+ * That made every wrapped expression a violation, because a chained `.map()` or a
+ * multi-line ternary continuation is deeply *indented* without being deeply
+ * *nested* — at two-space indentation twelve columns scored as level six. It also
+ * reported every line of a block and then truncated the list at ten, so a file
+ * with forty deep lines was indistinguishable from one with ten. On this repo it
+ * produced 253 warnings, none of which described a nesting problem.
+ *
+ * One violation is reported per contiguous deep region, at the line the region
+ * starts, naming the deepest level reached inside it.
+ *
+ * Known limit: a deeply nested object literal does count towards depth, because
+ * distinguishing a block brace from an object-literal brace needs a parse tree.
  */
 export function noDeepNesting(options: NoDeepNestingOptions = {}): Check {
-  const maxLevels = options.maxLevels ?? 4;
+  const maxLevels = options.maxLevels ?? DEFAULT_MAX_LEVELS;
   return async (file) => {
     const violations: Violation[] = [];
     const lines = file.content.split('\n');
+    const st = newDepthState();
+    let regionStart = -1;
+    let regionPeak = 0;
+
+    const flush = (): void => {
+      if (regionStart < 0) return;
+      violations.push({
+        message:
+          options.message ??
+          `Code nested ${regionPeak} levels deep (max: ${maxLevels}). Refactor using early returns or extracted functions.`,
+        path: file.path,
+        line: regionStart + 1,
+        severity: 'warn',
+        source: 'core',
+      });
+      regionStart = -1;
+      regionPeak = 0;
+    };
+
     for (let i = 0; i < lines.length; i++) {
-      const line = lines[i] ?? '';
-      if (!line.trim()) continue;
-      const indent = line.match(/^(\s+)/)?.[1] ?? '';
-      const level = indent.includes('\t') ? indent.length : Math.floor(indent.length / 2);
-      if (level > maxLevels) {
-        violations.push({
-          message:
-            options.message ??
-            `Nesting level ${level} exceeds maximum (${maxLevels}). Refactor using early returns or extracted functions.`,
-          path: file.path,
-          line: i + 1,
-          severity: 'warn',
-          source: 'core',
-        });
+      // Depth is sampled *within* the line as well as at its start. Sampling only
+      // at line start made a whole nest written on one line — minified or
+      // generated code — completely invisible, because such a line begins and
+      // ends at the same depth.
+      // `peakWithin` is the highest absolute depth reached during the line, so
+      // the line's own depth is the max of where it started and how far it went —
+      // not the sum, which counted the start twice.
+      const blocksBefore = st.blocks;
+      const { peakWithin } = scanLine(lines[i]!, st);
+      const reached = Math.max(blocksBefore, peakWithin);
+      const exceeded = reached > maxLevels;
+      if (exceeded) {
+        if (regionStart < 0) regionStart = i;
+        if (reached > regionPeak) regionPeak = reached;
       }
+      // End the region once nothing deeper than the limit is still open. Without
+      // this, twenty separate one-line nests counted as a single region, because
+      // the depth returns to zero between them.
+      if (!exceeded || st.blocks <= maxLevels) flush();
     }
-    // Deduplicate: only report the first violation per block
-    return violations.slice(0, 10);
+    flush();
+    return violations;
   };
 }
 
 // ─── Console log ─────────────────────────────────────────────────────────────
 
-export interface NoConsoleLogOptions {
-  /**
-   * Allow `console.warn` and `console.error`. Default: false (ban all console.*).
-   */
-  readonly allowWarnError?: boolean | undefined;
-  readonly message?: string | undefined;
-}
 
-/**
- * Bans `console.log` (and optionally all `console.*`) in production files.
- */
-export function noConsoleLog(options: NoConsoleLogOptions = {}): Check {
-  const pattern = options.allowWarnError
-    ? /\bconsole\.(log|debug|info)\s*\(/g
-    : /\bconsole\.(log|debug|info|warn|error)\s*\(/g;
-
-  return async (file) => {
-    const violations: Violation[] = [];
-    const lines = file.content.split('\n');
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i] ?? '';
-      if (pattern.test(line)) {
-        violations.push({
-          message:
-            options.message ??
-            'Remove console logging from production code. Use a proper logger instead.',
-          path: file.path,
-          line: i + 1,
-          severity: 'warn',
-          source: 'core',
-        });
-      }
-      pattern.lastIndex = 0;
-    }
-    return violations;
-  };
-}
 
 // ─── Empty catch ──────────────────────────────────────────────────────────────
 
-export interface NoEmptyCatchOptions {
-  readonly message?: string | undefined;
-}
 
-/**
- * Detects empty or trivially-commented catch blocks that swallow errors.
- */
-export function noEmptyCatch(options: NoEmptyCatchOptions = {}): Check {
-  return async (file) => {
-    const violations: Violation[] = [];
-    const lines = file.content.split('\n');
-    // Simple state machine: look for catch { with no real body
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i] ?? '';
-      if (/\}\s*catch\s*(\([^)]*\))?\s*\{/.test(line) || /catch\s*(\([^)]*\))?\s*\{/.test(line)) {
-        // Check next 3 lines for real content
-        const body = lines
-          .slice(i + 1, i + 4)
-          .map((l) => l.trim())
-          .filter((l) => l && l !== '}' && !l.startsWith('//') && !l.startsWith('*'));
-        if (body.length === 0) {
-          violations.push({
-            message:
-              options.message ??
-              'Empty catch block swallows errors. Log, rethrow, or handle explicitly.',
-            path: file.path,
-            line: i + 1,
-            severity: 'error',
-            source: 'core',
-          });
-        }
-      }
-    }
-    return violations;
-  };
-}
-
-// ─── Magic numbers ────────────────────────────────────────────────────────────
-
-export interface NoMagicNumbersOptions {
-  /** Numbers that are always allowed. Default: [0, 1, -1, 2, 100] */
-  readonly ignore?: number[] | undefined;
-  readonly message?: string | undefined;
-}
-
-/**
- * Flags unexplained numeric literals in non-constant positions.
- * Only flags integers/floats not assigned to a SCREAMING_SNAKE_CASE const.
- */
-export function noMagicNumbers(options: NoMagicNumbersOptions = {}): Check {
-  const ignore = new Set<number>(options.ignore ?? [0, 1, -1, 2, 100]);
-  // Match numeric literals not in const UPPER_SNAKE = N; or enum values
-  const numericLit = /(?<!\w)(-?\d+\.?\d*)(?!\w)/g;
-  const constDecl = /^\s*(?:export\s+)?(?:const|readonly)\s+[A-Z][A-Z_0-9]+\s*=/;
-
-  return async (file) => {
-    const violations: Violation[] = [];
-    const lines = file.content.split('\n');
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i] ?? '';
-      // Skip named constant declarations and comment lines
-      if (constDecl.test(line) || /^\s*\/\//.test(line) || /^\s*\*\//.test(line)) continue;
-      let match: RegExpExecArray | null;
-      numericLit.lastIndex = 0;
-      while ((match = numericLit.exec(line)) !== null) {
-        const val = parseFloat(match[0] ?? '');
-        if (!Number.isFinite(val) || ignore.has(val)) continue;
-        violations.push({
-          message:
-            options.message ??
-            `Magic number ${match[0]}. Extract to a named constant with a descriptive name.`,
-          path: file.path,
-          line: i + 1,
-          severity: 'warn',
-          source: 'core',
-        });
-      }
-    }
-    return violations.slice(0, 20); // cap output
-  };
-}
 
 // ─── Trivial comments ─────────────────────────────────────────────────────────
 
-export interface NoTrivialCommentOptions {
-  readonly message?: string | undefined;
-}
 
-/**
- * Detects AI-generated narration comments that just restate the code.
- * Examples: `// Import React`, `// Define the component`, `// Return JSX`
- */
-export function noTrivialComment(options: NoTrivialCommentOptions = {}): Check {
-  // Patterns that match AI-narration: "// Verb the Noun" or section dividers
-  const narrationPattern =
-    /^\s*\/\/\s*(?:import|define|create|add|set|update|delete|remove|return|export|initialize|handle|check|call|use|get|fetch|render|make|build|iterate|loop|map|filter)\s+\w/i;
-  const dividerPattern = /^\s*\/\/\s*[-=*]{5,}/;
-
-  return async (file) => {
-    const violations: Violation[] = [];
-    const lines = file.content.split('\n');
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i] ?? '';
-      if (narrationPattern.test(line) || dividerPattern.test(line)) {
-        violations.push({
-          message:
-            options.message ??
-            'Trivial or narrative comment. Remove it — good code is self-explanatory.',
-          path: file.path,
-          line: i + 1,
-          severity: 'info',
-          source: 'core',
-        });
-      }
-    }
-    return violations;
-  };
-}
 
 // ─── Debugging residue files ──────────────────────────────────────────────────
 

@@ -145,7 +145,7 @@ describe('oxlint', () => {
       );
     });
 
-    it('defaults to [\".\"] when no pattern and no FileFilter', async () => {
+    it('defaults to ["."] when no pattern and no FileFilter', async () => {
       const spy = childProcess.execFileSync as ReturnType<typeof vi.fn>;
       spy.mockImplementation(() => JSON.stringify({ diagnostics: [] }));
 

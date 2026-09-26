@@ -24,11 +24,25 @@ function getExecStdout(e: unknown): string | undefined {
 
 /**
  * Runs an external tool via `childProcess.execFileSync`, captures stdout,
- * and degrades gracefully on failure.
+ * and reports a failure that prevented the tool from running.
  *
  * Many tools (oxlint, prettier, vitest, …) exit non-zero when they find
- * violations but still write the report to stdout. This helper catches
- * that case and returns the stdout string instead of failing.
+ * violations but still write the report to stdout. This helper returns that
+ * stdout rather than treating the non-zero exit as a failure.
+ *
+ * ## Why a missing stdout is a defect and not an empty string
+ *
+ * Every adapter in this repository begins with `if (!stdout) return []`, and an
+ * empty violation list means the rule passed. Returning `''` for a tool that
+ * could not run therefore reported a broken binary as a clean build. A missing
+ * `oxfmt` silenced the formatting category. A `vitest` whose report failed to
+ * parse silenced the test gate. A gate that cannot run must not pass, because
+ * the whole point of a gate is that a green result means something.
+ *
+ * The stdout branch above is the legitimate case and still returns the report.
+ * This branch is the tool failing to start at all — a missing binary, a bad
+ * working directory, a crash before any output. It dies, which the runner
+ * surfaces as a violation naming the rule, so the run fails and says why.
  */
 export function execTool(
   bin: string,
@@ -56,10 +70,14 @@ export function execTool(
   }).pipe(
     Effect.catchAll((cause) =>
       Effect.gen(function* () {
-        yield* Effect.logWarning(
-          `[gesetz] ${toolName} failed (${String(cause)}) — ${toolName}() produced no violations.`,
+        yield* Effect.logError(
+          `[gesetz] ${toolName} could not run (${String(cause)}). This rule cannot report a result, so the run fails rather than passing silently.`,
         );
-        return '';
+        return yield* Effect.die(
+          new Error(
+            `${toolName} could not run (${String(cause)}). Nothing was checked. Fix the tool, then re-run: a gate that cannot run must not pass.`,
+          ),
+        );
       }),
     ),
   );
@@ -83,13 +101,16 @@ export function runWithTempFile<T, R>(
     Effect.flatMap((tmpFile) =>
       use(tmpFile).pipe(
         Effect.ensuring(
-          Effect.sync(() => {
-            try {
-              nodeFs.rmSync(nodePath.dirname(tmpFile), { recursive: true, force: true });
-            } catch {
-              /* ignore */
-            }
-          }),
+          // Best-effort cleanup: a failure must not mask the run's real result,
+          // but it is logged rather than discarded so a full disk or a locked
+          // directory is visible instead of silently leaving temp files behind.
+          Effect.try(() => nodeFs.rmSync(nodePath.dirname(tmpFile), { recursive: true, force: true })).pipe(
+            Effect.catchAll((cause) =>
+              Effect.logWarning(
+                `[gesetz] could not remove temp directory ${nodePath.dirname(tmpFile)}: ${String(cause)}`,
+              ),
+            ),
+          ),
         ),
       ),
     ),

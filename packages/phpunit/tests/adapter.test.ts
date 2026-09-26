@@ -7,6 +7,14 @@ import { Effect, Layer } from 'effect';
 import { phpunit } from '../src/adapter';
 import { MemoryFileSystem, ProjectRootLive, FileFilterLive, SyntaxTreeStub, ImportResolverDefault } from '@gesetz/core';
 
+/** A child-process failure as `execFileSync` really throws it: status plus captured stdout. */
+function exitFailure(status: number, stdout = ''): Error & { status: number; stdout: string } {
+  const e = new Error(`Command failed: exit ${status}`) as Error & { status: number; stdout: string };
+  e.status = status;
+  e.stdout = stdout;
+  return e;
+}
+
 const TestLayer = Layer.mergeAll(
   MemoryFileSystem({}),
   SyntaxTreeStub,
@@ -54,8 +62,11 @@ describe('phpunit', () => {
     const tmpFile = nodePath.join(nodeOs.tmpdir(), 'gesetz-phpunit-test-junit.xml');
     (nodeFs.mkdtempSync as ReturnType<typeof vi.fn>).mockReturnValue(nodePath.dirname(tmpFile));
     (nodeFs.readFileSync as ReturnType<typeof vi.fn>).mockReturnValue(PHPUNIT_JUNIT);
+    // phpunit exits 1 when tests fail. That is the tool reporting findings, not a
+    // tool that could not run, so the error carries captured stdout the way
+    // execFileSync really does.
     (childProcess.execFileSync as ReturnType<typeof vi.fn>).mockImplementation(() => {
-      throw new Error('phpunit exited 1');
+      throw exitFailure(1, '');
     });
 
     const rule = phpunit({ cwd: '/project', label: 'PHPUnit' });
@@ -91,8 +102,11 @@ describe('phpunit', () => {
     const tmpFile = nodePath.join(nodeOs.tmpdir(), 'gesetz-phpunit-test-junit3.xml');
     (nodeFs.mkdtempSync as ReturnType<typeof vi.fn>).mockReturnValue(nodePath.dirname(tmpFile));
     (nodeFs.readFileSync as ReturnType<typeof vi.fn>).mockReturnValue('');
+    // A non-zero exit is the tool reporting findings, not a tool that could not
+    // run: test-storybook exits 1 when stories fail. The error must therefore
+    // carry captured stdout, exactly as execFileSync produces it.
     (childProcess.execFileSync as ReturnType<typeof vi.fn>).mockImplementation(() => {
-      throw new Error('exit 1');
+      throw exitFailure(1, '');
     });
 
     const rule = phpunit({ cwd: '/project' });

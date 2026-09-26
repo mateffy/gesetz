@@ -11,8 +11,10 @@
  * decoration behind `isTTY` (ASCII fallback when piped) so the output is
  * never mojibake-prone.
  */
-import type { CategoryScore, RunResult, RuleResult, Violation } from '@gesetz/core';
+import type { RunResult, RuleResult, Violation } from '@gesetz/core';
 
+/** Mirrors the runner's default: a category must score at least this to pass. */
+const DEFAULT_CATEGORY_THRESHOLD = 7;
 // ─── Output format ──────────────────────────────────────────────────────────
 
 export type OutputFormat = 'pretty' | 'json' | 'ci';
@@ -71,9 +73,13 @@ function color(text: string, ...codes: string[]): string {
   return `${codes.join('')}${text}${C.reset}`;
 }
 
+/** Scores at or above this are shown green; at or above the second, yellow. */
+const SCORE_GOOD = 8;
+const SCORE_FAIR = 5;
+
 function scoreColor(score: number): string {
-  if (score >= 8) return C.green;
-  if (score >= 5) return C.yellow;
+  if (score >= SCORE_GOOD) return C.green;
+  if (score >= SCORE_FAIR) return C.yellow;
   return C.red;
 }
 
@@ -287,7 +293,7 @@ export function buildEnvelope(
     warnings: c.warnings,
     infos: c.infos,
     passing: c.passing,
-    threshold: thresholds[c.category] ?? 7,
+    threshold: thresholds[c.category] ?? DEFAULT_CATEGORY_THRESHOLD,
   }));
 
   const summary: Record<string, number> = {};

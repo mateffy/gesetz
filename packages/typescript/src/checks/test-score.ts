@@ -1,4 +1,7 @@
-import type { Check, Violation } from '@gesetz/core';
+import type { Check } from '@gesetz/core';
+
+/** Distinct assertion kinds needed for the variety bonus. */
+const MIN_ASSERTION_VARIETY = 3;
 
 export interface TestScoring {
   /** Minimum score required. Files below this score get a violation. */
@@ -84,7 +87,7 @@ export function requireMinTestScore(scoring: TestScoring): Check {
     for (const match of content.matchAll(assertionTypePattern)) {
       assertionTypes.add(match[1] ?? '');
     }
-    const hasVariety = assertionTypes.size >= 3;
+    const hasVariety = assertionTypes.size >= MIN_ASSERTION_VARIETY;
 
     let score = 40; // base score for having any tests
 

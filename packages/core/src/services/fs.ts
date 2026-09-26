@@ -95,8 +95,12 @@ export const FileSystemLive: Layer.Layer<FileSystem> = Layer.effect(
               let stat: nodeFs.Stats | null = null;
               try {
                 stat = nodeFs.statSync(absolutePath);
-              } catch {
-                // ignore
+              } catch (cause) {
+                // A broken symlink or a race with a deletion is expected and
+                // means "no stat available"; content is read lazily, so a real
+                // read failure still surfaces later. Anything else propagates.
+                const code = (cause as NodeJS.ErrnoException).code;
+                if (code !== 'ENOENT' && code !== 'ELOOP') throw cause;
               }
               // Content is loaded lazily on first `file.content` access.
               return buildFile(relativePath, absolutePath, () => readFileSafe(absolutePath), stat);
@@ -165,10 +169,6 @@ export const MemoryFileSystem = (files: Record<string, string>): Layer.Layer<Fil
     glob: (pattern, options) => {
       const effectiveCwd = options?.cwd ?? cwd;
       const patterns = Array.isArray(pattern) ? pattern : [pattern];
-      const syncOptions: fastGlob.Options = {
-        cwd: effectiveCwd,
-        ...(options?.ignore !== undefined ? { ignore: options.ignore } : {}),
-      };
 
       const matched = Object.entries(files).filter(([p]) => {
         const relativePath = nodePath.isAbsolute(p) ? nodePath.relative(effectiveCwd, p) : p;

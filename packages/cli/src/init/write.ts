@@ -6,7 +6,7 @@
  * injection, and optional dependency install.
  */
 import * as nodePath from 'node:path';
-import * as nodeFs from 'node:fs';
+
 import { Effect, Console } from 'effect';
 import { FileSystem } from '@effect/platform';
 import { Command } from '@effect/platform';
@@ -14,7 +14,10 @@ import { CommandExecutor } from '@effect/platform';
 import type { ProjectProfile, ToolId, PackageManager } from './detect';
 import type { Plan } from './rules';
 import { generateConfig } from './rules';
-import { getBlueprint, toolsForPreset, blueprintsForPreset } from './rules';
+import { toolsForPreset, blueprintsForPreset } from './rules';
+
+/** Two spaces, matching this repository's json formatting. */
+const JSON_INDENT = 2;
 
 // ─── Flag shape (what the CLI passes in) ──────────────────────────────────────
 
@@ -146,7 +149,7 @@ function writeQaScriptEffect(
       if (!json.scripts) json.scripts = {};
       if (json.scripts.qa) return;
       json.scripts.qa = 'gesetz check';
-      yield* fs.writeFileString(path, JSON.stringify(json, null, 4) + '\n').pipe(
+      yield* fs.writeFileString(path, JSON.stringify(json, null, JSON_INDENT) + '\n').pipe(
         Effect.catchAll((e) => Console.error(`Could not write qa script: ${String(e)}`)),
       );
       return;

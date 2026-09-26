@@ -2,7 +2,7 @@ import { mkdtemp, rm, writeFile, mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import * as nodePath from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { defineNetwork, type Network } from 'netzwerk';
+import { createNetwork, type Network } from 'netzwerk';
 import { createCheckServices } from '../../src/backend/check-services';
 import { syntaxExtension } from '../../src/backend/syntax-extension';
 import type { SyntaxBackend } from '../../src/services/syntax-tree';
@@ -49,7 +49,7 @@ async function setup(): Promise<Awaited<ReturnType<typeof createCheckServices>>>
   await write('src/b.ts', 'export const b = 2;\n');
   await write('README.md', '# readme\n');
   const network = track(
-    defineNetwork({ rootPath: dir, extensions: [syntaxExtension([tsBackend])] }),
+    createNetwork({ rootPath: dir, extensions: [syntaxExtension([tsBackend])] }),
   );
   await network.scan();
   return createCheckServices(network, [tsBackend], dir);
