@@ -49,7 +49,10 @@ describe('partitionByBaseline', () => {
   });
 
   it('reports a violation the baseline does not cover as new', () => {
-    const result = partitionByBaseline([group([violation('a different message')])], baseline({ 'src/a.ts': [entry()] }));
+    const result = partitionByBaseline(
+      [group([violation('a different message')])],
+      baseline({ 'src/a.ts': [entry()] }),
+    );
     expect(result.stats.new).toBe(1);
     expect(result.newByRule.get(RULE)).toHaveLength(1);
   });
@@ -62,7 +65,10 @@ describe('partitionByBaseline', () => {
 
   it('consumes one baseline entry per violation, so a count of two covers two', () => {
     const two = [violation(), violation()];
-    const result = partitionByBaseline([group(two)], baseline({ 'src/a.ts': [entry('no console.log', 'src/a.ts', 2)] }));
+    const result = partitionByBaseline(
+      [group(two)],
+      baseline({ 'src/a.ts': [entry('no console.log', 'src/a.ts', 2)] }),
+    );
     expect(result.stats.baselined).toBe(2);
     expect(result.stats.new).toBe(0);
     expect(result.stats.stale).toBe(0);
@@ -70,13 +76,19 @@ describe('partitionByBaseline', () => {
 
   it('reports the surplus as new when the violations outnumber the baseline', () => {
     const three = [violation(), violation(), violation()];
-    const result = partitionByBaseline([group(three)], baseline({ 'src/a.ts': [entry('no console.log', 'src/a.ts', 2)] }));
+    const result = partitionByBaseline(
+      [group(three)],
+      baseline({ 'src/a.ts': [entry('no console.log', 'src/a.ts', 2)] }),
+    );
     expect(result.stats.baselined).toBe(2);
     expect(result.stats.new).toBe(1);
   });
 
   it('reports the surplus as stale when the baseline outnumbers the violations', () => {
-    const result = partitionByBaseline([group([violation()])], baseline({ 'src/a.ts': [entry('no console.log', 'src/a.ts', 3)] }));
+    const result = partitionByBaseline(
+      [group([violation()])],
+      baseline({ 'src/a.ts': [entry('no console.log', 'src/a.ts', 3)] }),
+    );
     expect(result.stats.baselined).toBe(1);
     expect(result.stats.stale).toBe(1);
     expect(result.stale[0]?.message).toContain('2');
@@ -124,14 +136,22 @@ describe('partitionByBaseline', () => {
 
   it('matches on the normalized message by default, so a digit change is the same violation', () => {
     const shifted = violation('expected 5 to be 2');
-    const stored = { ...entry(), message: 'expected 1 to be 2', hash: violationHash(RULE, 'src/a.ts', 'expected 1 to be 2') };
+    const stored = {
+      ...entry(),
+      message: 'expected 1 to be 2',
+      hash: violationHash(RULE, 'src/a.ts', 'expected 1 to be 2'),
+    };
     const result = partitionByBaseline([group([shifted])], baseline({ 'src/a.ts': [stored] }));
     expect(result.stats.baselined).toBe(1);
   });
 
   it('matches on the exact message when the rule asks for it', () => {
     const shifted = violation('expected 5 to be 2');
-    const stored = { ...entry(), message: 'expected 1 to be 2', hash: violationHash(RULE, 'src/a.ts', 'expected 1 to be 2') };
+    const stored = {
+      ...entry(),
+      message: 'expected 1 to be 2',
+      hash: violationHash(RULE, 'src/a.ts', 'expected 1 to be 2'),
+    };
     const result = partitionByBaseline([group([shifted])], baseline({ 'src/a.ts': [stored] }), {
       modes: new Map([[RULE, 'exact']]),
     });
@@ -177,7 +197,11 @@ describe('planBaselineWrite', () => {
   });
 
   it('does not refuse anything when the current baseline is unchanged', () => {
-    const plan = planBaselineWrite(baseline({ 'src/a.ts': [entry()] }), baseline({ 'src/a.ts': [entry()] }), options);
+    const plan = planBaselineWrite(
+      baseline({ 'src/a.ts': [entry()] }),
+      baseline({ 'src/a.ts': [entry()] }),
+      options,
+    );
     expect(plan.refused).toEqual([]);
     expect(plan.added).toBe(0);
     expect(plan.removed).toBe(0);
@@ -207,7 +231,9 @@ describe('planBaselineWrite', () => {
   });
 
   it('stamps the gesetz version into the file it produces', () => {
-    expect(planBaselineWrite(baseline({ 'src/a.ts': [entry()] }), null, options).next.gesetz).toBe('1.0.0');
+    expect(planBaselineWrite(baseline({ 'src/a.ts': [entry()] }), null, options).next.gesetz).toBe(
+      '1.0.0',
+    );
   });
 
   it('keeps entries of rules the explicit write did not name', () => {
@@ -230,10 +256,14 @@ describe('planBaselineWrite', () => {
   });
 
   it('treats an empty rule list as no filter rather than as "nothing"', () => {
-    const plan = planBaselineWrite(baseline({ 'src/a.ts': [entry()] }), baseline({ 'src/a.ts': [entry()] }), {
-      ...options,
-      rules: [],
-    });
+    const plan = planBaselineWrite(
+      baseline({ 'src/a.ts': [entry()] }),
+      baseline({ 'src/a.ts': [entry()] }),
+      {
+        ...options,
+        rules: [],
+      },
+    );
     expect(plan.refused).toEqual([]);
     expect(plan.kept).toBe(1);
   });

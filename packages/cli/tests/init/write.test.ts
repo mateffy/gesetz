@@ -53,17 +53,29 @@ describe('resolvePlanFromFlags', () => {
   });
 
   it('always selects at least one rule for a non-blank preset', () => {
-    expect(resolvePlanFromFlags(profile(), flags({ preset: 'generic' })).rules.size).toBeGreaterThan(0);
+    expect(
+      resolvePlanFromFlags(profile(), flags({ preset: 'generic' })).rules.size,
+    ).toBeGreaterThan(0);
   });
 
   it('reflects the install and qa-script flags', () => {
-    const p = resolvePlanFromFlags(profile(), { force: true, install: true, qaScript: true, interactive: false });
+    const p = resolvePlanFromFlags(profile(), {
+      force: true,
+      install: true,
+      qaScript: true,
+      interactive: false,
+    });
     expect(p.install).toBe(true);
     expect(p.qaScript).toBe(true);
   });
 
   it('reflects them being off as well', () => {
-    const p = resolvePlanFromFlags(profile(), { force: false, install: false, qaScript: false, interactive: false });
+    const p = resolvePlanFromFlags(profile(), {
+      force: false,
+      install: false,
+      qaScript: false,
+      interactive: false,
+    });
     expect(p.install).toBe(false);
     expect(p.qaScript).toBe(false);
   });

@@ -55,11 +55,15 @@ describe('defineArchitecture', () => {
   });
 
   it('accepts a layer with no canImportFrom, meaning unconstrained', () => {
-    expect(defineArchitecture({ layers: [{ name: 'a', pattern: 'src/**' }] }).length).toBeGreaterThan(0);
+    expect(
+      defineArchitecture({ layers: [{ name: 'a', pattern: 'src/**' }] }).length,
+    ).toBeGreaterThan(0);
   });
 
   it('produces the same rules for the same config', () => {
-    expect(defineArchitecture(config).map((r) => r.id)).toEqual(defineArchitecture(config).map((r) => r.id));
+    expect(defineArchitecture(config).map((r) => r.id)).toEqual(
+      defineArchitecture(config).map((r) => r.id),
+    );
   });
 
   it('accepts an empty layer list without throwing', () => {

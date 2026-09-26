@@ -14,8 +14,11 @@ import {
 
 const ML = String.fromCharCode(10);
 
-const run = (check: Parameters<typeof runCheck>[0], content: string, path = 'app/Models/User.php') =>
-  runCheck(check, makeFile(path, content), makeCheckServices());
+const run = (
+  check: Parameters<typeof runCheck>[0],
+  content: string,
+  path = 'app/Models/User.php',
+) => runCheck(check, makeFile(path, content), makeCheckServices());
 
 /** Run the single check a `select(...).check(...)` rule was built with. */
 const runRule = (rule: Rule, content: string, path = 'app/Models/User.php') => {
@@ -66,10 +69,7 @@ describe('requirePsrNamespaces', () => {
 
 describe('noRawDbQueries', () => {
   it('flags a DB::raw call', async () => {
-    const v = await runRule(
-      noRawDbQueries,
-      `<?php${ML}$x = DB::raw('count(*)');`,
-    );
+    const v = await runRule(noRawDbQueries, `<?php${ML}$x = DB::raw('count(*)');`);
     expect(v).toHaveLength(1);
     expect(v[0]?.severity).toBe('error');
   });

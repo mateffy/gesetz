@@ -7,8 +7,22 @@ export const result = (overrides: Partial<RunResult> = {}): RunResult => ({
       description: 'Rule A',
       category: 'cleanup',
       violations: [
-        { rule: 'rule-a', message: 'bad thing', path: 'src/a.ts', line: 3, column: 5, severity: 'error', source: 'core' },
-        { rule: 'rule-a', message: 'meh thing', path: 'src/b.ts', severity: 'warn', source: 'core' },
+        {
+          rule: 'rule-a',
+          message: 'bad thing',
+          path: 'src/a.ts',
+          line: 3,
+          column: 5,
+          severity: 'error',
+          source: 'core',
+        },
+        {
+          rule: 'rule-a',
+          message: 'meh thing',
+          path: 'src/b.ts',
+          severity: 'warn',
+          source: 'core',
+        },
       ],
     },
     { ruleId: 'rule-b', description: 'Rule B', category: 'structure', violations: [] },
@@ -52,7 +66,10 @@ describe('JsonReporter', () => {
 
   it('flattens violations across rules', async () => {
     await report(result());
-    expect((JSON.parse(out) as { path: string }[]).map((v) => v.path)).toEqual(['src/a.ts', 'src/b.ts']);
+    expect((JSON.parse(out) as { path: string }[]).map((v) => v.path)).toEqual([
+      'src/a.ts',
+      'src/b.ts',
+    ]);
   });
 
   it('writes an empty array when there are no violations', async () => {

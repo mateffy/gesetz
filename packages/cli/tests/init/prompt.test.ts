@@ -56,7 +56,11 @@ beforeEach(() => {
 
 describe('runWizard', () => {
   it('returns a plan built from the answers', async () => {
-    const plan = (await run(profile(), flags())) as { preset: string; install: boolean; qaScript: boolean };
+    const plan = (await run(profile(), flags())) as {
+      preset: string;
+      install: boolean;
+      qaScript: boolean;
+    };
     expect(plan.preset).toBe('react');
     expect(plan.install).toBe(false);
     expect(plan.qaScript).toBe(false);
@@ -70,14 +74,20 @@ describe('runWizard', () => {
 
   it('asks about install and qa only when the flags allow it', async () => {
     answers.confirm = [true, true];
-    const plan = (await run(profile(), flags({ install: true, qaScript: true }))) as { install: boolean; qaScript: boolean };
+    const plan = (await run(profile(), flags({ install: true, qaScript: true }))) as {
+      install: boolean;
+      qaScript: boolean;
+    };
     expect(plan.install).toBe(true);
     expect(plan.qaScript).toBe(true);
   });
 
   it('does not consume a confirm answer when the flags are off', async () => {
     answers.confirm = [true, true];
-    const plan = (await run(profile(), flags({ install: false, qaScript: false }))) as { install: boolean; qaScript: boolean };
+    const plan = (await run(profile(), flags({ install: false, qaScript: false }))) as {
+      install: boolean;
+      qaScript: boolean;
+    };
     expect(plan.install).toBe(false);
     expect(plan.qaScript).toBe(false);
     expect(answers.confirm).toEqual([true, true]);

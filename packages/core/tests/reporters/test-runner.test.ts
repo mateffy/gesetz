@@ -7,8 +7,22 @@ export const result = (overrides: Partial<RunResult> = {}): RunResult => ({
       description: 'Rule A',
       category: 'cleanup',
       violations: [
-        { rule: 'rule-a', message: 'bad thing', path: 'src/a.ts', line: 3, column: 5, severity: 'error', source: 'core' },
-        { rule: 'rule-a', message: 'meh thing', path: 'src/b.ts', severity: 'warn', source: 'core' },
+        {
+          rule: 'rule-a',
+          message: 'bad thing',
+          path: 'src/a.ts',
+          line: 3,
+          column: 5,
+          severity: 'error',
+          source: 'core',
+        },
+        {
+          rule: 'rule-a',
+          message: 'meh thing',
+          path: 'src/b.ts',
+          severity: 'warn',
+          source: 'core',
+        },
       ],
     },
     { ruleId: 'rule-b', description: 'Rule B', category: 'structure', violations: [] },
@@ -25,7 +39,10 @@ import { TestRunnerReporter, type TestRunnerAPI } from '../../src/reporters/test
 import { Reporter } from '../../src/reporters/reporter';
 
 /** A recorder that stands in for vitest, jest, or bun:test. */
-function recorder(): { calls: { suites: string[]; cases: string[]; compares: number }; api: TestRunnerAPI } {
+function recorder(): {
+  calls: { suites: string[]; cases: string[]; compares: number };
+  api: TestRunnerAPI;
+} {
   const calls = { suites: [] as string[], cases: [] as string[], compares: 0 };
   return {
     calls,
@@ -76,7 +93,12 @@ describe('TestRunnerReporter', () => {
 
   it('falls back to the rule id when there is no description', async () => {
     const r = recorder();
-    await report(r.api, result({ byRule: [{ ruleId: 'rule-x', description: '', category: undefined, violations: [] }] }));
+    await report(
+      r.api,
+      result({
+        byRule: [{ ruleId: 'rule-x', description: '', category: undefined, violations: [] }],
+      }),
+    );
     expect(r.calls.cases).toEqual(['rule-x']);
   });
 });

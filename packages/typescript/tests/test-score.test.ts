@@ -5,7 +5,11 @@ import { requireMinTestScore } from '../src';
 const NL = String.fromCharCode(10);
 
 const run = (source: string, minScore: number) =>
-  runCheck(requireMinTestScore({ minScore }), makeFile('src/foo.test.ts', source), makeCheckServices());
+  runCheck(
+    requireMinTestScore({ minScore }),
+    makeFile('src/foo.test.ts', source),
+    makeCheckServices(),
+  );
 
 /** The score is only observable through the violation message. */
 const scoreOf = async (source: string): Promise<number> => {
@@ -69,13 +73,24 @@ describe('requireMinTestScore', () => {
   });
 
   it('rewards a variety of matchers over the same count of one matcher', async () => {
-    const varied = [case_('a', 'expect(1).toBe(1);'), case_('b', 'expect(2).toEqual(2);'), case_('c', 'expect(3).toStrictEqual(3);')].join(NL);
-    const same = [case_('a', 'expect(1).toBe(1);'), case_('b', 'expect(2).toBe(2);'), case_('c', 'expect(3).toBe(3);')].join(NL);
+    const varied = [
+      case_('a', 'expect(1).toBe(1);'),
+      case_('b', 'expect(2).toEqual(2);'),
+      case_('c', 'expect(3).toStrictEqual(3);'),
+    ].join(NL);
+    const same = [
+      case_('a', 'expect(1).toBe(1);'),
+      case_('b', 'expect(2).toBe(2);'),
+      case_('c', 'expect(3).toBe(3);'),
+    ].join(NL);
     expect(await scoreOf(varied)).toBeGreaterThan(await scoreOf(same));
   });
 
   it('rewards an error path', async () => {
-    const withThrow = [case_('a', 'expect(1).toBe(1);'), case_('b', 'expect(() => f()).toThrow();')].join(NL);
+    const withThrow = [
+      case_('a', 'expect(1).toBe(1);'),
+      case_('b', 'expect(() => f()).toThrow();'),
+    ].join(NL);
     const without = [case_('a', 'expect(1).toBe(1);'), case_('b', 'expect(2).toBe(2);')].join(NL);
     expect(await scoreOf(withThrow)).toBeGreaterThan(await scoreOf(without));
   });
@@ -92,8 +107,15 @@ describe('requireMinTestScore', () => {
   });
 
   it('uses a custom threshold list when given one', async () => {
-    const check = requireMinTestScore({ minScore: 200, assertionThresholds: [1, 2, 3, 4, 5, 6, 7, 8, 9] });
-    const violations = await runCheck(check, makeFile('src/foo.test.ts', RICH), makeCheckServices());
+    const check = requireMinTestScore({
+      minScore: 200,
+      assertionThresholds: [1, 2, 3, 4, 5, 6, 7, 8, 9],
+    });
+    const violations = await runCheck(
+      check,
+      makeFile('src/foo.test.ts', RICH),
+      makeCheckServices(),
+    );
     expect(violations).toHaveLength(1);
   });
 

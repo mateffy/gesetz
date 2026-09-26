@@ -6,24 +6,40 @@ const file = (source: string, name = 'src/Foo.tsx') => makeFile(name, source);
 
 describe('noLiteralJsxText', () => {
   it('flags hardcoded text in JSX', async () => {
-    const v = await runCheck(noLiteralJsxText(), file('const A = () => <p>Hello</p>;'), makeCheckServices());
+    const v = await runCheck(
+      noLiteralJsxText(),
+      file('const A = () => <p>Hello</p>;'),
+      makeCheckServices(),
+    );
     expect(v).toHaveLength(1);
     expect(v[0]?.severity).toBe('error');
     expect(v[0]?.message).toContain('Raw text in JSX');
   });
 
   it('accepts text with no letters, which needs no translation', async () => {
-    const v = await runCheck(noLiteralJsxText(), file('const A = () => <p>123</p>;'), makeCheckServices());
+    const v = await runCheck(
+      noLiteralJsxText(),
+      file('const A = () => <p>123</p>;'),
+      makeCheckServices(),
+    );
     expect(v).toHaveLength(0);
   });
 
   it('accepts an expression rather than literal text', async () => {
-    const v = await runCheck(noLiteralJsxText(), file('const A = () => <p>{t("hello")}</p>;'), makeCheckServices());
+    const v = await runCheck(
+      noLiteralJsxText(),
+      file('const A = () => <p>{t("hello")}</p>;'),
+      makeCheckServices(),
+    );
     expect(v).toHaveLength(0);
   });
 
   it('flags German text as well as English', async () => {
-    const v = await runCheck(noLiteralJsxText(), file('const A = () => <p>Wohnung</p>;'), makeCheckServices());
+    const v = await runCheck(
+      noLiteralJsxText(),
+      file('const A = () => <p>Wohnung</p>;'),
+      makeCheckServices(),
+    );
     expect(v).toHaveLength(1);
   });
 
@@ -37,7 +53,9 @@ describe('noLiteralJsxText', () => {
   });
 
   it('accepts a file with no JSX', async () => {
-    expect(await runCheck(noLiteralJsxText(), file('const x = 1;'), makeCheckServices())).toHaveLength(0);
+    expect(
+      await runCheck(noLiteralJsxText(), file('const x = 1;'), makeCheckServices()),
+    ).toHaveLength(0);
   });
 });
 
@@ -73,23 +91,41 @@ describe('noLiteralJsxProp', () => {
 
 describe('noJsxElements', () => {
   it('flags a listed element', async () => {
-    const v = await runCheck(noJsxElements(['div']), file('const A = () => <div />;'), makeCheckServices());
+    const v = await runCheck(
+      noJsxElements(['div']),
+      file('const A = () => <div />;'),
+      makeCheckServices(),
+    );
     expect(v).toHaveLength(1);
     expect(v[0]?.severity).toBe('error');
   });
 
   it('flags a listed opening element with children', async () => {
-    const v = await runCheck(noJsxElements(['div']), file('const A = () => <div>x</div>;'), makeCheckServices());
+    const v = await runCheck(
+      noJsxElements(['div']),
+      file('const A = () => <div>x</div>;'),
+      makeCheckServices(),
+    );
     expect(v).toHaveLength(1);
   });
 
   it('flags an unrelated element containing a listed one', async () => {
-    const v = await runCheck(noJsxElements(['span']), file('const A = () => <p><span /></p>;'), makeCheckServices());
+    const v = await runCheck(
+      noJsxElements(['span']),
+      file('const A = () => <p><span /></p>;'),
+      makeCheckServices(),
+    );
     expect(v).toHaveLength(1);
   });
 
   it('accepts elements that are not listed', async () => {
-    expect(await runCheck(noJsxElements(['div']), file('const A = () => <section />;'), makeCheckServices())).toHaveLength(0);
+    expect(
+      await runCheck(
+        noJsxElements(['div']),
+        file('const A = () => <section />;'),
+        makeCheckServices(),
+      ),
+    ).toHaveLength(0);
   });
 
   it('accepts a file that does not parse, without throwing', async () => {

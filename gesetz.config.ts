@@ -62,9 +62,9 @@ export default defineConfig({
     // file must arrive with a test, or with an exclusion and a reason. Files that
     // are types only — no callable code — are excluded by the rule itself.
     { category: 'testing', minScore: 10 },
-    // Raised to 10 in the commit that runs `pnpm format`; `pnpm format` is the
-    // fix, so any drift is a file somebody forgot to format.
-    { category: 'formatting', minScore: 0 },
+    // Keep-it-at-zero. `pnpm format` is the fix, so drift means a file somebody
+    // forgot to format — cheap to repair and never a judgement call.
+    { category: 'formatting', minScore: 10 },
   ],
 
   rules: [

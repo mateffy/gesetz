@@ -9,7 +9,11 @@ import {
   serializeBaseline,
   writeBaselineFile,
 } from '../../src/engine/baseline-file';
-import { BASELINE_FILE_NAME, BASELINE_FILE_VERSION, type BaselineFile } from '../../src/engine/baseline';
+import {
+  BASELINE_FILE_NAME,
+  BASELINE_FILE_VERSION,
+  type BaselineFile,
+} from '../../src/engine/baseline';
 
 let dir: string;
 
@@ -137,7 +141,10 @@ describe('readBaselineFile', () => {
   });
 
   it('keeps an unknown gesetz version rather than failing', async () => {
-    const path = await write('b.json', JSON.stringify({ version: BASELINE_FILE_VERSION, entries: {} }));
+    const path = await write(
+      'b.json',
+      JSON.stringify({ version: BASELINE_FILE_VERSION, entries: {} }),
+    );
     expect(readBaselineFile(path)?.gesetz).toBe('unknown');
   });
 

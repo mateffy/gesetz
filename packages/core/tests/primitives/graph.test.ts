@@ -43,8 +43,14 @@ describe('noCycles', () => {
   });
 
   it('reports a cycle between two files', async () => {
-    await write('src/a/one.ts', 'import "../b/two";' + String.fromCharCode(10) + 'export const one = 1;');
-    await write('src/b/two.ts', 'import "../a/one";' + String.fromCharCode(10) + 'export const two = 2;');
+    await write(
+      'src/a/one.ts',
+      'import "../b/two";' + String.fromCharCode(10) + 'export const one = 1;',
+    );
+    await write(
+      'src/b/two.ts',
+      'import "../a/one";' + String.fromCharCode(10) + 'export const two = 2;',
+    );
     const v = await scan([noCycles('src/**/*.ts')]);
     expect(v).toHaveLength(1);
     expect(v[0]?.severity).toBe('error');
@@ -52,7 +58,10 @@ describe('noCycles', () => {
   });
 
   it('accepts an acyclic graph', async () => {
-    await write('src/a/one.ts', 'import "../b/two";' + String.fromCharCode(10) + 'export const one = 1;');
+    await write(
+      'src/a/one.ts',
+      'import "../b/two";' + String.fromCharCode(10) + 'export const one = 1;',
+    );
     await write('src/b/two.ts', 'export const two = 2;');
     expect(await scan([noCycles('src/**/*.ts')])).toHaveLength(0);
   });
@@ -63,10 +72,20 @@ describe('noCycles', () => {
   });
 
   it('honours a custom id, which the violation carries', async () => {
-    await write('src/a/one.ts', 'import "../b/two";' + String.fromCharCode(10) + 'export const one = 1;');
-    await write('src/b/two.ts', 'import "../a/one";' + String.fromCharCode(10) + 'export const two = 2;');
+    await write(
+      'src/a/one.ts',
+      'import "../b/two";' + String.fromCharCode(10) + 'export const one = 1;',
+    );
+    await write(
+      'src/b/two.ts',
+      'import "../a/one";' + String.fromCharCode(10) + 'export const two = 2;',
+    );
     const rule = noCycles('src/**/*.ts', { id: 'custom-cycles' });
-    const config = defineConfig({ projectRoot: dir, adapters: [typescriptSyntaxBackend], rules: [rule] });
+    const config = defineConfig({
+      projectRoot: dir,
+      adapters: [typescriptSyntaxBackend],
+      rules: [rule],
+    });
     const result = await Effect.runPromise(runAll(config));
     const v = result.byRule.find((r) => r.ruleId === 'custom-cycles')?.violations ?? [];
     expect(v.length).toBeGreaterThanOrEqual(1);

@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { BLUEPRINTS, getBlueprint, blueprintsForPreset, toolsForPreset } from '../../src/init/rules';
+import {
+  BLUEPRINTS,
+  getBlueprint,
+  blueprintsForPreset,
+  toolsForPreset,
+} from '../../src/init/rules';
 
 describe('BLUEPRINTS catalog', () => {
   it('is not empty', () => {
@@ -29,7 +34,6 @@ describe('BLUEPRINTS catalog', () => {
       expect(b.emit({}), b.id).toBe(first);
     }
   });
-
 });
 
 describe('getBlueprint', () => {
@@ -48,7 +52,9 @@ describe('blueprintsForPreset', () => {
   });
 
   it('returns the same list on repeat calls', () => {
-    expect(blueprintsForPreset('generic').map((b) => b.id)).toEqual(blueprintsForPreset('generic').map((b) => b.id));
+    expect(blueprintsForPreset('generic').map((b) => b.id)).toEqual(
+      blueprintsForPreset('generic').map((b) => b.id),
+    );
   });
 });
 

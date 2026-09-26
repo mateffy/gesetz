@@ -20,7 +20,9 @@ describe('noEnum', () => {
   });
 
   it('accepts a union type or a const object map as the replacement', async () => {
-    const v = await run("type Color = 'red' | 'green';\nconst Color = { red: 'red', green: 'green' } as const;");
+    const v = await run(
+      "type Color = 'red' | 'green';\nconst Color = { red: 'red', green: 'green' } as const;",
+    );
     expect(v).toHaveLength(0);
   });
 
@@ -44,7 +46,11 @@ describe('noEnum', () => {
   });
 
   it('honours a custom message', async () => {
-    const v = await runCheck(noEnum({ message: 'use a union' }), makeFile('src/foo.ts', 'enum A {}'), makeCheckServices());
+    const v = await runCheck(
+      noEnum({ message: 'use a union' }),
+      makeFile('src/foo.ts', 'enum A {}'),
+      makeCheckServices(),
+    );
     expect(v[0]?.message).toBe('use a union');
   });
 });

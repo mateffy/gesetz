@@ -37,18 +37,27 @@ describe('makeFile', () => {
 
 describe('makeCheckServices', () => {
   it('reports a virtual file as existing', async () => {
-    const services = makeCheckServices({ projectRoot: process.cwd(), files: { [abs('src/a.ts')]: 'x' } });
+    const services = makeCheckServices({
+      projectRoot: process.cwd(),
+      files: { [abs('src/a.ts')]: 'x' },
+    });
     expect(await services.fs.exists(abs('src/a.ts'))).toBe(true);
     expect(await services.fs.exists(abs('src/missing.ts'))).toBe(false);
   });
 
   it('reads a virtual file back', async () => {
-    const services = makeCheckServices({ projectRoot: process.cwd(), files: { [abs('src/a.ts')]: 'contents' } });
+    const services = makeCheckServices({
+      projectRoot: process.cwd(),
+      files: { [abs('src/a.ts')]: 'contents' },
+    });
     expect(await services.fs.readFile(abs('src/a.ts'))).toBe('contents');
   });
 
   it('returns the stubbed syntax data', async () => {
-    const services = makeCheckServices({ projectRoot: process.cwd(), syntax: { calls: [{ name: 'eval', line: 3 }] } });
+    const services = makeCheckServices({
+      projectRoot: process.cwd(),
+      syntax: { calls: [{ name: 'eval', line: 3 }] },
+    });
     const r = await services.syntax.process(makeFile('src/a.ts'), { calls: true });
     expect(r.calls).toEqual([{ name: 'eval', line: 3 }]);
   });
@@ -59,7 +68,12 @@ describe('makeCheckServices', () => {
       syntax: { calls: [{ name: 'a', line: 1 }] },
       overrides: {
         syntax: {
-          process: async () => ({ imports: [], calls: [{ name: 'b', line: 2 }], exports: [], structure: [] }),
+          process: async () => ({
+            imports: [],
+            calls: [{ name: 'b', line: 2 }],
+            exports: [],
+            structure: [],
+          }),
         },
       },
     });
@@ -68,7 +82,10 @@ describe('makeCheckServices', () => {
   });
 
   it('resolves imports through the provided map', () => {
-    const services = makeCheckServices({ projectRoot: process.cwd(), imports: { './b': abs('src/b.ts') } });
+    const services = makeCheckServices({
+      projectRoot: process.cwd(),
+      imports: { './b': abs('src/b.ts') },
+    });
     expect(services.imports.resolve(makeFile('src/a.ts'), './b')).toBe(abs('src/b.ts'));
   });
 

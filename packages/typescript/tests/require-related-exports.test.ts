@@ -1,4 +1,3 @@
-
 import { describe, it, expect } from 'vitest';
 import { makeFile, makeCheckServices, runCheck } from '@gesetz/core';
 import { requireRelatedExports, requireExportsMatching } from '../src';

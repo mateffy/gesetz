@@ -13,7 +13,8 @@ describe('isRelativeImport', () => {
   });
 
   it('rejects a bare package name', () => {
-    for (const s of ['react', '@scope/pkg', 'node:fs']) expect(isExternalPackage(s) && !isRelativeImport(s), s).toBe(true);
+    for (const s of ['react', '@scope/pkg', 'node:fs'])
+      expect(isExternalPackage(s) && !isRelativeImport(s), s).toBe(true);
   });
 });
 

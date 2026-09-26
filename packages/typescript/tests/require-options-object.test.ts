@@ -31,7 +31,9 @@ describe('requireOptionsObject', () => {
   });
 
   it('accepts an object literal carrying the required key', async () => {
-    expect(await run('doThing({ a: 1, b: 2 });', { argIndex: 0, requiredKeys: ['b'] })).toHaveLength(0);
+    expect(
+      await run('doThing({ a: 1, b: 2 });', { argIndex: 0, requiredKeys: ['b'] }),
+    ).toHaveLength(0);
   });
 
   it('checks the argument at argIndex, not always the first', async () => {

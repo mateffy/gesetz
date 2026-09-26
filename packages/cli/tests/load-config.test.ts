@@ -18,7 +18,10 @@ const load = (root: string) => Effect.runPromise(loadConfig(root));
 
 describe('loadConfig', () => {
   it('loads a gesetz.config.ts and returns its rules', async () => {
-    await write('gesetz.config.ts', 'export default { rules: [], thresholds: [], exemptions: [], projectRoot: "/x" };');
+    await write(
+      'gesetz.config.ts',
+      'export default { rules: [], thresholds: [], exemptions: [], projectRoot: "/x" };',
+    );
     const cfg = await load(dir);
     expect(cfg.rules).toEqual([]);
   });
@@ -38,14 +41,20 @@ describe('loadConfig', () => {
   });
 
   it('applies a changedSince override without discarding the rest', async () => {
-    await write('gesetz.config.ts', 'export default { rules: [], thresholds: [], exemptions: [], projectRoot: "/x" };');
+    await write(
+      'gesetz.config.ts',
+      'export default { rules: [], thresholds: [], exemptions: [], projectRoot: "/x" };',
+    );
     const cfg = await Effect.runPromise(loadConfig(dir, { changedSince: 'main' }));
     expect(cfg.changedSince).toBe('main');
     expect(cfg.projectRoot).toBe('/x');
   });
 
   it('loads a .js config as well as a .ts one', async () => {
-    await write('gesetz.config.js', 'export default { rules: [], thresholds: [], exemptions: [], projectRoot: "/y" };');
+    await write(
+      'gesetz.config.js',
+      'export default { rules: [], thresholds: [], exemptions: [], projectRoot: "/y" };',
+    );
     expect((await load(dir)).projectRoot).toBe('/y');
   });
 });

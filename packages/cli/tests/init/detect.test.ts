@@ -35,7 +35,10 @@ describe('detectProject', () => {
   });
 
   it('prefers tanstack-start over react', async () => {
-    await write('package.json', pkg({ react: '^19.0.0', 'react-dom': '^19.0.0', '@tanstack/react-start': '^1.0.0' }));
+    await write(
+      'package.json',
+      pkg({ react: '^19.0.0', 'react-dom': '^19.0.0', '@tanstack/react-start': '^1.0.0' }),
+    );
     expect(detectProject(dir).framework).toBe('tanstack-start');
   });
 
