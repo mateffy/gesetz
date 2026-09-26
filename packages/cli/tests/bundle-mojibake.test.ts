@@ -38,10 +38,22 @@ const BUN_BIN = nodeFs.existsSync('/usr/local/bin/bun')
 describe('bundle: box-char mojibake regression', () => {
   const runInPty = (
     args: string[],
-    opts: { settleMs?: number; cwd?: string; feed?: string } = {},
+    opts: {
+      settleMs?: number;
+      cwd?: string;
+      feed?: string;
+      childDeadlineSeconds?: number;
+    } = {},
   ): Buffer => {
     const settleMs = opts.settleMs ?? 1500;
     const feed = opts.feed ?? '\r';
+    // How long to keep reading the child before killing it. It doubles as the
+    // stall guard: a child that finishes on its own ends the loop early, and one
+    // that sits at a prompt we never answer is killed at the deadline. Tests that
+    // run a full scan need a longer one — a cold `gesetz check` scans the
+    // repository and shells out to the external-tool adapters, which is much
+    // slower under a loaded suite than on an idle machine.
+    const childDeadlineSeconds = opts.childDeadlineSeconds ?? 10;
     const python = [
       '-c',
       `import pty,os,sys,select,time
@@ -51,7 +63,7 @@ if pid==0:
     os.chdir(${JSON.stringify(opts.cwd ?? REPO_ROOT)})
     os.execvp(${JSON.stringify(BUN_BIN)}, ${JSON.stringify([BUN_BIN, DIST_MAIN, ...args])})
 else:
-    deadline=time.time()+10
+    deadline=time.time()+${childDeadlineSeconds}
     fed=False
     while time.time()<deadline:
         r,_,_=select.select([fd],[],[],0.3)
@@ -79,7 +91,9 @@ sys.stdout.buffer.write(bytes(out))`,
       cwd: REPO_ROOT,
       encoding: 'buffer',
       stdio: ['ignore', 'pipe', 'ignore'],
-      timeout: 30000,
+      // Must exceed the harness's own deadline, so the failure that surfaces is
+      // the harness's rather than a bare ETIMEDOUT.
+      timeout: childDeadlineSeconds * 1000 + 30_000,
     });
   };
 
@@ -100,7 +114,7 @@ sys.stdout.buffer.write(bytes(out))`,
     // No --category filter: the pretty score table is only rendered when there
     // are violations to report. Pinning a single category made this test fail the
     // moment that category became clean, which is the opposite of a regression.
-    const out = runInPty(['check'], { settleMs: 5000 });
+    const out = runInPty(['check'], { settleMs: 5000, childDeadlineSeconds: 45 });
     expect(out.includes(DOUBLE_ENCODED_HLINE)).toBe(false);
     expect(out.includes(DOUBLE_ENCODED_EMDASH)).toBe(false);
 
@@ -113,7 +127,7 @@ sys.stdout.buffer.write(bytes(out))`,
     } else {
       console.warn('no score table rendered (repository is clean); divider check skipped');
     }
-  }, 40000);
+  }, 90000);
 
   it('gesetz check: emits ASCII fallback (no box chars) when piped', () => {
     if (!distExists()) {

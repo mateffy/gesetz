@@ -1645,6 +1645,19 @@ User instructed: "fix everything" — resolve all remaining violations to get to
 01a0d92e-338b-7628-a543-fca767ff4d5f
 ```
 
+```write
+/Users/mat/dev/fabrik/gesetz/packages/core/src/engine/file-set.ts
+/Users/mat/dev/fabrik/gesetz/packages/core/src/engine/tool-patterns.ts
+/Users/mat/dev/fabrik/gesetz/packages/core/tests/engine/baseline-apply.test.ts
+/Users/mat/dev/fabrik/gesetz/packages/core/tests/engine/baseline-file.test.ts
+/Users/mat/dev/fabrik/gesetz/packages/core/tests/engine/file-set-invalidation.test.ts
+/Users/mat/dev/fabrik/gesetz/packages/core/tests/engine/file-set.test.ts
+/Users/mat/dev/fabrik/gesetz/packages/core/tests/engine/tool-patterns.test.ts
+/Users/mat/dev/fabrik/gesetz/packages/laravel/tests/checks.test.ts
+/Users/mat/dev/fabrik/gesetz/packages/typescript/tests/shared.test.ts
+/Users/mat/dev/fabrik/gesetz/packages/typescript/tests/test-score.test.ts
+```
+
 Investigating and fixing the stale 43-vs-38 discrepancy, then writing test files for every check.
 
 - [x] Traced source of stale results: gesetz passes `{kind:'sqlite', path}` to netzwerk, which only accepts `'memory' | 'libsql'`. Unknown kind silently falls through to netzwerk's **default: `~/.fabrik/netzwerk.db`** — a 159 MB global cache shared across *every* project.
@@ -1740,3 +1753,31 @@ Down to 16 warnings (14 `no-await-in-loop`, 2 `no-map-spread`) — all deliberat
 - [ ] **Final commit** with all fixes.
 
 **Current state**: dogfood passes (total 43 violations, all `source-files-need-tests` info-level). All category scores 10/10 except `testing` (5.7 — expected, pending test file creation). Build + typecheck + all 240 tests pass.
+
+## 2026-09-26 23:48:59Z All gates pass, post-milestone test stabilization
+
+```session
+01a0d92e-338b-7628-a543-fca767ff4d5f
+```
+
+All 38 content checks now have tests, and every source file in the repo is tested. The `testing` threshold is raised to 10, and `formatting` threshold to 10. Two commits landed:
+
+1. **test: cover every source file, and make the cache notice a new file** — includes the `toNetworkStorage()` fix for the stale cache bug, 176+ test assertions, all the bug fixes found during testing, plus the uncommitted in-flight baseline/envelope work from other streams.
+2. **style: format the new tests, and make formatting a blocking gate** — `pnpm format` over 22 files, then `formatting` threshold to 10.
+
+Final gates:
+
+- Typecheck: ✓
+- Tests: ✓ (all packages pass)
+- Dogfood: 0 violations, all 7 categories at score 10
+- Build: ✓
+
+**Post-milestone stabilization — bundle-mojibake test flakiness.**
+
+The bundle-mojibake regression tests (3 tests in `packages/cli/tests/bundle-mojibake.test.ts`) were flaking under load: the `gesetz check` test that scans the repo timed out on a loaded machine. Root cause: the PTY-harness deadline was hardcoded to 10s, which didn't give a cold `gesetz check` enough time under parallel test load.
+
+- [x] Raised the harness deadline from 10s → 60s (too blunt — broke the `init` test that *relies* on the deadline to kill a still-prompting child)
+- [x] Made `childDeadlineSeconds` a per-call option defaulting to 10s; the scanning test gets 45s; `execFileSync` timeout derived from the deadline
+- [x] Bumped the scanning test's vitest timeout from 40s → 90s; init tests keep 40s
+- [x] Verified: 3/3 pass in 25.8s (was 70s with the failure)
+- [x] Two full green suite runs (95 files, 902 tests, 0 failures)
