@@ -1,7 +1,7 @@
 import * as nodePath from 'node:path';
 import { Effect } from 'effect';
 import type { Rule, Violation } from '@gesetz/core';
-import { FileFilter } from '@gesetz/core';
+import { FileFilter, toolWatchPatterns } from '@gesetz/core';
 
 export interface EslintOptions {
   pattern?: string | string[];
@@ -112,9 +112,10 @@ export function eslint(opts: EslintOptions = {}): Rule {
   const run: Rule['run'] = Effect.gen(function* () {
     const fileFilter = yield* FileFilter;
 
-    const patterns: string[] = fileFilter.patterns !== null && fileFilter.patterns.length > 0
-      ? [...fileFilter.patterns]
-      : defaultPatterns;
+    const patterns: string[] =
+      fileFilter.patterns !== null && fileFilter.patterns.length > 0
+        ? [...fileFilter.patterns]
+        : defaultPatterns;
 
     return yield* Effect.promise(() => executeEslint(opts, id, cwd, patterns));
   });
@@ -125,9 +126,12 @@ export function eslint(opts: EslintOptions = {}): Rule {
     run,
     category: opts.category,
     project: {
-      patterns: opts.pattern !== undefined
-        ? defaultPatterns
-        : ['**/*.{js,jsx,ts,tsx,mjs,cjs,mts,cts}', 'eslint.config.*', '.eslintrc', '.eslintrc.*'],
+      patterns: toolWatchPatterns([
+        ...defaultPatterns,
+        'eslint.config.*',
+        '.eslintrc',
+        '.eslintrc.*',
+      ]),
       run: () => executeEslint(opts, id, cwd, defaultPatterns),
     },
   };

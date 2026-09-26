@@ -92,9 +92,10 @@ export function phpunit(opts: PhpunitOptions = {}): Rule {
 
   const run: Rule['run'] = Effect.gen(function* () {
     const fileFilter = yield* FileFilter;
-    const patterns = fileFilter.patterns !== null && fileFilter.patterns.length > 0
-      ? [...fileFilter.patterns]
-      : defaultPatterns;
+    const patterns =
+      fileFilter.patterns !== null && fileFilter.patterns.length > 0
+        ? [...fileFilter.patterns]
+        : defaultPatterns;
 
     return yield* Effect.promise(() => executePhpunit(opts, id, bin, cwd, patterns));
   });

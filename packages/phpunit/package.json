@@ -1,8 +1,12 @@
 {
   "name": "@gesetz/phpunit",
   "version": "3.0.0-rc.4",
+  "files": [
+    "dist"
+  ],
   "type": "module",
   "main": "src/index.ts",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -23,9 +27,5 @@
   "devDependencies": {
     "typescript": "^5.5.0",
     "vitest": "^3.0.0"
-  },
-  "types": "./dist/index.d.ts",
-  "files": [
-    "dist"
-  ]
+  }
 }

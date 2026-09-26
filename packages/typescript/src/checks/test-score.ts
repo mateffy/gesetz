@@ -72,9 +72,7 @@ export function requireMinTestScore(scoring: TestScoring): Check {
       0,
     );
 
-    const testCount =
-      (content.split('it(').length - 1) +
-      (content.split('test(').length - 1);
+    const testCount = content.split('it(').length - 1 + (content.split('test(').length - 1);
 
     const hasTrivial = trivialAssertions.some((t) => content.includes(t));
     const hasAsync = asyncIndicators.some((a) => content.includes(a));
@@ -109,7 +107,8 @@ export function requireMinTestScore(scoring: TestScoring): Check {
 
     // Trivial assertion penalty
     if (hasTrivial && assertionCount > 0) {
-      const isTrivialOnly = !errorIndicators.some((e) => content.includes(e)) &&
+      const isTrivialOnly =
+        !errorIndicators.some((e) => content.includes(e)) &&
         !interactionMethods.some((m) => content.includes(m));
       if (isTrivialOnly) score += trivialPenalty;
     }

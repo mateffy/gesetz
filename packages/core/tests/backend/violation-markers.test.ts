@@ -108,8 +108,12 @@ describe('markerToViolation', () => {
 
 describe('isViolationMarker', () => {
   it('recognizes violation markers by public type', () => {
-    expect(isViolationMarker({ type: VIOLATION_MARKER_TYPE, extension: 'gesetz', data: {} })).toBe(true);
-    expect(isViolationMarker({ type: 'gesetz-syntax.call', extension: 'gesetz-syntax', data: {} })).toBe(false);
+    expect(isViolationMarker({ type: VIOLATION_MARKER_TYPE, extension: 'gesetz', data: {} })).toBe(
+      true,
+    );
+    expect(
+      isViolationMarker({ type: 'gesetz-syntax.call', extension: 'gesetz-syntax', data: {} }),
+    ).toBe(false);
   });
 });
 

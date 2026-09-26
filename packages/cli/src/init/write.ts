@@ -36,7 +36,10 @@ export interface InitFlags {
 
 function parseList(s: string | undefined): string[] | undefined {
   if (!s) return undefined;
-  const parts = s.split(',').map((x) => x.trim()).filter(Boolean);
+  const parts = s
+    .split(',')
+    .map((x) => x.trim())
+    .filter(Boolean);
   return parts.length ? parts : undefined;
 }
 
@@ -141,34 +144,30 @@ function writeQaScriptEffect(
       const path = nodePath.join(cwd, 'composer.json');
       const exists = yield* fs.exists(path).pipe(Effect.catchAll(() => Effect.succeed(false)));
       if (!exists) return;
-      const txt = yield* fs.readFileString(path).pipe(
-        Effect.catchAll(() => Effect.succeed('')),
-      );
+      const txt = yield* fs.readFileString(path).pipe(Effect.catchAll(() => Effect.succeed('')));
       if (!txt) return;
       const json = JSON.parse(txt) as { scripts?: Record<string, string> };
       if (!json.scripts) json.scripts = {};
       if (json.scripts.qa) return;
       json.scripts.qa = 'gesetz check';
-      yield* fs.writeFileString(path, JSON.stringify(json, null, JSON_INDENT) + '\n').pipe(
-        Effect.catchAll((e) => Console.error(`Could not write qa script: ${String(e)}`)),
-      );
+      yield* fs
+        .writeFileString(path, JSON.stringify(json, null, JSON_INDENT) + '\n')
+        .pipe(Effect.catchAll((e) => Console.error(`Could not write qa script: ${String(e)}`)));
       return;
     }
 
     const path = nodePath.join(cwd, 'package.json');
     const exists = yield* fs.exists(path).pipe(Effect.catchAll(() => Effect.succeed(false)));
     if (!exists) return;
-    const txt = yield* fs.readFileString(path).pipe(
-      Effect.catchAll(() => Effect.succeed('')),
-    );
+    const txt = yield* fs.readFileString(path).pipe(Effect.catchAll(() => Effect.succeed('')));
     if (!txt) return;
     const json = JSON.parse(txt) as { scripts?: Record<string, string> };
     if (!json.scripts) json.scripts = {};
     if (json.scripts.qa) return;
     json.scripts.qa = 'gesetz check';
-    yield* fs.writeFileString(path, JSON.stringify(json, null, 2) + '\n').pipe(
-      Effect.catchAll((e) => Console.error(`Could not write qa script: ${String(e)}`)),
-    );
+    yield* fs
+      .writeFileString(path, JSON.stringify(json, null, 2) + '\n')
+      .pipe(Effect.catchAll((e) => Console.error(`Could not write qa script: ${String(e)}`)));
   });
 }
 
@@ -195,11 +194,13 @@ export function writeConfig(
     }
 
     const src = generateConfig(plan);
-    yield* fs.writeFileString(configPath, src).pipe(
-      Effect.catchAll((e) =>
-        Effect.fail(new Error(`Failed to write ${configPath}: ${String(e)}`)),
-      ),
-    );
+    yield* fs
+      .writeFileString(configPath, src)
+      .pipe(
+        Effect.catchAll((e) =>
+          Effect.fail(new Error(`Failed to write ${configPath}: ${String(e)}`)),
+        ),
+      );
 
     let installed: string[] = [];
     if (plan.install) {
@@ -207,7 +208,12 @@ export function writeConfig(
       const cmd = INSTALL_PACKAGES[plan.profile.packageManager](pkgs.join(' '));
       const [bin, ...args] = cmd;
       if (!bin) {
-        return { configPath, installed: [], qaScript: plan.qaScript, pm: plan.profile.packageManager };
+        return {
+          configPath,
+          installed: [],
+          qaScript: plan.qaScript,
+          pm: plan.profile.packageManager,
+        };
       }
       const command = Command.make(bin, ...args).pipe(
         Command.workingDirectory(cwd),

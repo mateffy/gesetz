@@ -106,7 +106,8 @@ sys.stdout.buffer.write(bytes(out))`,
 
     // Correct ─ divider present (the score table uses it), whenever a table was
     // rendered at all. A fully clean repository prints a one-line summary.
-    const renderedTable = out.includes(Buffer.from('score')) || out.includes(Buffer.from('category'));
+    const renderedTable =
+      out.includes(Buffer.from('score')) || out.includes(Buffer.from('category'));
     if (renderedTable) {
       expect(out.includes(Buffer.from([0xe2, 0x94, 0x80]))).toBe(true);
     } else {
@@ -122,12 +123,16 @@ sys.stdout.buffer.write(bytes(out))`,
     // Scope to a category the repo passes (organization, score 10) so the
     // command exits 0 and we can assert on the rendered table's encoding.
     // The test verifies mojibake/box-char handling, not the quality gate.
-    const out = execFileSync(BUN_BIN, [DIST_MAIN, 'check', '--category', 'organization', '--format', 'pretty'], {
-      cwd: REPO_ROOT,
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'ignore'],
-      timeout: 30000,
-    });
+    const out = execFileSync(
+      BUN_BIN,
+      [DIST_MAIN, 'check', '--category', 'organization', '--format', 'pretty'],
+      {
+        cwd: REPO_ROOT,
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+        timeout: 30000,
+      },
+    );
     expect(out).not.toMatch(/\u2500/);
     expect(out).not.toMatch(/\u00c3/);
     expect(out).toMatch(/-{20,}/);

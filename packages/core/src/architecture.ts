@@ -40,6 +40,7 @@ import {
   bannedForForLayer,
   isExternalPackage,
   isRelativeImport,
+  packageOf,
   regexExtractImports,
 } from './architecture/helpers';
 
@@ -100,13 +101,6 @@ function layerFor(
   return null;
 }
 
-/** The package an external specifier belongs to: `@scope/pkg`, or `pkg`. */
-function packageOf(specifier: string): string {
-  return specifier.startsWith('@')
-    ? specifier.split('/').slice(0, 2).join('/')
-    : (specifier.split('/')[0] ?? specifier);
-}
-
 // ─── Rule builder ─────────────────────────────────────────────────────────────
 
 function buildLayerRule(config: ArchitectureConfig): Rule {
@@ -123,9 +117,9 @@ function buildLayerRule(config: ArchitectureConfig): Rule {
     const allPatterns = config.layers.flatMap((l) =>
       Array.isArray(l.pattern) ? l.pattern : [l.pattern],
     );
-    const allFiles = yield* fs.glob(allPatterns, { cwd: projectRoot }).pipe(
-      Effect.catchAll(() => Effect.succeed([])),
-    );
+    const allFiles = yield* fs
+      .glob(allPatterns, { cwd: projectRoot })
+      .pipe(Effect.catchAll(() => Effect.succeed([])));
 
     if (allFiles.length === 0) return [];
 
@@ -173,9 +167,13 @@ function buildLayerRule(config: ArchitectureConfig): Rule {
       // Extract imports: SyntaxTree when available, regex fallback otherwise.
       let importSpecifiers: string[];
       if (st.canProcess(file)) {
-        const result = yield* st.process(file, { imports: true }).pipe(
-          Effect.catchAll(() => Effect.succeed({ imports: [], calls: [], exports: [], structure: [] })),
-        );
+        const result = yield* st
+          .process(file, { imports: true })
+          .pipe(
+            Effect.catchAll(() =>
+              Effect.succeed({ imports: [], calls: [], exports: [], structure: [] }),
+            ),
+          );
         importSpecifiers = result.imports.map((i: ParsedImport) => i.specifier);
       } else {
         importSpecifiers = regexExtractImports(file.content);
@@ -250,8 +248,7 @@ function buildLayerRule(config: ArchitectureConfig): Rule {
           violations.push({
             rule: id,
             message:
-              pair?.message ??
-              `Layer '${fromLayer}' must not import from layer '${toLayer}'.`,
+              pair?.message ?? `Layer '${fromLayer}' must not import from layer '${toLayer}'.`,
             path: file.path,
             severity: 'error',
             source: 'core',
@@ -265,7 +262,6 @@ function buildLayerRule(config: ArchitectureConfig): Rule {
 
   return { id, description, category: 'organization', run };
 }
-
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 
@@ -379,7 +375,8 @@ function buildLayerProject(config: ArchitectureConfig): NonNullable<Rule['projec
           const pair = config.forbidden?.find((f) => f.from === fromLayer && f.to === toLayer);
           violations.push({
             rule: id,
-            message: pair?.message ?? `Layer '${fromLayer}' must not import from layer '${toLayer}'.`,
+            message:
+              pair?.message ?? `Layer '${fromLayer}' must not import from layer '${toLayer}'.`,
             path: edge.from,
             severity: 'error',
             source: 'core',

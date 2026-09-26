@@ -2,7 +2,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import * as childProcess from 'node:child_process';
 import { Effect, Layer } from 'effect';
 import { phpstan } from '../src/adapter';
-import { MemoryFileSystem, ProjectRootLive, FileFilterLive, SyntaxTreeStub, ImportResolverDefault } from '@gesetz/core';
+import {
+  MemoryFileSystem,
+  ProjectRootLive,
+  FileFilterLive,
+  SyntaxTreeStub,
+  ImportResolverDefault,
+} from '@gesetz/core';
 
 const TestLayer = Layer.mergeAll(
   MemoryFileSystem({}),
@@ -26,13 +32,21 @@ const PHPSTAN_JSON = JSON.stringify({
     '/project/src/User.php': {
       errors: 1,
       messages: [
-        { message: 'Property User::$email is never read, only written.', line: 15, ignorable: true },
+        {
+          message: 'Property User::$email is never read, only written.',
+          line: 15,
+          ignorable: true,
+        },
       ],
     },
     '/project/src/Order.php': {
       errors: 1,
       messages: [
-        { message: 'Method Order::process() should return int but returns string.', line: 42, ignorable: false },
+        {
+          message: 'Method Order::process() should return int but returns string.',
+          line: 42,
+          ignorable: false,
+        },
       ],
     },
   },
@@ -98,7 +112,9 @@ describe('phpstan adapter', () => {
 
   it('passes config file and memory limit', async () => {
     const spy = childProcess.execFileSync as ReturnType<typeof vi.fn>;
-    spy.mockImplementation(() => JSON.stringify({ totals: { errors: 0, file_errors: 0 }, files: {}, errors: [] }));
+    spy.mockImplementation(() =>
+      JSON.stringify({ totals: { errors: 0, file_errors: 0 }, files: {}, errors: [] }),
+    );
 
     const rule = phpstan({ cwd: '/project', configFile: 'phpstan.neon', memoryLimit: '1G' });
     await Effect.runPromise(Effect.provide(rule.run, TestLayer));
@@ -119,7 +135,9 @@ describe('phpstan adapter', () => {
 
   it('passes pattern as positional args', async () => {
     const spy = childProcess.execFileSync as ReturnType<typeof vi.fn>;
-    spy.mockImplementation(() => JSON.stringify({ totals: { errors: 0, file_errors: 0 }, files: {}, errors: [] }));
+    spy.mockImplementation(() =>
+      JSON.stringify({ totals: { errors: 0, file_errors: 0 }, files: {}, errors: [] }),
+    );
 
     const rule = phpstan({ cwd: '/project', pattern: ['src', 'app'] });
     await Effect.runPromise(Effect.provide(rule.run, TestLayer));
@@ -134,15 +152,23 @@ describe('phpstan adapter', () => {
   describe('FileFilter integration', () => {
     it('passes FileFilter patterns to phpstan when --files is active', async () => {
       const spy = childProcess.execFileSync as ReturnType<typeof vi.fn>;
-      spy.mockImplementation(() => JSON.stringify({ totals: { errors: 0, file_errors: 0 }, files: {}, errors: [] }));
+      spy.mockImplementation(() =>
+        JSON.stringify({ totals: { errors: 0, file_errors: 0 }, files: {}, errors: [] }),
+      );
 
       const rule = phpstan({ cwd: '/project' });
-      await Effect.runPromise(Effect.provide(rule.run,
-        Layer.mergeAll(
-          MemoryFileSystem({}), SyntaxTreeStub, ImportResolverDefault,
-          ProjectRootLive('/project'), FileFilterLive(['src/app/**', 'src/lib/**']),
+      await Effect.runPromise(
+        Effect.provide(
+          rule.run,
+          Layer.mergeAll(
+            MemoryFileSystem({}),
+            SyntaxTreeStub,
+            ImportResolverDefault,
+            ProjectRootLive('/project'),
+            FileFilterLive(['src/app/**', 'src/lib/**']),
+          ),
         ),
-      ));
+      );
 
       expect(spy).toHaveBeenCalledWith(
         expect.any(String),
@@ -153,7 +179,9 @@ describe('phpstan adapter', () => {
 
     it('uses adapter pattern when FileFilter is null', async () => {
       const spy = childProcess.execFileSync as ReturnType<typeof vi.fn>;
-      spy.mockImplementation(() => JSON.stringify({ totals: { errors: 0, file_errors: 0 }, files: {}, errors: [] }));
+      spy.mockImplementation(() =>
+        JSON.stringify({ totals: { errors: 0, file_errors: 0 }, files: {}, errors: [] }),
+      );
 
       const rule = phpstan({ cwd: '/project', pattern: 'src/custom' });
       await Effect.runPromise(Effect.provide(rule.run, TestLayer));
@@ -167,7 +195,9 @@ describe('phpstan adapter', () => {
 
     it('runs configured paths when no pattern and no FileFilter', async () => {
       const spy = childProcess.execFileSync as ReturnType<typeof vi.fn>;
-      spy.mockImplementation(() => JSON.stringify({ totals: { errors: 0, file_errors: 0 }, files: {}, errors: [] }));
+      spy.mockImplementation(() =>
+        JSON.stringify({ totals: { errors: 0, file_errors: 0 }, files: {}, errors: [] }),
+      );
 
       const rule = phpstan({ cwd: '/project' });
       await Effect.runPromise(Effect.provide(rule.run, TestLayer));
@@ -181,15 +211,23 @@ describe('phpstan adapter', () => {
 
     it('FileFilter patterns override adapter pattern', async () => {
       const spy = childProcess.execFileSync as ReturnType<typeof vi.fn>;
-      spy.mockImplementation(() => JSON.stringify({ totals: { errors: 0, file_errors: 0 }, files: {}, errors: [] }));
+      spy.mockImplementation(() =>
+        JSON.stringify({ totals: { errors: 0, file_errors: 0 }, files: {}, errors: [] }),
+      );
 
       const rule = phpstan({ cwd: '/project', pattern: 'src/everything' });
-      await Effect.runPromise(Effect.provide(rule.run,
-        Layer.mergeAll(
-          MemoryFileSystem({}), SyntaxTreeStub, ImportResolverDefault,
-          ProjectRootLive('/project'), FileFilterLive(['src/subset/**']),
+      await Effect.runPromise(
+        Effect.provide(
+          rule.run,
+          Layer.mergeAll(
+            MemoryFileSystem({}),
+            SyntaxTreeStub,
+            ImportResolverDefault,
+            ProjectRootLive('/project'),
+            FileFilterLive(['src/subset/**']),
+          ),
         ),
-      ));
+      );
 
       const callArgs = spy.mock.calls[spy.mock.calls.length - 1]?.[1] as string[];
       expect(callArgs).toContain('src/subset/**');

@@ -95,9 +95,7 @@ describe('defineArchitecture', () => {
         { name: 'util', pattern: 'src/util/**' },
         { name: 'cli', pattern: 'src/cli/**' },
       ],
-      forbidden: [
-        { from: 'util', to: 'cli', message: 'Utilities must not import from CLI' },
-      ],
+      forbidden: [{ from: 'util', to: 'cli', message: 'Utilities must not import from CLI' }],
     });
 
     const layer = Layer.mergeAll(
@@ -119,9 +117,7 @@ describe('defineArchitecture', () => {
     };
 
     const rules = defineArchitecture({
-      layers: [
-        { name: 'util', pattern: 'src/util/**' },
-      ],
+      layers: [{ name: 'util', pattern: 'src/util/**' }],
       bannedExternals: {
         util: ['react'],
       },
@@ -147,9 +143,7 @@ describe('defineArchitecture', () => {
     };
 
     const rules = defineArchitecture({
-      layers: [
-        { name: 'a', pattern: 'src/a/**', canImportFrom: [] },
-      ],
+      layers: [{ name: 'a', pattern: 'src/a/**', canImportFrom: [] }],
     });
 
     const layer = Layer.mergeAll(
@@ -166,9 +160,7 @@ describe('defineArchitecture', () => {
 
   it('returns empty when no files match layer patterns', async () => {
     const rules = defineArchitecture({
-      layers: [
-        { name: 'a', pattern: 'nonexistent/**' },
-      ],
+      layers: [{ name: 'a', pattern: 'nonexistent/**' }],
     });
 
     const violations = await run(rules[0]!.run);

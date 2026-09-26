@@ -8,34 +8,34 @@
 
 ## Tested Areas Map
 
-| Source File | Test File | Status | Notes |
-|---|---|---|---|
-| `src/engine/config.ts` | `tests/engine/config.test.ts` | ✅ | `defineConfig` and `GesetzStorageConfig` |
-| `src/engine/errors.ts` | — | ❌ | Error constructors — tested implicitly |
-| `src/engine/exec.ts` | `tests/engine/exec.test.ts` | ✅ | `execTool`, `runWithTempFile`, `extractLocation` |
-| `src/engine/rule.ts` | — | ❌ | Types only |
-| `src/engine/runner.ts` | `tests/engine/runner.test.ts` — `tests/engine/runner-incremental.test.ts` — `tests/engine/project-rules.test.ts` | ✅ | `runAll`, `applyExemptions`, incremental scanning |
-| `src/backend/compile.ts` | `tests/backend/compile.test.ts` | ✅ | Compilation of rules to netzwerk extensions |
-| `src/backend/check-services.ts` | `tests/backend/check-services.test.ts` | ✅ | `createCheckServices` |
-| `src/backend/violation-markers.ts` | `tests/backend/violation-markers.test.ts` | ✅ | Marker creation and deserialization |
-| `src/backend/syntax-extension.ts` | `tests/backend/syntax-extension.test.ts` | ✅ | Syntax-backed per-file checks |
-| `src/primitives/select.ts` | `tests/primitives/select.test.ts` | ✅ | `select`, `slugify`, chaining API |
-| `src/primitives/checks/fs.ts` | `tests/primitives/checks/fs.test.ts` | ✅ | `requireSibling`, `requireChildren`, `forbidFile`, `relativeImports` |
-| `src/primitives/checks/imports.ts` | `tests/primitives/checks/imports.test.ts` | ✅ | `noImportFrom`, `requireImportFrom` |
-| `src/primitives/checks/patterns.ts` | `tests/primitives/checks/patterns.test.ts` | ✅ | `noPattern`, `requirePattern` |
-| `src/primitives/checks/structure.ts` | `tests/primitives/checks/structure.test.ts` | ✅ | `noGodFile`, `noDeepNesting`, `noDebuggingResidueFiles`, `noHardcodedSecret` |
-| `src/primitives/checks/debug-logging.ts` | `tests/primitives/checks/debug-logging.test.ts` | ✅ | `noDebugLogging` |
-| `src/primitives/checks/calls.ts` | `tests/primitives/checks/calls.test.ts` | ✅ | `noDirectCalls` |
-| `src/primitives/checks/naming.ts` | `tests/primitives/checks/naming.test.ts` | ✅ | `requireNamingConvention`, `noForbiddenNames` |
-| `src/primitives/checks/docstrings.ts` | `tests/primitives/checks/docstrings.test.ts` | ✅ | `requireDocstrings` |
-| `src/primitives/checks/exports.ts` | `tests/primitives/checks/exports.test.ts` | ✅ | `requireExportsMatching`, `requireRelatedExports` |
-| `src/primitives/checks/structure-count.ts` | `tests/primitives/checks/structure-count.test.ts` | ✅ | `requireMinStructureCount` |
-| `src/primitives/graph.ts` | `tests/primitives/checks/cycles.test.ts` | ✅ | `noCycles` — project-level, uses netzwerk import edges |
-| `src/architecture.ts` | `tests/primitives/architecture.test.ts` | ✅ | `defineArchitecture` |
-| `src/reporters/*.ts` | `tests/reporters/reporters.test.ts` | ✅ | `TestRunnerReporter` |
-| `src/services/fs.ts` | `tests/services/fs.test.ts` | ✅ | `FileSystemLive`, `MemoryFileSystem` |
-| `src/services/syntax-tree.ts` | `tests/services/syntax-tree.test.ts` | ✅ | `SyntaxTreeLive` |
-| `src/test-helpers.ts` | — | ❌ | Tested implicitly through the entire check test suite |
+| Source File                                | Test File                                                                                                        | Status | Notes                                                                        |
+| ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- | ------ | ---------------------------------------------------------------------------- |
+| `src/engine/config.ts`                     | `tests/engine/config.test.ts`                                                                                    | ✅     | `defineConfig` and `GesetzStorageConfig`                                     |
+| `src/engine/errors.ts`                     | —                                                                                                                | ❌     | Error constructors — tested implicitly                                       |
+| `src/engine/exec.ts`                       | `tests/engine/exec.test.ts`                                                                                      | ✅     | `execTool`, `runWithTempFile`, `extractLocation`                             |
+| `src/engine/rule.ts`                       | —                                                                                                                | ❌     | Types only                                                                   |
+| `src/engine/runner.ts`                     | `tests/engine/runner.test.ts` — `tests/engine/runner-incremental.test.ts` — `tests/engine/project-rules.test.ts` | ✅     | `runAll`, `applyExemptions`, incremental scanning                            |
+| `src/backend/compile.ts`                   | `tests/backend/compile.test.ts`                                                                                  | ✅     | Compilation of rules to netzwerk extensions                                  |
+| `src/backend/check-services.ts`            | `tests/backend/check-services.test.ts`                                                                           | ✅     | `createCheckServices`                                                        |
+| `src/backend/violation-markers.ts`         | `tests/backend/violation-markers.test.ts`                                                                        | ✅     | Marker creation and deserialization                                          |
+| `src/backend/syntax-extension.ts`          | `tests/backend/syntax-extension.test.ts`                                                                         | ✅     | Syntax-backed per-file checks                                                |
+| `src/primitives/select.ts`                 | `tests/primitives/select.test.ts`                                                                                | ✅     | `select`, `slugify`, chaining API                                            |
+| `src/primitives/checks/fs.ts`              | `tests/primitives/checks/fs.test.ts`                                                                             | ✅     | `requireSibling`, `requireChildren`, `forbidFile`, `relativeImports`         |
+| `src/primitives/checks/imports.ts`         | `tests/primitives/checks/imports.test.ts`                                                                        | ✅     | `noImportFrom`, `requireImportFrom`                                          |
+| `src/primitives/checks/patterns.ts`        | `tests/primitives/checks/patterns.test.ts`                                                                       | ✅     | `noPattern`, `requirePattern`                                                |
+| `src/primitives/checks/structure.ts`       | `tests/primitives/checks/structure.test.ts`                                                                      | ✅     | `noGodFile`, `noDeepNesting`, `noDebuggingResidueFiles`, `noHardcodedSecret` |
+| `src/primitives/checks/debug-logging.ts`   | `tests/primitives/checks/debug-logging.test.ts`                                                                  | ✅     | `noDebugLogging`                                                             |
+| `src/primitives/checks/calls.ts`           | `tests/primitives/checks/calls.test.ts`                                                                          | ✅     | `noDirectCalls`                                                              |
+| `src/primitives/checks/naming.ts`          | `tests/primitives/checks/naming.test.ts`                                                                         | ✅     | `requireNamingConvention`, `noForbiddenNames`                                |
+| `src/primitives/checks/docstrings.ts`      | `tests/primitives/checks/docstrings.test.ts`                                                                     | ✅     | `requireDocstrings`                                                          |
+| `src/primitives/checks/exports.ts`         | `tests/primitives/checks/exports.test.ts`                                                                        | ✅     | `requireExportsMatching`, `requireRelatedExports`                            |
+| `src/primitives/checks/structure-count.ts` | `tests/primitives/checks/structure-count.test.ts`                                                                | ✅     | `requireMinStructureCount`                                                   |
+| `src/primitives/graph.ts`                  | `tests/primitives/checks/cycles.test.ts`                                                                         | ✅     | `noCycles` — project-level, uses netzwerk import edges                       |
+| `src/architecture.ts`                      | `tests/primitives/architecture.test.ts`                                                                          | ✅     | `defineArchitecture`                                                         |
+| `src/reporters/*.ts`                       | `tests/reporters/reporters.test.ts`                                                                              | ✅     | `TestRunnerReporter`                                                         |
+| `src/services/fs.ts`                       | `tests/services/fs.test.ts`                                                                                      | ✅     | `FileSystemLive`, `MemoryFileSystem`                                         |
+| `src/services/syntax-tree.ts`              | `tests/services/syntax-tree.test.ts`                                                                             | ✅     | `SyntaxTreeLive`                                                             |
+| `src/test-helpers.ts`                      | —                                                                                                                | ❌     | Tested implicitly through the entire check test suite                        |
 
 ## Known Coverage Gaps
 
@@ -60,7 +60,7 @@ describe('noDebugLogging', () => {
     const violations = await runCheck(
       noDebugLogging(),
       makeFile('src/foo.ts', 'console.log("hi");'),
-      makeCheckServices(),  // all safe defaults
+      makeCheckServices(), // all safe defaults
     );
     expect(violations).toHaveLength(1);
     expect(violations[0]?.line).toBe(1);

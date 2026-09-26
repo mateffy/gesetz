@@ -67,7 +67,7 @@ function findNumbers(content: string): Found[] {
         state = 'code';
         i++;
       } else if (c === '\n') {
-        state = 'code';   // a regex cannot span a line; recover
+        state = 'code'; // a regex cannot span a line; recover
       } else i++;
       continue;
     }
@@ -104,7 +104,10 @@ function findNumbers(content: string): Found[] {
       // expression. Numbers inside a regex are pattern text, not literals —
       // `/[^a-z0-9\s-]/` reported "Magic number 9" and `[-=*]{5,}` reported 5.
       const before = content.slice(0, i).replace(/\s+$/, '');
-      const keyword = /(?:\b(?:return|typeof|case|in|of|delete|void|instanceof|new|do|else|yield|await))$/.test(before);
+      const keyword =
+        /(?:\b(?:return|typeof|case|in|of|delete|void|instanceof|new|do|else|yield|await))$/.test(
+          before,
+        );
       if (prev === '' || /[(,=:[!&|?{};+\-*%~^<>]/.test(prev) || keyword) {
         state = 'regex';
         i++;

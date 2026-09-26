@@ -23,7 +23,9 @@ const noop = async (_file: File, _services: CheckServices): Promise<Violation[]>
 
 describe('slugify', () => {
   it('lowercases and replaces spaces with hyphens', () => {
-    expect(slugify('All components need Storybook stories')).toBe('all-components-need-storybook-stories');
+    expect(slugify('All components need Storybook stories')).toBe(
+      'all-components-need-storybook-stories',
+    );
   });
 
   it('removes non-alphanumeric characters', () => {
@@ -42,12 +44,16 @@ describe('slugify', () => {
 describe('select', () => {
   describe('.label()', () => {
     it('sets rule.description verbatim', () => {
-      const rule = select('src/**/*.tsx').label('All components need Storybook stories').check(noop);
+      const rule = select('src/**/*.tsx')
+        .label('All components need Storybook stories')
+        .check(noop);
       expect(rule.description).toBe('All components need Storybook stories');
     });
 
     it('slugifies label into rule.id', () => {
-      const rule = select('src/**/*.tsx').label('All components need Storybook stories').check(noop);
+      const rule = select('src/**/*.tsx')
+        .label('All components need Storybook stories')
+        .check(noop);
       expect(rule.id).toBe('all-components-need-storybook-stories');
     });
 
@@ -103,7 +109,10 @@ describe('select', () => {
         return [];
       };
 
-      const rule = select('src/**/*.ts').exclude('**/*.test.ts').label('Exclusion test').check(trackingCheck);
+      const rule = select('src/**/*.ts')
+        .exclude('**/*.test.ts')
+        .label('Exclusion test')
+        .check(trackingCheck);
 
       const files = {
         'src/foo.ts': '',
@@ -126,7 +135,10 @@ describe('select', () => {
 
   describe('.filter()', () => {
     it('applies predicate to files', () => {
-      const rule = select('src/**/*.ts').filter((f) => f.name.startsWith('foo')).label('Filter test').check(noop);
+      const rule = select('src/**/*.ts')
+        .filter((f) => f.name.startsWith('foo'))
+        .label('Filter test')
+        .check(noop);
       expect(rule.id).toBe('filter-test');
     });
   });

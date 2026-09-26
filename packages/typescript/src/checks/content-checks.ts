@@ -17,9 +17,7 @@ export function noObjectProperty(
     const violations: Violation[] = [];
 
     // Find `const varName = {` and extract the meta object body
-    const metaMatch = file.content.match(
-      new RegExp(`\\bconst\\s+${varName}\\s*=\\s*\\{`),
-    );
+    const metaMatch = file.content.match(new RegExp(`\\bconst\\s+${varName}\\s*=\\s*\\{`));
     if (!metaMatch || metaMatch.index === undefined) return [];
 
     const metaStart = metaMatch.index + metaMatch[0].length - 1;
@@ -49,9 +47,7 @@ export function noObjectProperty(
           violations.push({
             severity: 'error',
             source: 'core',
-            message:
-              opts.message ??
-              `'${varName}' object must not define property '${propName}'`,
+            message: opts.message ?? `'${varName}' object must not define property '${propName}'`,
             path: file.path,
             line: lineNumber,
           });

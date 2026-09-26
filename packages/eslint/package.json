@@ -1,7 +1,11 @@
 {
   "name": "@gesetz/eslint",
   "version": "3.0.0-rc.4",
+  "files": [
+    "dist"
+  ],
   "type": "module",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -19,6 +23,11 @@
     "@gesetz/core": "workspace:*",
     "effect": "^3.15.0"
   },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.8.0",
+    "vitest": "^3.2.0"
+  },
   "peerDependencies": {
     "eslint": ">=8.0.0"
   },
@@ -26,14 +35,5 @@
     "eslint": {
       "optional": true
     }
-  },
-  "devDependencies": {
-    "@types/node": "^22.0.0",
-    "typescript": "^5.8.0",
-    "vitest": "^3.2.0"
-  },
-  "types": "./dist/index.d.ts",
-  "files": [
-    "dist"
-  ]
+  }
 }

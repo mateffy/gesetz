@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import * as nodePath from 'node:path';
-import { requireSibling, forbidFile, requireTest, testCandidates } from '../../../src/primitives/checks/fs';
+import {
+  requireSibling,
+  forbidFile,
+  requireTest,
+  testCandidates,
+} from '../../../src/primitives/checks/fs';
 import { makeFile, makeCheckServices, runCheck } from '../../../src/test-helpers';
 
 const CWD = process.cwd();
@@ -27,7 +32,11 @@ describe('requireSibling', () => {
   it('uses custom message when provided', async () => {
     const file = makeFile('src/Button.tsx');
     const services = makeCheckServices({ projectRoot: CWD });
-    const v = await runCheck(requireSibling('.test.tsx', { message: 'Custom error message' }), file, services);
+    const v = await runCheck(
+      requireSibling('.test.tsx', { message: 'Custom error message' }),
+      file,
+      services,
+    );
     expect(v[0]?.message).toBe('Custom error message');
   });
 });
@@ -40,7 +49,11 @@ describe('forbidFile', () => {
   });
 
   it('uses custom message', async () => {
-    const v = await runCheck(forbidFile({ message: 'Do not use this file' }), makeFile('src/foo.ts'), makeCheckServices());
+    const v = await runCheck(
+      forbidFile({ message: 'Do not use this file' }),
+      makeFile('src/foo.ts'),
+      makeCheckServices(),
+    );
     expect(v[0]?.message).toBe('Do not use this file');
   });
 });
@@ -54,12 +67,15 @@ describe('testCandidates', () => {
 
   it('includes the tests/ path, mirroring the path below src', () => {
     // This repository keeps tests in packages/<pkg>/tests/, mirroring src/.
-    expect(testCandidates(abs('src/primitives/checks/fs.ts'), ['.test.ts']))
-      .toContain(abs('tests/primitives/checks/fs.test.ts'));
+    expect(testCandidates(abs('src/primitives/checks/fs.ts'), ['.test.ts'])).toContain(
+      abs('tests/primitives/checks/fs.test.ts'),
+    );
   });
 
   it('includes the flattened tests/ path, for a file directly under src', () => {
-    expect(testCandidates(abs('src/adapter.ts'), ['.test.ts'])).toContain(abs('tests/adapter.test.ts'));
+    expect(testCandidates(abs('src/adapter.ts'), ['.test.ts'])).toContain(
+      abs('tests/adapter.test.ts'),
+    );
   });
 
   it('offers every requested suffix', () => {
@@ -83,7 +99,10 @@ describe('requireTest', () => {
     const v = await runCheck(
       requireTest(),
       makeFile('src/foo.ts'),
-      makeCheckServices({ projectRoot: CWD, files: { [nodePath.resolve(CWD, 'src/foo.test.ts')]: '' } }),
+      makeCheckServices({
+        projectRoot: CWD,
+        files: { [nodePath.resolve(CWD, 'src/foo.test.ts')]: '' },
+      }),
     );
     expect(v).toHaveLength(0);
   });
@@ -104,7 +123,10 @@ describe('requireTest', () => {
     const v = await runCheck(
       requireTest(),
       makeFile('src/adapter.ts'),
-      makeCheckServices({ projectRoot: CWD, files: { [nodePath.resolve(CWD, 'tests/adapter.test.ts')]: '' } }),
+      makeCheckServices({
+        projectRoot: CWD,
+        files: { [nodePath.resolve(CWD, 'tests/adapter.test.ts')]: '' },
+      }),
     );
     expect(v).toHaveLength(0);
   });
@@ -112,7 +134,11 @@ describe('requireTest', () => {
   it('fails when no test exists, and names where it looked', async () => {
     // Regression: this repository keeps tests in tests/, and requireSibling only
     // looked next to the source, so every adapter reported a missing test.
-    const v = await runCheck(requireTest(), makeFile('src/foo.ts'), makeCheckServices({ projectRoot: CWD }));
+    const v = await runCheck(
+      requireTest(),
+      makeFile('src/foo.ts'),
+      makeCheckServices({ projectRoot: CWD }),
+    );
     expect(v).toHaveLength(1);
     expect(v[0]?.severity).toBe('error');
     expect(v[0]?.message).toContain('No test file found for src/foo.ts');
@@ -123,7 +149,10 @@ describe('requireTest', () => {
     const v = await runCheck(
       requireTest({ suffixes: ['.browser.test.ts'] }),
       makeFile('src/foo.ts'),
-      makeCheckServices({ projectRoot: CWD, files: { [nodePath.resolve(CWD, 'tests/foo.browser.test.ts')]: '' } }),
+      makeCheckServices({
+        projectRoot: CWD,
+        files: { [nodePath.resolve(CWD, 'tests/foo.browser.test.ts')]: '' },
+      }),
     );
     expect(v).toHaveLength(0);
   });

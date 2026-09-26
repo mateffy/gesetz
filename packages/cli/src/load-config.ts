@@ -69,7 +69,11 @@ export function loadConfig(
     })) as { default?: unknown } & Record<string, unknown>;
 
     const raw = mod.default ?? mod;
-    if (typeof raw !== 'object' || raw === null || !Array.isArray((raw as Record<string, unknown>).rules)) {
+    if (
+      typeof raw !== 'object' ||
+      raw === null ||
+      !Array.isArray((raw as Record<string, unknown>).rules)
+    ) {
       return yield* Effect.fail(
         new ConfigNotFoundError(
           `${projectRoot} (invalid config export in ${resolvedConfigPath} — expected { rules: [...] })`,

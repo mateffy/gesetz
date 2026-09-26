@@ -5,11 +5,20 @@ import * as nodeOs from 'node:os';
 import * as nodePath from 'node:path';
 import { Effect, Layer } from 'effect';
 import { phpunit } from '../src/adapter';
-import { MemoryFileSystem, ProjectRootLive, FileFilterLive, SyntaxTreeStub, ImportResolverDefault } from '@gesetz/core';
+import {
+  MemoryFileSystem,
+  ProjectRootLive,
+  FileFilterLive,
+  SyntaxTreeStub,
+  ImportResolverDefault,
+} from '@gesetz/core';
 
 /** A child-process failure as `execFileSync` really throws it: status plus captured stdout. */
 function exitFailure(status: number, stdout = ''): Error & { status: number; stdout: string } {
-  const e = new Error(`Command failed: exit ${status}`) as Error & { status: number; stdout: string };
+  const e = new Error(`Command failed: exit ${status}`) as Error & {
+    status: number;
+    stdout: string;
+  };
   e.status = status;
   e.stdout = stdout;
   return e;
@@ -142,12 +151,18 @@ describe('phpunit', () => {
       spy.mockImplementation(() => '');
 
       const rule = phpunit({ cwd: '/project' });
-      await Effect.runPromise(Effect.provide(rule.run,
-        Layer.mergeAll(
-          MemoryFileSystem({}), SyntaxTreeStub, ImportResolverDefault,
-          ProjectRootLive('/project'), FileFilterLive(['tests/Unit/**']),
+      await Effect.runPromise(
+        Effect.provide(
+          rule.run,
+          Layer.mergeAll(
+            MemoryFileSystem({}),
+            SyntaxTreeStub,
+            ImportResolverDefault,
+            ProjectRootLive('/project'),
+            FileFilterLive(['tests/Unit/**']),
+          ),
         ),
-      ));
+      );
 
       expect(spy).toHaveBeenCalledWith(
         'vendor/bin/phpunit',
@@ -181,12 +196,18 @@ describe('phpunit', () => {
       spy.mockImplementation(() => '');
 
       const rule = phpunit({ cwd: '/project', pattern: 'tests/Everything' });
-      await Effect.runPromise(Effect.provide(rule.run,
-        Layer.mergeAll(
-          MemoryFileSystem({}), SyntaxTreeStub, ImportResolverDefault,
-          ProjectRootLive('/project'), FileFilterLive(['tests/Subset']),
+      await Effect.runPromise(
+        Effect.provide(
+          rule.run,
+          Layer.mergeAll(
+            MemoryFileSystem({}),
+            SyntaxTreeStub,
+            ImportResolverDefault,
+            ProjectRootLive('/project'),
+            FileFilterLive(['tests/Subset']),
+          ),
         ),
-      ));
+      );
 
       const callArgs = spy.mock.calls[spy.mock.calls.length - 1]?.[1] as string[];
       expect(callArgs).toContain('tests/Subset');

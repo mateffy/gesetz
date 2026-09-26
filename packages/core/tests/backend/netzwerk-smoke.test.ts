@@ -28,9 +28,10 @@ function aNetwork(options?: { storage?: 'memory' | 'file' }): Network {
     // netzwerk's file-backed store is libsql, configured by url — not a
     // `{ kind: 'sqlite', path }` pair. GesetzStorageConfig uses the latter, and
     // the cast in the runner asserts the two are identical; they are not.
-    storage: options?.storage === 'file'
-      ? { kind: 'libsql', url: `file:${nodePath.join(dir, 'cache.db')}` }
-      : { kind: 'memory' },
+    storage:
+      options?.storage === 'file'
+        ? { kind: 'libsql', url: `file:${nodePath.join(dir, 'cache.db')}` }
+        : { kind: 'memory' },
   });
 }
 
@@ -171,7 +172,10 @@ describe('compile pipeline (integration)', () => {
   it('compiles a file-system select() rule with requireSibling', async () => {
     await mkdir(nodePath.join(dir, 'components'), { recursive: true });
     // Button.tsx exists but Button.stories.tsx does not
-    await writeFile(nodePath.join(dir, 'components/Button.tsx'), 'export const Button = () => null;\n');
+    await writeFile(
+      nodePath.join(dir, 'components/Button.tsx'),
+      'export const Button = () => null;\n',
+    );
     await writeFile(nodePath.join(dir, 'components/Card.tsx'), 'export const Card = () => null;\n');
     await writeFile(nodePath.join(dir, 'components/Card.stories.tsx'), 'export default {};\n');
 

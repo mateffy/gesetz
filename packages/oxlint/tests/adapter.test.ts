@@ -2,7 +2,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import * as childProcess from 'node:child_process';
 import { Effect, Layer } from 'effect';
 import { oxlint } from '../src/adapter';
-import { MemoryFileSystem, ProjectRootLive, FileFilterLive, SyntaxTreeStub, ImportResolverDefault } from '@gesetz/core';
+import {
+  MemoryFileSystem,
+  ProjectRootLive,
+  FileFilterLive,
+  SyntaxTreeStub,
+  ImportResolverDefault,
+} from '@gesetz/core';
 
 const TestLayer = Layer.mergeAll(
   MemoryFileSystem({}),
@@ -24,7 +30,8 @@ vi.mock('node:child_process', async () => {
 const OXLINT_JSON = JSON.stringify({
   diagnostics: [
     {
-      message: "Parameter 'children' is declared but never used. Unused parameters should start with a '_'.",
+      message:
+        "Parameter 'children' is declared but never used. Unused parameters should start with a '_'.",
       code: 'eslint(no-unused-vars)',
       severity: 'warning',
       filename: 'src/components/ui/Button.tsx',
@@ -104,7 +111,9 @@ describe('oxlint', () => {
   });
 
   it('returns empty array when stdout is not valid JSON', async () => {
-    (childProcess.execFileSync as ReturnType<typeof vi.fn>).mockImplementation(() => 'not json at all');
+    (childProcess.execFileSync as ReturnType<typeof vi.fn>).mockImplementation(
+      () => 'not json at all',
+    );
 
     const rule = oxlint({ cwd: '/project' });
     const violations = await Effect.runPromise(Effect.provide(rule.run, TestLayer));
@@ -117,12 +126,18 @@ describe('oxlint', () => {
       spy.mockImplementation(() => JSON.stringify({ diagnostics: [] }));
 
       const rule = oxlint({ cwd: '/project' });
-      await Effect.runPromise(Effect.provide(rule.run,
-        Layer.mergeAll(
-          MemoryFileSystem({}), SyntaxTreeStub, ImportResolverDefault,
-          ProjectRootLive('/project'), FileFilterLive(['src/app/**', 'src/lib/**']),
+      await Effect.runPromise(
+        Effect.provide(
+          rule.run,
+          Layer.mergeAll(
+            MemoryFileSystem({}),
+            SyntaxTreeStub,
+            ImportResolverDefault,
+            ProjectRootLive('/project'),
+            FileFilterLive(['src/app/**', 'src/lib/**']),
+          ),
         ),
-      ));
+      );
 
       expect(spy).toHaveBeenCalledWith(
         'oxlint',
@@ -152,11 +167,7 @@ describe('oxlint', () => {
       const rule = oxlint({ cwd: '/project' });
       await Effect.runPromise(Effect.provide(rule.run, TestLayer));
 
-      expect(spy).toHaveBeenCalledWith(
-        'oxlint',
-        expect.arrayContaining(['.']),
-        expect.any(Object),
-      );
+      expect(spy).toHaveBeenCalledWith('oxlint', expect.arrayContaining(['.']), expect.any(Object));
     });
 
     it('FileFilter patterns override adapter pattern', async () => {
@@ -164,12 +175,18 @@ describe('oxlint', () => {
       spy.mockImplementation(() => JSON.stringify({ diagnostics: [] }));
 
       const rule = oxlint({ cwd: '/project', pattern: 'src/everything/**' });
-      await Effect.runPromise(Effect.provide(rule.run,
-        Layer.mergeAll(
-          MemoryFileSystem({}), SyntaxTreeStub, ImportResolverDefault,
-          ProjectRootLive('/project'), FileFilterLive(['src/subset/**']),
+      await Effect.runPromise(
+        Effect.provide(
+          rule.run,
+          Layer.mergeAll(
+            MemoryFileSystem({}),
+            SyntaxTreeStub,
+            ImportResolverDefault,
+            ProjectRootLive('/project'),
+            FileFilterLive(['src/subset/**']),
+          ),
         ),
-      ));
+      );
 
       expect(spy).toHaveBeenCalledWith(
         'oxlint',

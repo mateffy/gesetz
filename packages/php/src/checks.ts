@@ -54,9 +54,7 @@ export function psrNamespace(opts: {
 
     // Construct expected namespace from path
     const pathSegments = pathAfterBase ? pathAfterBase.split('/') : [];
-    const expectedNamespace = [opts.baseNamespace, ...pathSegments]
-      .filter(Boolean)
-      .join('\\');
+    const expectedNamespace = [opts.baseNamespace, ...pathSegments].filter(Boolean).join('\\');
 
     if (declaredNamespace === expectedNamespace) return [];
 
@@ -141,7 +139,11 @@ export function requireTypeHints(opts: RequireTypeHintsOptions = {}): Check {
         // A typed param does NOT start with `$` (the type comes first).
         // Untyped: `$x`, `&$x`, `...$x`, `&$x = null`.
         if (/^[&.]*\$/.test(trimmed)) {
-          const paramName = trimmed.replace(/^[&.]+/, '').split('=')[0]?.trim() ?? trimmed;
+          const paramName =
+            trimmed
+              .replace(/^[&.]+/, '')
+              .split('=')[0]
+              ?.trim() ?? trimmed;
           violations.push({
             severity: 'warn',
             source: 'core',

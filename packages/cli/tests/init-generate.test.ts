@@ -85,7 +85,11 @@ describe('generateConfig — react preset', () => {
   it('emits noHardcodedStrings for react preset', () => {
     const profile = makeProfile({ framework: 'react' });
     const src = generateConfig(
-      makePlan({ preset: 'react', rules: new Set(blueprintsForPreset('react').map((b) => b.id)), profile }),
+      makePlan({
+        preset: 'react',
+        rules: new Set(blueprintsForPreset('react').map((b) => b.id)),
+        profile,
+      }),
     );
     expect(src).toContain('noHardcodedStrings()');
   });
@@ -166,17 +170,13 @@ describe('generateConfig — laravel preset', () => {
 
 describe('generateConfig — tool adapter rules', () => {
   it('emits oxlint adapter rule', () => {
-    const src = generateConfig(
-      makePlan({ tools: new Set(['oxlint'] as const) }),
-    );
+    const src = generateConfig(makePlan({ tools: new Set(['oxlint'] as const) }));
     expect(src).toContain("oxlint({ pattern: 'src/'");
     expect(src).toMatch(/import \{ oxlint \} from '@gesetz\/oxlint';/);
   });
 
   it('emits vitest adapter rule', () => {
-    const src = generateConfig(
-      makePlan({ tools: new Set(['vitest'] as const) }),
-    );
+    const src = generateConfig(makePlan({ tools: new Set(['vitest'] as const) }));
     expect(src).toContain('vitest({');
     expect(src).toMatch(/import \{ vitest \} from '@gesetz\/vitest';/);
   });

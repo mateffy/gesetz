@@ -13,7 +13,11 @@ describe('noRunPromiseScattered', () => {
       import { Effect } from 'effect';
       export const program = Effect.runPromise(Effect.succeed(1));
     `;
-    const v = await runCheck(noRunPromiseScattered(), makeFile('src/lib.ts', content), makeCheckServices());
+    const v = await runCheck(
+      noRunPromiseScattered(),
+      makeFile('src/lib.ts', content),
+      makeCheckServices(),
+    );
     expect(v).toHaveLength(1);
     expect(v[0]?.rule).toBe('no-run-promise-scattered');
     expect(v[0]?.message).toContain('runPromise');
@@ -50,7 +54,11 @@ describe('noRunPromiseScattered', () => {
       const runner = { runPromise: (x: number) => x };
       runner.runPromise(1);
     `;
-    const v = await runCheck(noRunPromiseScattered(), makeFile('src/lib.ts', content), makeCheckServices());
+    const v = await runCheck(
+      noRunPromiseScattered(),
+      makeFile('src/lib.ts', content),
+      makeCheckServices(),
+    );
     expect(v).toHaveLength(0);
   });
 });
@@ -65,7 +73,11 @@ describe('noThrowInEffectGen', () => {
         return x;
       });
     `;
-    const v = await runCheck(noThrowInEffectGen(), makeFile('src/test.ts', content), makeCheckServices());
+    const v = await runCheck(
+      noThrowInEffectGen(),
+      makeFile('src/test.ts', content),
+      makeCheckServices(),
+    );
     expect(v).toHaveLength(1);
     expect(v[0]?.rule).toBe('no-throw-in-effect-gen');
     expect(v[0]?.message).toContain('throw');
@@ -77,7 +89,11 @@ describe('noThrowInEffectGen', () => {
         if (false) throw new Error('ok');
       }
     `;
-    const v = await runCheck(noThrowInEffectGen(), makeFile('src/test.ts', content), makeCheckServices());
+    const v = await runCheck(
+      noThrowInEffectGen(),
+      makeFile('src/test.ts', content),
+      makeCheckServices(),
+    );
     expect(v).toHaveLength(0);
   });
 
@@ -89,7 +105,11 @@ describe('noThrowInEffectGen', () => {
         return n;
       });
     `;
-    const v = await runCheck(noThrowInEffectGen(), makeFile('src/test.ts', content), makeCheckServices());
+    const v = await runCheck(
+      noThrowInEffectGen(),
+      makeFile('src/test.ts', content),
+      makeCheckServices(),
+    );
     expect(v).toHaveLength(1);
   });
 });
@@ -103,7 +123,11 @@ describe('noYieldWithoutStar', () => {
         return x;
       });
     `;
-    const v = await runCheck(noYieldWithoutStar(), makeFile('src/test.ts', content), makeCheckServices());
+    const v = await runCheck(
+      noYieldWithoutStar(),
+      makeFile('src/test.ts', content),
+      makeCheckServices(),
+    );
     expect(v).toHaveLength(1);
     expect(v[0]?.rule).toBe('no-yield-without-star');
   });
@@ -116,7 +140,11 @@ describe('noYieldWithoutStar', () => {
         return x;
       });
     `;
-    const v = await runCheck(noYieldWithoutStar(), makeFile('src/test.ts', content), makeCheckServices());
+    const v = await runCheck(
+      noYieldWithoutStar(),
+      makeFile('src/test.ts', content),
+      makeCheckServices(),
+    );
     expect(v).toHaveLength(0);
   });
 
@@ -126,7 +154,11 @@ describe('noYieldWithoutStar', () => {
         yield 1;
       }
     `;
-    const v = await runCheck(noYieldWithoutStar(), makeFile('src/test.ts', content), makeCheckServices());
+    const v = await runCheck(
+      noYieldWithoutStar(),
+      makeFile('src/test.ts', content),
+      makeCheckServices(),
+    );
     expect(v).toHaveLength(0);
   });
 });
@@ -137,7 +169,11 @@ describe('noUnboundedEffectAll', () => {
       import { Effect } from 'effect';
       const program = Effect.all([Effect.succeed(1), Effect.succeed(2)]);
     `;
-    const v = await runCheck(noUnboundedEffectAll(), makeFile('src/test.ts', content), makeCheckServices());
+    const v = await runCheck(
+      noUnboundedEffectAll(),
+      makeFile('src/test.ts', content),
+      makeCheckServices(),
+    );
     expect(v).toHaveLength(1);
     expect(v[0]?.rule).toBe('no-unbounded-effect-all');
     expect(v[0]?.message).toContain('concurrency');
@@ -148,7 +184,11 @@ describe('noUnboundedEffectAll', () => {
       import { Effect } from 'effect';
       const program = Effect.all([Effect.succeed(1), Effect.succeed(2)], { concurrency: 2 });
     `;
-    const v = await runCheck(noUnboundedEffectAll(), makeFile('src/test.ts', content), makeCheckServices());
+    const v = await runCheck(
+      noUnboundedEffectAll(),
+      makeFile('src/test.ts', content),
+      makeCheckServices(),
+    );
     expect(v).toHaveLength(0);
   });
 
@@ -157,7 +197,11 @@ describe('noUnboundedEffectAll', () => {
       import { Effect } from 'effect';
       const x = Effect.succeed(1);
     `;
-    const v = await runCheck(noUnboundedEffectAll(), makeFile('src/test.ts', content), makeCheckServices());
+    const v = await runCheck(
+      noUnboundedEffectAll(),
+      makeFile('src/test.ts', content),
+      makeCheckServices(),
+    );
     expect(v).toHaveLength(0);
   });
 });

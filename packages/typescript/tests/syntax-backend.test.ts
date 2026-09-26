@@ -28,7 +28,12 @@ describe('typescriptSyntaxBackend', () => {
   describe('extensions', () => {
     it('handles .ts, .tsx, .js, .jsx, .mjs, .cjs', () => {
       expect(typescriptSyntaxBackend.extensions).toEqual([
-        '.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs',
+        '.ts',
+        '.tsx',
+        '.js',
+        '.jsx',
+        '.mjs',
+        '.cjs',
       ]);
     });
   });
@@ -58,10 +63,7 @@ describe('typescriptSyntaxBackend', () => {
     });
 
     it('handles default imports (no names)', () => {
-      const imports = typescriptSyntaxBackend.extractImports(
-        `import foo from './foo';`,
-        'test.ts',
-      );
+      const imports = typescriptSyntaxBackend.extractImports(`import foo from './foo';`, 'test.ts');
       expect(imports[0]?.specifier).toBe('./foo');
       expect(imports[0]?.names).toEqual([]);
     });

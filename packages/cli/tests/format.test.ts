@@ -211,9 +211,15 @@ describe('formatCi', () => {
 
 describe('formatStatusBanner', () => {
   it('writes a one-line verdict to stderr format', () => {
-    expect(formatStatusBanner({ ...passingResult(), totalViolations: 0 })).toBe('gesetz: pass (0 violations)\n');
-    expect(formatStatusBanner({ ...failingResult([v()]), totalViolations: 1 })).toBe('gesetz: fail (1 violation)\n');
-    expect(formatStatusBanner({ ...failingResult([v(), v()]), totalViolations: 2 })).toBe('gesetz: fail (2 violations)\n');
+    expect(formatStatusBanner({ ...passingResult(), totalViolations: 0 })).toBe(
+      'gesetz: pass (0 violations)\n',
+    );
+    expect(formatStatusBanner({ ...failingResult([v()]), totalViolations: 1 })).toBe(
+      'gesetz: fail (1 violation)\n',
+    );
+    expect(formatStatusBanner({ ...failingResult([v(), v()]), totalViolations: 2 })).toBe(
+      'gesetz: fail (2 violations)\n',
+    );
   });
 });
 

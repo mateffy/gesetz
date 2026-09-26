@@ -1,7 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Effect, Layer } from 'effect';
 import { eslint } from '../src/adapter';
-import { MemoryFileSystem, ProjectRootLive, FileFilterLive, SyntaxTreeStub, ImportResolverDefault } from '@gesetz/core';
+import {
+  MemoryFileSystem,
+  ProjectRootLive,
+  FileFilterLive,
+  SyntaxTreeStub,
+  ImportResolverDefault,
+} from '@gesetz/core';
 
 const TestLayer = Layer.mergeAll(
   MemoryFileSystem({}),
@@ -28,8 +34,20 @@ vi.mock('eslint', () => {
           {
             filePath: '/project/src/a.ts',
             messages: [
-              { ruleId: 'no-unused-vars', message: "'x' is assigned but never used.", line: 5, column: 7, severity: 2 as const },
-              { ruleId: 'prefer-const', message: "'y' is never reassigned.", line: 10, column: 3, severity: 1 as const },
+              {
+                ruleId: 'no-unused-vars',
+                message: "'x' is assigned but never used.",
+                line: 5,
+                column: 7,
+                severity: 2 as const,
+              },
+              {
+                ruleId: 'prefer-const',
+                message: "'y' is never reassigned.",
+                line: 10,
+                column: 3,
+                severity: 1 as const,
+              },
             ],
           },
           {
@@ -92,12 +110,18 @@ describe('eslint adapter', () => {
   describe('FileFilter integration', () => {
     it('passes FileFilter patterns to lintFiles when --files is active', async () => {
       const rule = eslint({ cwd: '/project' });
-      await Effect.runPromise(Effect.provide(rule.run,
-        Layer.mergeAll(
-          MemoryFileSystem({}), SyntaxTreeStub, ImportResolverDefault,
-          ProjectRootLive('/project'), FileFilterLive(['src/app/**', 'src/lib/**']),
+      await Effect.runPromise(
+        Effect.provide(
+          rule.run,
+          Layer.mergeAll(
+            MemoryFileSystem({}),
+            SyntaxTreeStub,
+            ImportResolverDefault,
+            ProjectRootLive('/project'),
+            FileFilterLive(['src/app/**', 'src/lib/**']),
+          ),
         ),
-      ));
+      );
 
       expect(lastLintFilesPatterns).toEqual(['src/app/**', 'src/lib/**']);
     });
@@ -118,12 +142,18 @@ describe('eslint adapter', () => {
 
     it('FileFilter patterns override adapter pattern', async () => {
       const rule = eslint({ cwd: '/project', pattern: 'src/everything/**' });
-      await Effect.runPromise(Effect.provide(rule.run,
-        Layer.mergeAll(
-          MemoryFileSystem({}), SyntaxTreeStub, ImportResolverDefault,
-          ProjectRootLive('/project'), FileFilterLive(['src/subset/**']),
+      await Effect.runPromise(
+        Effect.provide(
+          rule.run,
+          Layer.mergeAll(
+            MemoryFileSystem({}),
+            SyntaxTreeStub,
+            ImportResolverDefault,
+            ProjectRootLive('/project'),
+            FileFilterLive(['src/subset/**']),
+          ),
         ),
-      ));
+      );
 
       expect(lastLintFilesPatterns).toEqual(['src/subset/**']);
     });

@@ -7,7 +7,13 @@ import { MemoryFileSystem, ProjectRootLive, FileFilterLive } from '../../src/ser
 import { SyntaxTreeStub } from '../../src/services/syntax-tree';
 import { ImportResolverDefault } from '../../src/services/import-resolver';
 
-const TestLayer = Layer.mergeAll(MemoryFileSystem({}), SyntaxTreeStub, ImportResolverDefault, ProjectRootLive(process.cwd()), FileFilterLive(null));
+const TestLayer = Layer.mergeAll(
+  MemoryFileSystem({}),
+  SyntaxTreeStub,
+  ImportResolverDefault,
+  ProjectRootLive(process.cwd()),
+  FileFilterLive(null),
+);
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 
 function makeRule(id: string, violations: Violation[]): Rule {
@@ -106,10 +112,7 @@ describe('runAll', () => {
 
   it('catches rule defects and reports without stopping other rules', async () => {
     const config = defineConfig({
-      rules: [
-        makeThrowingRule('broken-rule'),
-        makeRule('good-rule', []),
-      ],
+      rules: [makeThrowingRule('broken-rule'), makeRule('good-rule', [])],
     });
     const result = await Effect.runPromise(Effect.provide(runAll(config), TestLayer));
     expect(result.byRule).toHaveLength(2);

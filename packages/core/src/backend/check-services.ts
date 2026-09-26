@@ -179,16 +179,22 @@ export async function createCheckServices(
           ) as readonly FileMarker<D>[];
 
         const imports: ParsedImport[] = options.imports
-          ? syntaxMarkers<{ specifier: string; names: readonly string[]; line: number }>('import')
-              .map((m) => ({ specifier: m.data.specifier, names: m.data.names, line: m.data.line }))
+          ? syntaxMarkers<{ specifier: string; names: readonly string[]; line: number }>(
+              'import',
+            ).map((m) => ({ specifier: m.data.specifier, names: m.data.names, line: m.data.line }))
           : [];
         const calls: ParsedCall[] = options.calls
-          ? syntaxMarkers<{ name: string; line: number }>('call')
-              .map((m) => ({ name: m.data.name, line: m.data.line }))
+          ? syntaxMarkers<{ name: string; line: number }>('call').map((m) => ({
+              name: m.data.name,
+              line: m.data.line,
+            }))
           : [];
         const exports_: ParsedExport[] = options.exports
-          ? syntaxMarkers<{ name: string; kind: string; line: number }>('export')
-              .map((m) => ({ name: m.data.name, kind: m.data.kind, line: m.data.line }))
+          ? syntaxMarkers<{ name: string; kind: string; line: number }>('export').map((m) => ({
+              name: m.data.name,
+              kind: m.data.kind,
+              line: m.data.line,
+            }))
           : [];
         const structure: StructureItem[] = options.structure
           ? syntaxMarkers<StructureItem>('structure').map((m) => m.data)

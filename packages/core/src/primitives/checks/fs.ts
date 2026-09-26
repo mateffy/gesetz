@@ -30,10 +30,7 @@ function findPackageRoot(dir: string): string | null {
  * does. Exported so the discovery rules can be tested directly rather than only
  * through a filesystem.
  */
-export function testCandidates(
-  absolutePath: string,
-  suffixes: readonly string[],
-): string[] {
+export function testCandidates(absolutePath: string, suffixes: readonly string[]): string[] {
   const dir = nodePath.dirname(absolutePath);
   const stem = nodePath.basename(absolutePath).replace(/\.[^.]+$/, '');
   const out: string[] = [];
@@ -87,9 +84,7 @@ export function requireTest(options: RequireTestOptions = {}): Check {
       {
         severity: options.severity ?? 'error',
         source: 'core',
-        message:
-          options.message ??
-          `No test file found for ${file.path}. Looked in:\n  ${looked}`,
+        message: options.message ?? `No test file found for ${file.path}. Looked in:\n  ${looked}`,
         path: file.path,
       },
     ];
@@ -108,10 +103,7 @@ export function requireSibling(
   opts: { message?: string; severity?: Violation['severity'] } = {},
 ): Check {
   return async (file, { fs }) => {
-    const siblingPath = nodePath.join(
-      nodePath.dirname(file.absolutePath),
-      file.stem + suffix,
-    );
+    const siblingPath = nodePath.join(nodePath.dirname(file.absolutePath), file.stem + suffix);
     const exists = await fs.exists(siblingPath);
     if (exists) {
       return [];
@@ -120,9 +112,7 @@ export function requireSibling(
       {
         severity: opts.severity ?? 'error',
         source: 'core',
-        message:
-          opts.message ??
-          `Missing sibling file: ${file.stem}${suffix}`,
+        message: opts.message ?? `Missing sibling file: ${file.stem}${suffix}`,
         path: file.path,
       },
     ];
@@ -152,9 +142,7 @@ export function requireChildren(
         violations.push({
           severity: 'error',
           source: 'core',
-          message:
-            opts.message?.(required) ??
-            `Missing required file: ${required}`,
+          message: opts.message?.(required) ?? `Missing required file: ${required}`,
           path: file.path,
         });
       }
@@ -227,8 +215,7 @@ export function relativeImports(opts: { message?: (imp: string) => string } = {}
           severity: 'error',
           source: 'core',
           message:
-            opts.message?.(imp) ??
-            `Relative import '${imp}' does not resolve to an existing file`,
+            opts.message?.(imp) ?? `Relative import '${imp}' does not resolve to an existing file`,
           path: file.path,
         });
       }

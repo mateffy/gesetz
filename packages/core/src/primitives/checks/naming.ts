@@ -29,7 +29,8 @@ export function requireNamingConvention(opts: RequireNamingConventionOptions): C
         .map((item): Violation => ({
           severity: opts.severity ?? 'warn',
           source: 'core',
-          message: opts.message ?? `'${item.name}' does not match naming convention ${opts.pattern}`,
+          message:
+            opts.message ?? `'${item.name}' does not match naming convention ${opts.pattern}`,
           path: file.path,
           line: item.startLine,
         }));

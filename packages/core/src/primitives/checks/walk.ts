@@ -1,4 +1,4 @@
-import type { StructureItem } from "../../services/syntax-tree";
+import type { StructureItem } from '../../services/syntax-tree';
 
 /**
  * Every item in a structure tree, parents before children, as a flat list.

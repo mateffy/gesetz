@@ -1,7 +1,7 @@
 import * as nodePath from 'node:path';
 import { Effect } from 'effect';
 import type { Rule, Violation } from '@gesetz/core';
-import { execTool, FileFilter } from '@gesetz/core';
+import { FileFilter, execTool, toolWatchPatterns } from '@gesetz/core';
 
 export interface OxfmtOptions {
   /**
@@ -77,9 +77,10 @@ export function oxfmt(opts: OxfmtOptions = {}): Rule {
   const run: Rule['run'] = Effect.gen(function* () {
     const fileFilter = yield* FileFilter;
 
-    const patterns = fileFilter.patterns !== null && fileFilter.patterns.length > 0
-      ? [...fileFilter.patterns]
-      : defaultPatterns;
+    const patterns =
+      fileFilter.patterns !== null && fileFilter.patterns.length > 0
+        ? [...fileFilter.patterns]
+        : defaultPatterns;
 
     return yield* Effect.promise(() => executeOxfmt(opts, id, bin, cwd, patterns));
   });
@@ -90,7 +91,7 @@ export function oxfmt(opts: OxfmtOptions = {}): Rule {
     run,
     category: opts.category,
     project: {
-      patterns: opts.pattern !== undefined ? defaultPatterns : ['**/*'],
+      patterns: toolWatchPatterns(defaultPatterns),
       run: () => executeOxfmt(opts, id, bin, cwd, defaultPatterns),
     },
   };

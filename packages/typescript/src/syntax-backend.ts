@@ -33,9 +33,7 @@ function extractImports(content: string, filePath: string): ParsedImport[] {
     const result = oxcParseSync(filePath, content, { sourceType: 'module' });
     return result.module.staticImports.map((imp) => ({
       specifier: imp.moduleRequest.value,
-      names: imp.entries
-        .map((e) => e.importName?.name ?? '')
-        .filter(Boolean),
+      names: imp.entries.map((e) => e.importName?.name ?? '').filter(Boolean),
       line: byteOffsetToLine(content, imp.moduleRequest.start ?? 0),
     }));
   } catch {

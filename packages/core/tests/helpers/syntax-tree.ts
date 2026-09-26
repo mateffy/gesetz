@@ -24,8 +24,7 @@ export function makeSyntaxTreeLayer(
   };
   return Layer.succeed(SyntaxTree, {
     canProcess: (_file: File) => opts.canProcess ?? true,
-    process: (_file: File, _options: SyntaxTreeProcessOptions) =>
-      Effect.succeed(full),
+    process: (_file: File, _options: SyntaxTreeProcessOptions) => Effect.succeed(full),
   });
 }
 

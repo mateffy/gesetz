@@ -6,7 +6,6 @@
  * and tested on their own.
  */
 
-
 /** Returns true if the import path is a relative or absolute path, not a package. */
 export function isRelativeImport(importPath: string): boolean {
   return importPath.startsWith('.') || importPath.startsWith('/') || importPath.startsWith('~');
@@ -36,4 +35,11 @@ export function regexExtractImports(content: string): string[] {
 
 export function bannedForForLayer(banned: string[], importPath: string): boolean {
   return banned.includes(importPath);
+}
+
+/** The package an external specifier belongs to: `@scope/pkg`, or `pkg`. */
+export function packageOf(specifier: string): string {
+  return specifier.startsWith('@')
+    ? specifier.split('/').slice(0, 2).join('/')
+    : (specifier.split('/')[0] ?? specifier);
 }

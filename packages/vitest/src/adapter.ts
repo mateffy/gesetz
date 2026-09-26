@@ -1,7 +1,7 @@
 import * as nodePath from 'node:path';
 import { Effect } from 'effect';
 import type { Rule, Violation } from '@gesetz/core';
-import { execTool, extractLocation, FileFilter } from '@gesetz/core';
+import { FileFilter, execTool, extractLocation, toolWatchPatterns } from '@gesetz/core';
 
 /** Lines of a failure message kept as violation context. */
 const FAILURE_CONTEXT_LINES = 6;
@@ -125,9 +125,10 @@ export function vitest(opts: VitestOptions = {}): Rule {
 
   const run: Rule['run'] = Effect.gen(function* () {
     const fileFilter = yield* FileFilter;
-    const patterns = fileFilter.patterns !== null && fileFilter.patterns.length > 0
-      ? [...fileFilter.patterns]
-      : defaultPatterns;
+    const patterns =
+      fileFilter.patterns !== null && fileFilter.patterns.length > 0
+        ? [...fileFilter.patterns]
+        : defaultPatterns;
 
     return yield* Effect.promise(() => executeVitest(opts, id, bin, cwd, patterns));
   });
@@ -140,7 +141,7 @@ export function vitest(opts: VitestOptions = {}): Rule {
     project: {
       // Test outcomes depend on any source change — conservative: re-run
       // whenever anything changed, skip only zero-change runs.
-      patterns: defaultPatterns ?? ['**/*'],
+      patterns: toolWatchPatterns(defaultPatterns ?? ['.']),
       run: () => executeVitest(opts, id, bin, cwd, defaultPatterns),
     },
   };

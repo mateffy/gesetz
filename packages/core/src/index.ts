@@ -23,21 +23,46 @@ export {
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 export { defineConfig } from './engine/config';
-export type { UserConfig, ResolvedConfig, CategoryThreshold, GesetzStorageConfig } from './engine/config';
+export type {
+  UserConfig,
+  ResolvedConfig,
+  CategoryThreshold,
+  GesetzStorageConfig,
+} from './engine/config';
 
 // ─── Runner ───────────────────────────────────────────────────────────────────
 export { runAll, applyExemptions } from './engine/runner';
-export type { RunResult, RuleResult, CategoryScore, RunAllOptions, ScanStats } from './engine/runner';
+export type {
+  RunResult,
+  RuleResult,
+  CategoryScore,
+  RunAllOptions,
+  ScanStats,
+} from './engine/runner';
 
 // ─── Exec helpers ─────────────────────────────────────────────────────────────
 export { execTool, runWithTempFile, extractLocation } from './engine/exec';
+export { toolWatchPatterns } from './engine/tool-patterns';
 
 // ─── Services ─────────────────────────────────────────────────────────────────
-export { FileSystem, FileSystemLive, MemoryFileSystem, ProjectRoot, ProjectRootLive, FileFilter, FileFilterLive } from './services/fs';
+export {
+  FileSystem,
+  FileSystemLive,
+  MemoryFileSystem,
+  ProjectRoot,
+  ProjectRootLive,
+  FileFilter,
+  FileFilterLive,
+} from './services/fs';
 export type { GlobOptions, FileSystemService, FileFilterService } from './services/fs';
 
 // SyntaxTree — abstract tag + router factory. Live backends: /typescript, /php, /python
-export { SyntaxTree, SyntaxTreeLive, SyntaxTreeStub, SyntaxTreeError } from './services/syntax-tree';
+export {
+  SyntaxTree,
+  SyntaxTreeLive,
+  SyntaxTreeStub,
+  SyntaxTreeError,
+} from './services/syntax-tree';
 export type {
   SyntaxBackend,
   ParsedImport,
@@ -50,7 +75,11 @@ export type {
 } from './services/syntax-tree';
 
 // ImportResolver — abstract tag + default relative-path resolver
-export { ImportResolver, ImportResolverDefault, ImportResolveError } from './services/import-resolver';
+export {
+  ImportResolver,
+  ImportResolverDefault,
+  ImportResolveError,
+} from './services/import-resolver';
 export type { ImportResolverService } from './services/import-resolver';
 
 // ─── Select DSL ───────────────────────────────────────────────────────────────
@@ -91,13 +120,19 @@ export { noDirectCalls } from './primitives/checks/calls';
 export type { NoDirectCallsOptions } from './primitives/checks/calls';
 
 export { requireNamingConvention, noForbiddenNames } from './primitives/checks/naming';
-export type { RequireNamingConventionOptions, NoForbiddenNamesOptions } from './primitives/checks/naming';
+export type {
+  RequireNamingConventionOptions,
+  NoForbiddenNamesOptions,
+} from './primitives/checks/naming';
 
 export { requireDocstrings } from './primitives/checks/docstrings';
 export type { RequireDocstringsOptions } from './primitives/checks/docstrings';
 
 export { requireExportsMatching, requireRelatedExports } from './primitives/checks/exports';
-export type { RequireExportsMatchingOptions, RequireRelatedExportsOptions } from './primitives/checks/exports';
+export type {
+  RequireExportsMatchingOptions,
+  RequireRelatedExportsOptions,
+} from './primitives/checks/exports';
 
 export { requireMinStructureCount } from './primitives/checks/structure-count';
 export type { RequireMinStructureCountOptions } from './primitives/checks/structure-count';

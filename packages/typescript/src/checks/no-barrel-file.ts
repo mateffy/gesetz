@@ -37,9 +37,7 @@ export function noBarrelFile(opts: NoBarrelFileOptions = {}): Check {
     // (i.e. `export ... from '...'`). `export { a, b }` without `from` is
     // a local re-export, not a barrel re-export.
     const exportStmts = findByKind(root, 'export_statement');
-    const reexports = exportStmts.filter((e) =>
-      e.children().some((c) => c.kind() === 'from'),
-    );
+    const reexports = exportStmts.filter((e) => e.children().some((c) => c.kind() === 'from'));
 
     if (reexports.length <= maxReexports) return [];
 

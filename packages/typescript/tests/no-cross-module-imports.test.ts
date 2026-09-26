@@ -15,7 +15,10 @@ function withImports(pairs: [string, string | null][]) {
       imports: pairs.map(([specifier], i) => ({ specifier, names: [], line: i + 1 })),
     },
     imports: Object.fromEntries(
-      pairs.map(([specifier, resolved]) => [specifier, resolved === null ? null : nodePath.resolve(CWD, resolved)]),
+      pairs.map(([specifier, resolved]) => [
+        specifier,
+        resolved === null ? null : nodePath.resolve(CWD, resolved),
+      ]),
     ),
   });
 }

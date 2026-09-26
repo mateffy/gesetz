@@ -35,9 +35,7 @@ const BLUEPRINT_IMPORTS: Record<string, ImportSpec[]> = {
   'no-hardcoded-secret': [{ from: '@gesetz/core', name: 'noHardcodedSecret' }],
   'no-debugging-residue': [{ from: '@gesetz/core', name: 'noDebuggingResidueFiles' }],
   'relative-imports': [{ from: '@gesetz/typescript', name: 'relativeImports' }],
-  'require-tests-sibling': [
-    { from: '@gesetz/core', name: 'requireSibling' },
-  ],
+  'require-tests-sibling': [{ from: '@gesetz/core', name: 'requireSibling' }],
   'test-quality-score': [{ from: '@gesetz/typescript', name: 'requireMinTestScore' }],
   'no-hardcoded-strings': [{ from: '@gesetz/typescript', name: 'noHardcodedStrings' }],
   'component-has-stories': [{ from: '@gesetz/core', name: 'requireSibling' }],
@@ -162,9 +160,7 @@ export function generateConfig(plan: Plan): string {
   const rulesBlock =
     allRules.length === 0
       ? '  rules: [],'
-      : '  rules: [\n' +
-        allRules.map((r) => `    ${r},`).join('\n') +
-        '\n  ],';
+      : '  rules: [\n' + allRules.map((r) => `    ${r},`).join('\n') + '\n  ],';
 
   // ── Compose file ──
   const header = `/**

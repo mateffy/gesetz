@@ -93,7 +93,7 @@ describe('generated configs only import what exists', () => {
 
     const missing: string[] = [];
     for (const { from, names } of imports) {
-      if (!from.startsWith('@gesetz/')) continue;   // external packages are not our contract
+      if (!from.startsWith('@gesetz/')) continue; // external packages are not our contract
       const available = exportsFor(from);
       for (const name of names) {
         if (!available.has(name)) missing.push(`${name} is not exported from ${from}`);

@@ -178,7 +178,7 @@ async function storeProjectViolations(
     }
   }
   for (const [path, pathViolations] of byPath) {
-    if (await storage.getFile(path) === undefined) {
+    if ((await storage.getFile(path)) === undefined) {
       orphaned.push(...pathViolations);
       continue;
     }
@@ -259,17 +259,17 @@ function projectRuleContext(
   return {
     network: {
       glob: async (pattern: string) => {
-          const records = await extCtx.storage.listFiles();
-          return Promise.all(
-            records
-              .filter((record) => globMatch(pattern, record.path))
-              .map((record) => networkFileFromStorage(extCtx.storage, ctx.rootDir, record.path)),
-          );
-        },
+        const records = await extCtx.storage.listFiles();
+        return Promise.all(
+          records
+            .filter((record) => globMatch(pattern, record.path))
+            .map((record) => networkFileFromStorage(extCtx.storage, ctx.rootDir, record.path)),
+        );
+      },
       file: async (path: string) => {
-          if (await extCtx.storage.getFile(path) === undefined) return null;
-          return networkFileFromStorage(extCtx.storage, ctx.rootDir, path);
-        },
+        if ((await extCtx.storage.getFile(path)) === undefined) return null;
+        return networkFileFromStorage(extCtx.storage, ctx.rootDir, path);
+      },
     },
     changedFiles,
     rootDir: ctx.rootDir,
@@ -324,7 +324,7 @@ function compileProjectRule(rule: Rule, ctx: CompileContext): NetworkExtension {
         [...project.patterns],
         { dot: true },
       );
-      if (!relevant && await hasStoredMarkers(extCtx.storage, rule.id)) return;
+      if (!relevant && (await hasStoredMarkers(extCtx.storage, rule.id))) return;
 
       await refreshSharedPaths(ctx, extCtx);
       const violations = await project.run(projectRuleContext(extCtx, ctx, changed));
@@ -340,7 +340,10 @@ async function refreshSharedPaths(ctx: CompileContext, extCtx: ExtensionContext)
   for (const record of await extCtx.storage.listFiles()) ctx.sharedPaths.add(record.path);
 }
 
-async function hasStoredMarkers(storage: ExtensionContext['storage'], ruleId: string): Promise<boolean> {
+async function hasStoredMarkers(
+  storage: ExtensionContext['storage'],
+  ruleId: string,
+): Promise<boolean> {
   for (const [, markers] of await storage.allMarkers()) {
     if (markers.some((m) => m.extension === ruleId)) return true;
   }
@@ -360,8 +363,5 @@ export function compileRule(rule: Rule, ctx: CompileContext): NetworkExtension {
  * per rule.
  */
 export function compileConfig(config: ResolvedConfig, ctx: CompileContext): NetworkExtension[] {
-  return [
-    syntaxExtension(config.adapters),
-    ...config.rules.map((rule) => compileRule(rule, ctx)),
-  ];
+  return [syntaxExtension(config.adapters), ...config.rules.map((rule) => compileRule(rule, ctx))];
 }

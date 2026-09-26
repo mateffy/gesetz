@@ -109,7 +109,8 @@ export const BLUEPRINTS: readonly RuleBlueprint[] = Object.freeze([
     category: 'structure',
     description: 'Flag files exceeding 600 lines (god files).',
     presets: genericSet,
-    emit: () => "select('src/**/*.{ts,tsx}').label('Files over 600 lines must be split').category('structure').check(noGodFile({ maxLines: 600 }))",
+    emit: () =>
+      "select('src/**/*.{ts,tsx}').label('Files over 600 lines must be split').category('structure').check(noGodFile({ maxLines: 600 }))",
   },
   {
     id: 'no-console-log',
@@ -117,7 +118,8 @@ export const BLUEPRINTS: readonly RuleBlueprint[] = Object.freeze([
     category: 'cleanup',
     description: 'Ban console.log/debug/info from production source.',
     presets: genericSet,
-    emit: () => "select('src/**/*.{ts,tsx}').exclude('**/*.test.ts').label('No console.log in library code').category('cleanup').check(noConsoleLog())",
+    emit: () =>
+      "select('src/**/*.{ts,tsx}').exclude('**/*.test.ts').label('No console.log in library code').category('cleanup').check(noConsoleLog())",
   },
   {
     id: 'no-empty-catch',
@@ -125,7 +127,8 @@ export const BLUEPRINTS: readonly RuleBlueprint[] = Object.freeze([
     category: 'strictness',
     description: 'Detect empty catch blocks that swallow errors.',
     presets: genericSet,
-    emit: () => "select('src/**/*.{ts,tsx}').label('No empty catch blocks').category('strictness').check(noEmptyCatch())",
+    emit: () =>
+      "select('src/**/*.{ts,tsx}').label('No empty catch blocks').category('strictness').check(noEmptyCatch())",
   },
   {
     id: 'no-trivial-comment',
@@ -133,7 +136,8 @@ export const BLUEPRINTS: readonly RuleBlueprint[] = Object.freeze([
     category: 'cleanup',
     description: 'Flag comments that just restate the code.',
     presets: genericSet,
-    emit: () => "select('src/**/*.{ts,tsx}').label('No trivial AI-narration comments').category('cleanup').check(noTrivialComment())",
+    emit: () =>
+      "select('src/**/*.{ts,tsx}').label('No trivial AI-narration comments').category('cleanup').check(noTrivialComment())",
   },
   {
     id: 'no-hardcoded-secret',
@@ -141,7 +145,8 @@ export const BLUEPRINTS: readonly RuleBlueprint[] = Object.freeze([
     category: 'security',
     description: 'Detect common hardcoded secret patterns (api_key, token, etc).',
     presets: genericSet,
-    emit: () => "select('src/**/*.{ts,tsx}').label('No hardcoded secrets').category('security').check(noHardcodedSecret())",
+    emit: () =>
+      "select('src/**/*.{ts,tsx}').label('No hardcoded secrets').category('security').check(noHardcodedSecret())",
   },
   {
     id: 'no-debugging-residue',
@@ -149,7 +154,8 @@ export const BLUEPRINTS: readonly RuleBlueprint[] = Object.freeze([
     category: 'cleanup',
     description: 'Flag *_backup.ts, *_v2.ts, *_old.ts, etc.',
     presets: genericSet,
-    emit: () => "select('src/**/*.{ts,tsx}').label('No debugging residue files').category('cleanup').check(noDebuggingResidueFiles())",
+    emit: () =>
+      "select('src/**/*.{ts,tsx}').label('No debugging residue files').category('cleanup').check(noDebuggingResidueFiles())",
   },
   {
     id: 'relative-imports',
@@ -157,7 +163,8 @@ export const BLUEPRINTS: readonly RuleBlueprint[] = Object.freeze([
     category: 'strictness',
     description: 'All relative imports must point to existing files.',
     presets: genericSet,
-    emit: () => "select('src/**/*.{ts,tsx}').exclude('**/*.test.ts', '**/*.test.tsx').label('Relative imports must resolve').category('strictness').check(relativeImports())",
+    emit: () =>
+      "select('src/**/*.{ts,tsx}').exclude('**/*.test.ts', '**/*.test.tsx').label('Relative imports must resolve').category('strictness').check(relativeImports())",
   },
   {
     id: 'require-tests-sibling',
@@ -166,7 +173,8 @@ export const BLUEPRINTS: readonly RuleBlueprint[] = Object.freeze([
     description: 'Each *.ts/tsx needs a sibling *.test.ts/tsx.',
     presets: genericSet,
     appliesTo: (ctx) => ctx.profile.hasSrc,
-    emit: () => "select('src/**/*.{ts,tsx}').exclude('**/*.test.ts', '**/*.test.tsx', '**/*.stories.tsx', '**/index.ts').label('Source files need test files').category('structure').check(requireSibling('.test.tsx'))",
+    emit: () =>
+      "select('src/**/*.{ts,tsx}').exclude('**/*.test.ts', '**/*.test.tsx', '**/*.stories.tsx', '**/index.ts').label('Source files need test files').category('structure').check(requireSibling('.test.tsx'))",
   },
   {
     id: 'test-quality-score',
@@ -202,8 +210,10 @@ export const BLUEPRINTS: readonly RuleBlueprint[] = Object.freeze([
     category: 'react',
     description: 'Use the translation API instead of string literals in JSX.',
     presets: reactSet,
-    appliesTo: (ctx) => ctx.profile.framework === 'react' || ctx.profile.framework === 'tanstack-start',
-    emit: () => "select('src/**/*.tsx').exclude('**/*.test.tsx', '**/*.stories.tsx').label('No hardcoded user-visible strings in JSX').category('react').check(noHardcodedStrings())",
+    appliesTo: (ctx) =>
+      ctx.profile.framework === 'react' || ctx.profile.framework === 'tanstack-start',
+    emit: () =>
+      "select('src/**/*.tsx').exclude('**/*.test.tsx', '**/*.stories.tsx').label('No hardcoded user-visible strings in JSX').category('react').check(noHardcodedStrings())",
   },
   {
     id: 'component-has-stories',
@@ -214,7 +224,8 @@ export const BLUEPRINTS: readonly RuleBlueprint[] = Object.freeze([
     appliesTo: (ctx) =>
       ctx.tools.has('storybook') &&
       (ctx.profile.framework === 'react' || ctx.profile.framework === 'tanstack-start'),
-    emit: () => "select('src/components/**/*.tsx').exclude('**/*.test.tsx', '**/*.stories.tsx', '**/index.tsx').label('All components need Storybook stories').category('structure').check(requireSibling('.stories.tsx'))",
+    emit: () =>
+      "select('src/components/**/*.tsx').exclude('**/*.test.tsx', '**/*.stories.tsx', '**/index.tsx').label('All components need Storybook stories').category('structure').check(requireSibling('.stories.tsx'))",
   },
   {
     id: 'component-has-tests',
@@ -223,7 +234,8 @@ export const BLUEPRINTS: readonly RuleBlueprint[] = Object.freeze([
     description: 'Each component needs a sibling .test.tsx.',
     presets: reactSet,
     appliesTo: (ctx) => ctx.profile.hasComponents,
-    emit: () => "select('src/components/**/*.tsx').exclude('**/*.test.tsx', '**/*.stories.tsx', '**/index.tsx').label('All components need test files').category('structure').check(requireSibling('.test.tsx'))",
+    emit: () =>
+      "select('src/components/**/*.tsx').exclude('**/*.test.tsx', '**/*.stories.tsx', '**/index.tsx').label('All components need test files').category('structure').check(requireSibling('.test.tsx'))",
   },
   {
     id: 'storybook-no-meta-title',
@@ -234,7 +246,8 @@ export const BLUEPRINTS: readonly RuleBlueprint[] = Object.freeze([
     appliesTo: (ctx) =>
       ctx.tools.has('storybook') &&
       (ctx.profile.framework === 'react' || ctx.profile.framework === 'tanstack-start'),
-    emit: () => "select('src/components/**/*.stories.{ts,tsx}').label('Storybook stories must not define an explicit meta title').category('cleanup').check(noObjectProperty('meta', 'title', { message: \"Remove 'title' from the meta object. Storybook will derive the story group from the file path automatically.\" }))",
+    emit: () =>
+      "select('src/components/**/*.stories.{ts,tsx}').label('Storybook stories must not define an explicit meta title').category('cleanup').check(noObjectProperty('meta', 'title', { message: \"Remove 'title' from the meta object. Storybook will derive the story group from the file path automatically.\" }))",
   },
   {
     id: 'no-direct-tanstack-query',
@@ -258,7 +271,8 @@ export const BLUEPRINTS: readonly RuleBlueprint[] = Object.freeze([
     description: 'Route pages should use layout or domain components.',
     presets: tsSet,
     appliesTo: (ctx) => ctx.profile.hasRoutes,
-    emit: () => "select('src/routes/**/*.tsx').label('Route pages must not import raw UI primitives').category('react').check(noImportFrom(/^~\\/components\\/ui\\//, { message: 'Route pages must not import UI primitives directly \u2014 use layout or domain components' }))",
+    emit: () =>
+      "select('src/routes/**/*.tsx').label('Route pages must not import raw UI primitives').category('react').check(noImportFrom(/^~\\/components\\/ui\\//, { message: 'Route pages must not import UI primitives directly \u2014 use layout or domain components' }))",
   },
   {
     id: 'route-no-local-components',
@@ -267,7 +281,8 @@ export const BLUEPRINTS: readonly RuleBlueprint[] = Object.freeze([
     description: 'Routes should be thin orchestrators.',
     presets: tsSet,
     appliesTo: (ctx) => ctx.profile.hasRoutes,
-    emit: () => "select('src/routes/**/*.tsx').label('Route pages must not define local helper components').category('react').check(noLocalFunctionComponents())",
+    emit: () =>
+      "select('src/routes/**/*.tsx').label('Route pages must not define local helper components').category('react').check(noLocalFunctionComponents())",
   },
   {
     id: 'route-no-usestate',
@@ -276,7 +291,8 @@ export const BLUEPRINTS: readonly RuleBlueprint[] = Object.freeze([
     description: 'Move state to domain components.',
     presets: tsSet,
     appliesTo: (ctx) => ctx.profile.hasRoutes,
-    emit: () => "select('src/routes/**/*.tsx').label('Route pages should not use useState \u2014 move state to domain components').category('react').check(noFunctionCalls(['useState'], { message: () => 'Route pages must be thin orchestrators \u2014 move state management to domain components' }))",
+    emit: () =>
+      "select('src/routes/**/*.tsx').label('Route pages should not use useState \u2014 move state to domain components').category('react').check(noFunctionCalls(['useState'], { message: () => 'Route pages must be thin orchestrators \u2014 move state management to domain components' }))",
   },
   {
     id: 'domain-isolation',
@@ -299,7 +315,8 @@ export const BLUEPRINTS: readonly RuleBlueprint[] = Object.freeze([
     description: 'Each domain dir needs an index.ts.',
     presets: tsSet,
     appliesTo: (ctx) => ctx.profile.hasDomains,
-    emit: () => "select('src/components/domains/*/').label('Domain component directories must have an index.ts barrel').category('structure').check(requireChildren(['index.ts']))",
+    emit: () =>
+      "select('src/components/domains/*/').label('Domain component directories must have an index.ts barrel').category('structure').check(requireChildren(['index.ts']))",
   },
 
   // ── Laravel / PHP ──────────────────────────────────────────────────────────

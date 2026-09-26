@@ -52,15 +52,11 @@ export interface FileFilterService {
 export class FileFilter extends Context.Tag('qa/FileFilter')<FileFilter, FileFilterService>() {}
 
 /** Layer that provides a file filter from the given globs. */
-export const FileFilterLive = (
-  patterns: readonly string[] | null,
-): Layer.Layer<FileFilter> =>
+export const FileFilterLive = (patterns: readonly string[] | null): Layer.Layer<FileFilter> =>
   Layer.succeed(FileFilter, {
     patterns,
     matches: (p) =>
-      patterns === null || patterns.length === 0
-        ? true
-        : micromatch.isMatch(p, patterns),
+      patterns === null || patterns.length === 0 ? true : micromatch.isMatch(p, patterns),
   });
 
 export const FileSystemLive: Layer.Layer<FileSystem> = Layer.effect(
@@ -69,7 +65,10 @@ export const FileSystemLive: Layer.Layer<FileSystem> = Layer.effect(
     const cwd = process.cwd();
 
     return {
-      glob: (pattern: string | string[], options?: GlobOptions): Effect.Effect<File[], GlobError> => {
+      glob: (
+        pattern: string | string[],
+        options?: GlobOptions,
+      ): Effect.Effect<File[], GlobError> => {
         const effectiveCwd = options?.cwd ?? cwd;
         const patterns = Array.isArray(pattern) ? pattern : [pattern];
         const globOptions: fastGlob.Options = {
@@ -81,9 +80,7 @@ export const FileSystemLive: Layer.Layer<FileSystem> = Layer.effect(
           // or VCS metadata even if the caller's pattern would match them.
           // Caller-supplied `ignore` overrides these defaults.
           ignore:
-            options?.ignore !== undefined
-              ? options.ignore
-              : ['**/node_modules/**', '**/.git/**'],
+            options?.ignore !== undefined ? options.ignore : ['**/node_modules/**', '**/.git/**'],
         };
         return Effect.tryPromise({
           try: () => fastGlob(patterns, globOptions),
@@ -191,7 +188,10 @@ export const MemoryFileSystem = (files: Record<string, string>): Layer.Layer<Fil
       return content !== undefined
         ? Effect.succeed(content)
         : Effect.fail(
-            new FileReadError({ path: absolutePath, cause: `not found in memory: ${absolutePath}` }),
+            new FileReadError({
+              path: absolutePath,
+              cause: `not found in memory: ${absolutePath}`,
+            }),
           );
     },
 

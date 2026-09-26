@@ -11,12 +11,7 @@ import * as nodePath from 'node:path';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type Framework =
-  | 'tanstack-start'
-  | 'react'
-  | 'effect-ts'
-  | 'laravel'
-  | 'generic';
+export type Framework = 'tanstack-start' | 'react' | 'effect-ts' | 'laravel' | 'generic';
 
 export type PresetId = 'blank' | 'generic' | 'tanstack-start' | 'react' | 'laravel';
 
@@ -172,10 +167,7 @@ function detectTools(cwd: string, pkg: PkgJson | null): DetectedTool[] {
   return tools;
 }
 
-function detectFramework(
-  pkg: PkgJson | null,
-  hasComposer: boolean,
-): Framework {
+function detectFramework(pkg: PkgJson | null, hasComposer: boolean): Framework {
   if (pkg) {
     const deps = { ...pkg.dependencies, ...pkg.devDependencies };
     if (deps['@tanstack/react-start']) return 'tanstack-start';
@@ -209,7 +201,12 @@ function detectPackageManager(cwd: string, isLaravel: boolean): PackageManager {
   return 'npm';
 }
 
-const CONFIG_FILENAMES = ['gesetz.config.ts', 'gesetz.config.js', 'gesetz.config.mts', 'gesetz.config.mjs'];
+const CONFIG_FILENAMES = [
+  'gesetz.config.ts',
+  'gesetz.config.js',
+  'gesetz.config.mts',
+  'gesetz.config.mjs',
+];
 
 // ─── Public entry point ───────────────────────────────────────────────────────
 

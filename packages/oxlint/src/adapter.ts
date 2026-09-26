@@ -1,7 +1,7 @@
 import * as nodePath from 'node:path';
 import { Effect } from 'effect';
 import type { Rule, Violation } from '@gesetz/core';
-import { execTool, FileFilter } from '@gesetz/core';
+import { FileFilter, execTool, toolWatchPatterns } from '@gesetz/core';
 
 export interface OxlintOptions {
   pattern?: string | string[];
@@ -66,8 +66,7 @@ async function executeOxlint(
 
   return diagnostics.map((diag): Violation => {
     const span = diag.labels?.[0]?.span;
-    const severity: Violation['severity'] =
-      diag.severity === 'warning' ? 'warn' : 'error';
+    const severity: Violation['severity'] = diag.severity === 'warning' ? 'warn' : 'error';
 
     const ruleCode = diag.code ?? 'oxlint';
 
@@ -102,9 +101,10 @@ export function oxlint(opts: OxlintOptions = {}): Rule {
   const run: Rule['run'] = Effect.gen(function* () {
     const fileFilter = yield* FileFilter;
 
-    const patterns: string[] = fileFilter.patterns !== null && fileFilter.patterns.length > 0
-      ? [...fileFilter.patterns]
-      : defaultPatterns;
+    const patterns: string[] =
+      fileFilter.patterns !== null && fileFilter.patterns.length > 0
+        ? [...fileFilter.patterns]
+        : defaultPatterns;
 
     return yield* Effect.promise(() => executeOxlint(opts, id, bin, cwd, patterns));
   });
@@ -115,9 +115,7 @@ export function oxlint(opts: OxlintOptions = {}): Rule {
     run,
     category: opts.category,
     project: {
-      patterns: opts.pattern !== undefined
-        ? defaultPatterns
-        : ['**/*.{js,jsx,ts,tsx,mjs,cjs,mts,cts}', '.oxlintrc*', 'oxlint.config.*'],
+      patterns: toolWatchPatterns([...defaultPatterns, '.oxlintrc*', 'oxlint.config.*']),
       run: () => executeOxlint(opts, id, bin, cwd, defaultPatterns),
     },
   };

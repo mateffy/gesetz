@@ -2,7 +2,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import * as childProcess from 'node:child_process';
 import { Effect, Layer } from 'effect';
 import { prettier } from '../src/adapter';
-import { MemoryFileSystem, ProjectRootLive, FileFilterLive, SyntaxTreeStub, ImportResolverDefault } from '@gesetz/core';
+import {
+  MemoryFileSystem,
+  ProjectRootLive,
+  FileFilterLive,
+  SyntaxTreeStub,
+  ImportResolverDefault,
+} from '@gesetz/core';
 
 const TestLayer = Layer.mergeAll(
   MemoryFileSystem({}),
@@ -27,8 +33,8 @@ describe('prettier adapter', () => {
   });
 
   it('maps unformatted files to warning violations', async () => {
-    (childProcess.execFileSync as ReturnType<typeof vi.fn>).mockImplementation(() =>
-      'src/a.ts\nsrc/b.tsx\n',
+    (childProcess.execFileSync as ReturnType<typeof vi.fn>).mockImplementation(
+      () => 'src/a.ts\nsrc/b.tsx\n',
     );
 
     const rule = prettier({ cwd: '/project', label: 'Prettier' });
@@ -87,12 +93,18 @@ describe('prettier adapter', () => {
       spy.mockImplementation(() => '');
 
       const rule = prettier({ cwd: '/project' });
-      await Effect.runPromise(Effect.provide(rule.run,
-        Layer.mergeAll(
-          MemoryFileSystem({}), SyntaxTreeStub, ImportResolverDefault,
-          ProjectRootLive('/project'), FileFilterLive(['src/app/**', 'src/lib/**']),
+      await Effect.runPromise(
+        Effect.provide(
+          rule.run,
+          Layer.mergeAll(
+            MemoryFileSystem({}),
+            SyntaxTreeStub,
+            ImportResolverDefault,
+            ProjectRootLive('/project'),
+            FileFilterLive(['src/app/**', 'src/lib/**']),
+          ),
         ),
-      ));
+      );
 
       expect(spy).toHaveBeenCalledWith(
         expect.any(String),
@@ -134,12 +146,18 @@ describe('prettier adapter', () => {
       spy.mockImplementation(() => '');
 
       const rule = prettier({ cwd: '/project', pattern: 'src/everything' });
-      await Effect.runPromise(Effect.provide(rule.run,
-        Layer.mergeAll(
-          MemoryFileSystem({}), SyntaxTreeStub, ImportResolverDefault,
-          ProjectRootLive('/project'), FileFilterLive(['src/subset/**']),
+      await Effect.runPromise(
+        Effect.provide(
+          rule.run,
+          Layer.mergeAll(
+            MemoryFileSystem({}),
+            SyntaxTreeStub,
+            ImportResolverDefault,
+            ProjectRootLive('/project'),
+            FileFilterLive(['src/subset/**']),
+          ),
         ),
-      ));
+      );
 
       const callArgs = spy.mock.calls[spy.mock.calls.length - 1]?.[1] as string[];
       expect(callArgs).toContain('src/subset/**');

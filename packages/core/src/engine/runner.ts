@@ -89,7 +89,12 @@ function resolveChangedFiles(
       })
       .trim();
     if (!output) return new Set();
-    return new Set(output.split('\n').map((p) => p.trim()).filter(Boolean));
+    return new Set(
+      output
+        .split('\n')
+        .map((p) => p.trim())
+        .filter(Boolean),
+    );
   } catch {
     // git not available or ref invalid — fall through to no filter
     return null;
@@ -103,11 +108,19 @@ function computeCategoryScores(
   results: RuleResult[],
   thresholds: ResolvedConfig['thresholds'],
 ): CategoryScore[] {
-  const byCategory = new Map<string, { errors: number; warnings: number; infos: number; ruleIds: string[] }>();
+  const byCategory = new Map<
+    string,
+    { errors: number; warnings: number; infos: number; ruleIds: string[] }
+  >();
 
   for (const result of results) {
     if (!result.category) continue;
-    const existing = byCategory.get(result.category) ?? { errors: 0, warnings: 0, infos: 0, ruleIds: [] };
+    const existing = byCategory.get(result.category) ?? {
+      errors: 0,
+      warnings: 0,
+      infos: 0,
+      ruleIds: [],
+    };
     for (const v of result.violations) {
       if (v.severity === 'error') existing.errors++;
       else if (v.severity === 'warn') existing.warnings++;
@@ -123,7 +136,8 @@ function computeCategoryScores(
       counts.warnings * SEVERITY_WEIGHT.warn +
       counts.infos * SEVERITY_WEIGHT.info;
     const score = Math.max(0, Math.round((MAX_SCORE - weighted) * 10) / 10);
-    const threshold = thresholds.find((t) => t.category === category)?.minScore ?? DEFAULT_MIN_SCORE;
+    const threshold =
+      thresholds.find((t) => t.category === category)?.minScore ?? DEFAULT_MIN_SCORE;
     return {
       category,
       score,
@@ -153,12 +167,13 @@ export function applyExemptions(
 
   // An exemption suppresses only when all three hold: it has not expired, its
   // rule glob matches (default `*`), and its path glob matches.
-  return violations.filter((violation) =>
-    !exemptions.some((exemption) => {
-      if (exemption.until !== undefined && exemption.until < today) return false;
-      if (!micromatch.isMatch(ruleId, exemption.rule ?? '*')) return false;
-      return micromatch.isMatch(violation.path, exemption.path);
-    }),
+  return violations.filter(
+    (violation) =>
+      !exemptions.some((exemption) => {
+        if (exemption.until !== undefined && exemption.until < today) return false;
+        if (!micromatch.isMatch(ruleId, exemption.rule ?? '*')) return false;
+        return micromatch.isMatch(violation.path, exemption.path);
+      }),
   );
 }
 

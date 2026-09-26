@@ -8,7 +8,8 @@ export interface NoTrivialCommentOptions {
  * Markers that mean a comment is explaining rather than restating: a reason, a
  * contract, a mapping, a caveat, or a reference to an identifier.
  */
-const EXPLAINS = /(?:\u2014|\bbecause\b|\bso that\b|\botherwise\b|\brather than\b|\binstead of\b|\bnote:|\bto avoid\b|\bsince\b|\bmust\b|\bcannot\b|\bwhy\b|->|\u2192|`|\()/i;
+const EXPLAINS =
+  /(?:\u2014|\bbecause\b|\bso that\b|\botherwise\b|\brather than\b|\binstead of\b|\bnote:|\bto avoid\b|\bsince\b|\bmust\b|\bcannot\b|\bwhy\b|->|\u2192|`|\()/i;
 
 /** A short comment that restates the call on the next lines. */
 const NARRATION =
@@ -42,15 +43,19 @@ export function noTrivialComment(options: NoTrivialCommentOptions = {}): Check {
     const lines = file.content.split('\n');
     for (let i = 0; i < lines.length; i++) {
       const line = (lines[i] ?? '').trim();
-      if (DIVIDER.test(line)) continue;   // a section divider is a deliberate visual break
+      if (DIVIDER.test(line)) continue; // a section divider is a deliberate visual break
       if (!NARRATION.test(line)) continue;
       if (EXPLAINS.test(line)) continue;
-      const words = line.replace(/^\/\/+\s*/, '').split(/\s+/).filter(Boolean).length;
+      const words = line
+        .replace(/^\/\/+\s*/, '')
+        .split(/\s+/)
+        .filter(Boolean).length;
       if (words > MAX_NARRATION_WORDS) continue;
       violations.push({
         rule: 'no-trivial-comment',
         message:
-          options.message ?? 'Trivial or narrative comment. Remove it — good code is self-explanatory.',
+          options.message ??
+          'Trivial or narrative comment. Remove it — good code is self-explanatory.',
         path: file.path,
         line: i + 1,
         severity: 'info',

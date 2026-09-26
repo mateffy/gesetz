@@ -52,8 +52,7 @@ export function parseJUnitXml(xml: string, cwd: string): ParsedTestCase[] {
 
   // Find each <testcase ...> block — either self-closing or with a body
   // up to </testcase>.
-  const caseRe =
-    /<testcase\b([^>]*?)(?:\/>|>([\s\S]*?)<\/testcase>)/gi;
+  const caseRe = /<testcase\b([^>]*?)(?:\/>|>([\s\S]*?)<\/testcase>)/gi;
 
   // Build a map of testcase positions to the nearest preceding suite file.
   // Walk through suite openings and testcase matches in order.
@@ -95,8 +94,8 @@ export function parseJUnitXml(xml: string, cwd: string): ParsedTestCase[] {
     let message = '';
     let stack = '';
 
-    const failureMatch = /<failure\b([^>]*)>([\s\S]*?)<\/failure>/i.exec(body)
-      ?? (/<failure\b([^>]*?)\/>/i.exec(body));
+    const failureMatch =
+      /<failure\b([^>]*)>([\s\S]*?)<\/failure>/i.exec(body) ?? /<failure\b([^>]*?)\/>/i.exec(body);
     if (failureMatch) {
       status = 'failed';
       message = extractAttr(failureMatch[1] ?? '', 'message') ?? '';
@@ -104,8 +103,8 @@ export function parseJUnitXml(xml: string, cwd: string): ParsedTestCase[] {
     }
 
     if (status === 'passed') {
-      const errorMatch = /<error\b([^>]*)>([\s\S]*?)<\/error>/i.exec(body)
-        ?? (/<error\b([^>]*?)\/>/i.exec(body));
+      const errorMatch =
+        /<error\b([^>]*)>([\s\S]*?)<\/error>/i.exec(body) ?? /<error\b([^>]*?)\/>/i.exec(body);
       if (errorMatch) {
         status = 'errored';
         message = extractAttr(errorMatch[1] ?? '', 'message') ?? '';
@@ -136,10 +135,7 @@ export function parseJUnitXml(xml: string, cwd: string): ParsedTestCase[] {
  * Converts parsed JUnit test cases to Violations.
  * Only failed and errored tests produce violations.
  */
-export function junitToViolations(
-  cases: readonly ParsedTestCase[],
-  ruleId: string,
-): Violation[] {
+export function junitToViolations(cases: readonly ParsedTestCase[], ruleId: string): Violation[] {
   return cases
     .filter((c) => c.status === 'failed' || c.status === 'errored')
     .map((c): Violation => {

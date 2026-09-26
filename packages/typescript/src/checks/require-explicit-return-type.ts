@@ -21,9 +21,7 @@ export interface RequireExplicitReturnTypeOptions {
  * @example
  * select('src/scripts/\*.{ts,tsx}').check(requireExplicitReturnType())
  */
-export function requireExplicitReturnType(
-  opts: RequireExplicitReturnTypeOptions = {},
-): Check {
+export function requireExplicitReturnType(opts: RequireExplicitReturnTypeOptions = {}): Check {
   const kinds = new Set(opts.kinds ?? ['function', 'method']);
   const ignore = opts.ignore;
 
@@ -42,8 +40,7 @@ export function requireExplicitReturnType(
       violations.push({
         severity: 'warn',
         source: 'core',
-        message:
-          opts.message ?? `Function '${name}' must declare an explicit return type`,
+        message: opts.message ?? `Function '${name}' must declare an explicit return type`,
         path: file.path,
         line,
       });

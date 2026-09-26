@@ -18,8 +18,21 @@ export {
 } from './format';
 export { SKILL_MARKDOWN } from './skill';
 export { initCommand } from './init';
-export type { PresetId, ProjectProfile, DetectedTool, ToolId, Framework, PackageManager } from './init/detect';
+export type {
+  PresetId,
+  ProjectProfile,
+  DetectedTool,
+  ToolId,
+  Framework,
+  PackageManager,
+} from './init/detect';
 export { detectProject } from './init/detect';
-export { generateConfig, BLUEPRINTS, blueprintsForPreset, type RuleBlueprint, type Plan } from './init/rules';
+export {
+  generateConfig,
+  BLUEPRINTS,
+  blueprintsForPreset,
+  type RuleBlueprint,
+  type Plan,
+} from './init/rules';
 export { PRESETS, PRESET_CHOICES } from './init/presets';
 export { resolvePlanFromFlags, writeConfig, type InitFlags, type WriteResult } from './init/write';

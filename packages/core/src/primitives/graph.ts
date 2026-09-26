@@ -97,9 +97,9 @@ export function noCycles(pattern: string | string[], opts: NoCyclesOptions = {})
     const st = yield* SyntaxTree;
     const resolver = yield* ImportResolver;
 
-    const files = yield* fs.glob(patterns, { cwd: root }).pipe(
-      Effect.catchAll(() => Effect.succeed<File[]>([])),
-    );
+    const files = yield* fs
+      .glob(patterns, { cwd: root })
+      .pipe(Effect.catchAll(() => Effect.succeed<File[]>([])));
     if (files.length === 0) return [];
 
     const rel = (absPath: string): string => {
@@ -117,9 +117,13 @@ export function noCycles(pattern: string | string[], opts: NoCyclesOptions = {})
     for (const file of files) {
       const norm = nodePath.normalize(file.absolutePath);
       if (!st.canProcess(file)) continue;
-      const result = yield* st.process(file, { imports: true }).pipe(
-        Effect.catchAll(() => Effect.succeed({ imports: [], calls: [], exports: [], structure: [] })),
-      );
+      const result = yield* st
+        .process(file, { imports: true })
+        .pipe(
+          Effect.catchAll(() =>
+            Effect.succeed({ imports: [], calls: [], exports: [], structure: [] }),
+          ),
+        );
       const deps: string[] = [];
       for (const imp of result.imports as readonly ParsedImport[]) {
         const resolved = resolver.resolve(file, imp.specifier);

@@ -53,7 +53,9 @@ const checkCommand = Command.make(
   'check',
   {
     since: Options.text('since').pipe(
-      Options.withDescription('Only report violations in files changed since this git ref (e.g. HEAD~5, main)'),
+      Options.withDescription(
+        'Only report violations in files changed since this git ref (e.g. HEAD~5, main)',
+      ),
       Options.optional,
     ),
     category: Options.text('category').pipe(
@@ -61,7 +63,9 @@ const checkCommand = Command.make(
       Options.optional,
     ),
     format: Options.text('format').pipe(
-      Options.withDescription('Output format: pretty (default in a TTY), json (agents/CI), ci (GitHub Actions annotations)'),
+      Options.withDescription(
+        'Output format: pretty (default in a TTY), json (agents/CI), ci (GitHub Actions annotations)',
+      ),
       Options.optional,
     ),
     all: Options.boolean('all').pipe(
@@ -77,19 +81,27 @@ const checkCommand = Command.make(
       Options.optional,
     ),
     config: Options.text('config').pipe(
-      Options.withDescription('Path to gesetz.config.ts (default: <project-root>/gesetz.config.ts)'),
+      Options.withDescription(
+        'Path to gesetz.config.ts (default: <project-root>/gesetz.config.ts)',
+      ),
       Options.optional,
     ),
     files: Options.text('files').pipe(
-      Options.withDescription('Only check files matching these comma-separated globs (e.g. "src/components/**")'),
+      Options.withDescription(
+        'Only check files matching these comma-separated globs (e.g. "src/components/**")',
+      ),
       Options.optional,
     ),
     full: Options.boolean('full').pipe(
-      Options.withDescription('Bypass the violation cache and re-check everything (no SQLite persistence)'),
+      Options.withDescription(
+        'Bypass the violation cache and re-check everything (no SQLite persistence)',
+      ),
       Options.withDefault(false),
     ),
     watch: Options.boolean('watch').pipe(
-      Options.withDescription('Re-run checks when files change (incremental via the violation cache)'),
+      Options.withDescription(
+        'Re-run checks when files change (incremental via the violation cache)',
+      ),
       Options.withDefault(false),
     ),
   },
@@ -99,17 +111,17 @@ const checkCommand = Command.make(
       const changedSince = Option.getOrUndefined(opts.since);
       const configPath = Option.getOrUndefined(opts.config);
       const filesGlobs = Option.map(opts.files, (v) =>
-        v.split(',').map((s) => s.trim()).filter(Boolean),
+        v
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean),
       );
       const categoryFilter = Option.map(
         opts.category,
         (v) => new Set(v.split(',').map((s) => s.trim())),
       );
 
-      const config = yield* loadConfig(
-        root,
-        { changedSince, configPath },
-      ).pipe(
+      const config = yield* loadConfig(root, { changedSince, configPath }).pipe(
         Effect.catchTag('ConfigNotFoundError', (e) =>
           Effect.gen(function* () {
             yield* Console.error(e.message);
@@ -140,7 +152,9 @@ const checkCommand = Command.make(
       if (opts.full) {
         yield* Console.error('(--full) cache bypassed — running without persistence.');
       } else if (isBun) {
-        yield* Console.error('(bun) violation cache disabled — better-sqlite3 is unsupported under Bun.');
+        yield* Console.error(
+          '(bun) violation cache disabled — better-sqlite3 is unsupported under Bun.',
+        );
       }
       const format = detectFormat(Option.getOrUndefined(opts.format) as OutputFormat | undefined);
       const thresholdMap: Record<string, number> = {};
@@ -163,7 +177,9 @@ const checkCommand = Command.make(
         yield* Console.error(formatStatusBanner(result).trimEnd());
 
         if (format === 'json') {
-          yield* Console.log(formatEnvelope(result, { all: opts.all, thresholds: thresholdMap }).trimEnd());
+          yield* Console.log(
+            formatEnvelope(result, { all: opts.all, thresholds: thresholdMap }).trimEnd(),
+          );
         } else if (format === 'ci') {
           yield* Console.log(formatCi(result).trimEnd());
         } else {
@@ -270,11 +286,9 @@ const listCommand = Command.make(
 
 // ─── `gesetz skill` ───────────────────────────────────────────────────────────
 
-const skillCommand = Command.make(
-  'skill',
-  {},
-  () => Console.log(SKILL_MARKDOWN),
-).pipe(Command.withDescription('Print agent skill markdown to stdout'));
+const skillCommand = Command.make('skill', {}, () => Console.log(SKILL_MARKDOWN)).pipe(
+  Command.withDescription('Print agent skill markdown to stdout'),
+);
 
 // ─── Root command ─────────────────────────────────────────────────────────────
 
@@ -303,8 +317,7 @@ export function runGesetz(): void {
 // silently making the CLI produce no output and exit 0.
 const entryArg = process.argv[1] ?? '';
 const isEntryPoint =
-  entryArg.length > 0 &&
-  import.meta.url === pathToFileURL(nodeFs.realpathSync(entryArg)).href;
+  entryArg.length > 0 && import.meta.url === pathToFileURL(nodeFs.realpathSync(entryArg)).href;
 if (isEntryPoint) {
   runGesetz();
 }

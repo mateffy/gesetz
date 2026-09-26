@@ -1,17 +1,17 @@
 {
   "name": "@gesetz/php",
   "version": "3.0.0-rc.4",
+  "files": [
+    "dist"
+  ],
   "type": "module",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     }
   },
-  "types": "./dist/index.d.ts",
-  "files": [
-    "dist"
-  ],
   "scripts": {
     "build": "tsdown",
     "prepack": "tsdown",
@@ -20,16 +20,16 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@ast-grep/napi": "^0.44.0",
     "@gesetz/core": "workspace:*",
-    "effect": "^3.15.0",
-    "@ast-grep/napi": "^0.44.0"
-  },
-  "optionalDependencies": {
-    "@ast-grep/lang-php": "^0.0.7"
+    "effect": "^3.15.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
     "typescript": "^5.8.0",
     "vitest": "^4.0.0"
+  },
+  "optionalDependencies": {
+    "@ast-grep/lang-php": "^0.0.7"
   }
 }

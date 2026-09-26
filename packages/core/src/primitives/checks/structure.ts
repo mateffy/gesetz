@@ -196,15 +196,9 @@ export function noDeepNesting(options: NoDeepNestingOptions = {}): Check {
 
 // ─── Console log ─────────────────────────────────────────────────────────────
 
-
-
 // ─── Empty catch ──────────────────────────────────────────────────────────────
 
-
-
 // ─── Trivial comments ─────────────────────────────────────────────────────────
-
-
 
 // ─── Debugging residue files ──────────────────────────────────────────────────
 
@@ -224,8 +218,7 @@ export function noDebuggingResidueFiles(options: NoDebuggingResidueFilesOptions 
 
   return async (file) => {
     const hit =
-      builtIn.test(file.name) ||
-      (options.extraPatterns?.some((p) => p.test(file.name)) ?? false);
+      builtIn.test(file.name) || (options.extraPatterns?.some((p) => p.test(file.name)) ?? false);
     if (!hit) return [];
     return [
       {

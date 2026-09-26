@@ -46,8 +46,18 @@ describe('syntaxExtension', () => {
         },
         lines: [1],
       },
-      { type: 'call', extension: 'gesetz-syntax', data: { name: 'console.log', line: 3 }, lines: [3] },
-      { type: 'export', extension: 'gesetz-syntax', data: { name: 'doThing', kind: 'function', line: 5 }, lines: [5] },
+      {
+        type: 'call',
+        extension: 'gesetz-syntax',
+        data: { name: 'console.log', line: 3 },
+        lines: [3],
+      },
+      {
+        type: 'export',
+        extension: 'gesetz-syntax',
+        data: { name: 'doThing', kind: 'function', line: 5 },
+        lines: [5],
+      },
       {
         type: 'structure',
         extension: 'gesetz-syntax',

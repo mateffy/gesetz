@@ -29,8 +29,7 @@ interface Receipt {
   error?: string;
 }
 
-const emitReceipt = (r: Receipt): Effect.Effect<void> =>
-  Console.log(JSON.stringify(r));
+const emitReceipt = (r: Receipt): Effect.Effect<void> => Console.log(JSON.stringify(r));
 
 function emitPretty(
   res: WriteResult,
@@ -46,7 +45,9 @@ function emitPretty(
     lines.push(`  Installed (${res.pm}): ${res.installed.join(', ')}`);
   }
   if (res.qaScript) {
-    lines.push(`  Added "qa" script to ${res.pm === 'composer' ? 'composer.json' : 'package.json'}`);
+    lines.push(
+      `  Added "qa" script to ${res.pm === 'composer' ? 'composer.json' : 'package.json'}`,
+    );
   }
   lines.push('', 'Next: run `gesetz check`');
   return Console.log(lines.join('\n'));
@@ -72,7 +73,9 @@ export const initCommand = Command.make(
       Options.optional,
     ),
     rules: Options.text('rules').pipe(
-      Options.withDescription('Comma-separated blueprint ids to include (overrides preset defaults)'),
+      Options.withDescription(
+        'Comma-separated blueprint ids to include (overrides preset defaults)',
+      ),
       Options.optional,
     ),
     force: Options.boolean('force').pipe(
@@ -88,7 +91,9 @@ export const initCommand = Command.make(
       Options.withDefault(false),
     ),
     pm: Options.text('pm').pipe(
-      Options.withDescription('Package manager override: bun | pnpm | npm | yarn (composer for Laravel)'),
+      Options.withDescription(
+        'Package manager override: bun | pnpm | npm | yarn (composer for Laravel)',
+      ),
       Options.optional,
     ),
     interactive: Options.boolean('interactive').pipe(

@@ -1,7 +1,15 @@
 import { Effect, Runtime } from 'effect';
 import micromatch from 'micromatch';
 import { FileSystem, ProjectRoot, FileFilter } from '../services/fs';
-import type { Check, CheckServices, File, Rule, RuleCategory, RuleGuidance, Violation } from '../engine/rule';
+import type {
+  Check,
+  CheckServices,
+  File,
+  Rule,
+  RuleCategory,
+  RuleGuidance,
+  Violation,
+} from '../engine/rule';
 import { SyntaxTree } from '../services/syntax-tree';
 import { ImportResolver } from '../services/import-resolver';
 
@@ -85,9 +93,8 @@ function buildRule(state: SelectorState, checks: Check[]): Rule {
   // Deterministic ID: prefer the human label (slugified); otherwise derive
   // from the glob patterns. No module-level counter — IDs must be stable
   // across runs and independent of test execution order.
-  const id = humanLabel !== null
-    ? slugify(humanLabel)
-    : slugify(state.patterns.join(' ')) || 'rule';
+  const id =
+    humanLabel !== null ? slugify(humanLabel) : slugify(state.patterns.join(' ')) || 'rule';
   const description = humanLabel !== null ? humanLabel : `select(${state.patterns.join(', ')})`;
 
   const run: Effect.Effect<
@@ -95,85 +102,80 @@ function buildRule(state: SelectorState, checks: Check[]): Rule {
     never,
     FileSystem | SyntaxTree | ImportResolver | ProjectRoot | FileFilter
   > = Effect.gen(function* () {
-      const fs = yield* FileSystem;
-      const root = yield* ProjectRoot;
-      const st = yield* SyntaxTree;
-      const ir = yield* ImportResolver;
+    const fs = yield* FileSystem;
+    const root = yield* ProjectRoot;
+    const st = yield* SyntaxTree;
+    const ir = yield* ImportResolver;
 
-      // Capture the current runtime so service calls inside async checks
-      // still resolve against the injected layers.
-      const runtime = yield* Effect.runtime<
-        FileSystem | SyntaxTree | ImportResolver | ProjectRoot | FileFilter
-      >();
+    // Capture the current runtime so service calls inside async checks
+    // still resolve against the injected layers.
+    const runtime = yield* Effect.runtime<
+      FileSystem | SyntaxTree | ImportResolver | ProjectRoot | FileFilter
+    >();
 
-      const services: CheckServices = {
-        fs: {
-          glob: async (pattern, options) =>
-            Runtime.runPromise(runtime)(fs.glob(pattern, options)),
-          readFile: async (path) => Runtime.runPromise(runtime)(fs.readFile(path)),
-          exists: async (path) => Runtime.runPromise(runtime)(fs.exists(path)),
-        },
-        syntax: {
-          canProcess: (file) => st.canProcess(file),
-          process: async (file, options) =>
-            Runtime.runPromise(runtime)(st.process(file, options)),
-        },
-        imports: {
-          resolve: (fromFile, specifier) => ir.resolve(fromFile, specifier),
-        },
-        projectRoot: root,
-      };
+    const services: CheckServices = {
+      fs: {
+        glob: async (pattern, options) => Runtime.runPromise(runtime)(fs.glob(pattern, options)),
+        readFile: async (path) => Runtime.runPromise(runtime)(fs.readFile(path)),
+        exists: async (path) => Runtime.runPromise(runtime)(fs.exists(path)),
+      },
+      syntax: {
+        canProcess: (file) => st.canProcess(file),
+        process: async (file, options) => Runtime.runPromise(runtime)(st.process(file, options)),
+      },
+      imports: {
+        resolve: (fromFile, specifier) => ir.resolve(fromFile, specifier),
+      },
+      projectRoot: root,
+    };
 
-      const fileFilter = yield* FileFilter;
+    const fileFilter = yield* FileFilter;
 
-      // When --files is active, narrow the glob to only scan those files
-      // instead of the full codebase. The rule's own patterns are applied
-      // as a post-glob micromatch filter.
-      const globPatterns = fileFilter.patterns !== null && fileFilter.patterns.length > 0
+    // When --files is active, narrow the glob to only scan those files
+    // instead of the full codebase. The rule's own patterns are applied
+    // as a post-glob micromatch filter.
+    const globPatterns =
+      fileFilter.patterns !== null && fileFilter.patterns.length > 0
         ? [...fileFilter.patterns]
         : state.patterns;
 
-      const files = yield* fs.glob(globPatterns, { cwd: root }).pipe(
-        Effect.catchAll(() => Effect.succeed<File[]>([])),
-      );
+    const files = yield* fs
+      .glob(globPatterns, { cwd: root })
+      .pipe(Effect.catchAll(() => Effect.succeed<File[]>([])));
 
-      // Apply exclusions, predicates, and --files-narrowed rule patterns
-      const matching = files
-        .filter((f) =>
-          state.exclusions.length === 0
-            ? true
-            : !micromatch.isMatch(f.path, state.exclusions),
-        )
-        .filter((f) => state.predicates.every((pred) => pred(f)))
-        .filter((f) => {
-          // When we used --files patterns for globbing, also filter by the
-          // rule's own select() patterns to exclude non-matching files.
-          if (globPatterns !== state.patterns) {
-            return micromatch.isMatch(f.path, state.patterns);
-          }
-          return true;
-        });
+    // Apply exclusions, predicates, and --files-narrowed rule patterns
+    const matching = files
+      .filter((f) =>
+        state.exclusions.length === 0 ? true : !micromatch.isMatch(f.path, state.exclusions),
+      )
+      .filter((f) => state.predicates.every((pred) => pred(f)))
+      .filter((f) => {
+        // When we used --files patterns for globbing, also filter by the
+        // rule's own select() patterns to exclude non-matching files.
+        if (globPatterns !== state.patterns) {
+          return micromatch.isMatch(f.path, state.patterns);
+        }
+        return true;
+      });
 
-      // Run all checks on all files with bounded concurrency
-      const results = yield* Effect.all(
-        matching.flatMap((file) =>
-          checks.map((check) =>
-            Effect.tryPromise({
-              try: () => check(file, services),
-              catch: () => Effect.succeed([] as Violation[]),
-            }).pipe(
-              Effect.map((violations) =>
-                violations.map((v) => ({ ...v, rule: v.rule || id })),
-              ),
-              Effect.catchAll(() => Effect.succeed<Violation[]>([])),
-            ),
+    // Run all checks on all files with bounded concurrency
+    const results = yield* Effect.all(
+      matching.flatMap((file) =>
+        checks.map((check) =>
+          Effect.tryPromise({
+            try: () => check(file, services),
+            catch: () => Effect.succeed([] as Violation[]),
+          }).pipe(
+            Effect.map((violations) => violations.map((v) => ({ ...v, rule: v.rule || id }))),
+            Effect.catchAll(() => Effect.succeed<Violation[]>([])),
           ),
         ),
-        { concurrency: 10 },
-      );
+      ),
+      { concurrency: 10 },
+    );
 
-      return results.flat();
-    });
+    return results.flat();
+  });
 
   return {
     id,

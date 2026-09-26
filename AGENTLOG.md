@@ -1661,3 +1661,10 @@ The `prefer-set-has` warning in `.oxlintrc.json` is still `"warn"` — the one o
 Next: run full test suite and typecheck across the repo to confirm nothing broke.
 
 User instructed: "fix everything" — down to 0 real violations. Only deliberately-off rules remain.
+
+- [o] **Format all files with oxfmt** (pnpm format → 117 files changed, all clean now — 0 differing).
+- [o] **Investigate oxfmt adapter still reporting 134 violations post-format** — likely stale marker cache from netzwerk. Need to clear `.gesetz/` storage and re-run dogfood to verify.
+- [o] **Investigate `no-god-files` violation in `architecture.ts:401`** — 402 lines, threshold 400. Formatting likely added 2 lines. Need to trim or adjust threshold.
+- [ ] **Commit formatting change** after verifying oxfmt score reflects reality (not stale cache).
+- [ ] **Run full CI pipeline** — build + typecheck + test all pass post-format (confirmed above).
+- [ ] **Final commit** with both fixes.

@@ -33,9 +33,7 @@ async function write(relative: string, content: string): Promise<void> {
 const tsBackend: SyntaxBackend = {
   extensions: ['.ts'],
   extractImports: (content) =>
-    content.includes('from')
-      ? [{ specifier: './b', names: ['b'], line: 1 }]
-      : [],
+    content.includes('from') ? [{ specifier: './b', names: ['b'], line: 1 }] : [],
   extractCalls: (content) =>
     content.includes('console.log') ? [{ name: 'console.log', line: 2 }] : [],
   extractExports: () => [{ name: 'a', kind: 'const', line: 3 }],

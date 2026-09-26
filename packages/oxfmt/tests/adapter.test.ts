@@ -2,7 +2,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import * as childProcess from 'node:child_process';
 import { Effect, Layer } from 'effect';
 import { oxfmt } from '../src/adapter';
-import { MemoryFileSystem, ProjectRootLive, FileFilterLive, SyntaxTreeStub, ImportResolverDefault } from '@gesetz/core';
+import {
+  MemoryFileSystem,
+  ProjectRootLive,
+  FileFilterLive,
+  SyntaxTreeStub,
+  ImportResolverDefault,
+} from '@gesetz/core';
 
 const TestLayer = Layer.mergeAll(
   MemoryFileSystem({}),
@@ -27,8 +33,8 @@ describe('oxfmt adapter', () => {
   });
 
   it('maps unformatted files to warning violations', async () => {
-    (childProcess.execFileSync as ReturnType<typeof vi.fn>).mockImplementation(() =>
-      'src/main.rs\nsrc/lib.rs',
+    (childProcess.execFileSync as ReturnType<typeof vi.fn>).mockImplementation(
+      () => 'src/main.rs\nsrc/lib.rs',
     );
 
     const rule = oxfmt({ cwd: '/project', label: 'oxfmt' });
@@ -67,8 +73,8 @@ describe('oxfmt adapter', () => {
   });
 
   it('handles absolute paths by making them relative', async () => {
-    (childProcess.execFileSync as ReturnType<typeof vi.fn>).mockImplementation(() =>
-      '/project/src/main.rs',
+    (childProcess.execFileSync as ReturnType<typeof vi.fn>).mockImplementation(
+      () => '/project/src/main.rs',
     );
 
     const rule = oxfmt({ cwd: '/project' });
@@ -83,12 +89,18 @@ describe('oxfmt adapter', () => {
       spy.mockImplementation(() => '');
 
       const rule = oxfmt({ cwd: '/project' });
-      await Effect.runPromise(Effect.provide(rule.run,
-        Layer.mergeAll(
-          MemoryFileSystem({}), SyntaxTreeStub, ImportResolverDefault,
-          ProjectRootLive('/project'), FileFilterLive(['src/app/**', 'src/lib/**']),
+      await Effect.runPromise(
+        Effect.provide(
+          rule.run,
+          Layer.mergeAll(
+            MemoryFileSystem({}),
+            SyntaxTreeStub,
+            ImportResolverDefault,
+            ProjectRootLive('/project'),
+            FileFilterLive(['src/app/**', 'src/lib/**']),
+          ),
         ),
-      ));
+      );
 
       expect(spy).toHaveBeenCalledWith(
         expect.any(String),
@@ -130,12 +142,18 @@ describe('oxfmt adapter', () => {
       spy.mockImplementation(() => '');
 
       const rule = oxfmt({ cwd: '/project', pattern: 'src/everything' });
-      await Effect.runPromise(Effect.provide(rule.run,
-        Layer.mergeAll(
-          MemoryFileSystem({}), SyntaxTreeStub, ImportResolverDefault,
-          ProjectRootLive('/project'), FileFilterLive(['src/subset/**']),
+      await Effect.runPromise(
+        Effect.provide(
+          rule.run,
+          Layer.mergeAll(
+            MemoryFileSystem({}),
+            SyntaxTreeStub,
+            ImportResolverDefault,
+            ProjectRootLive('/project'),
+            FileFilterLive(['src/subset/**']),
+          ),
         ),
-      ));
+      );
 
       const callArgs = spy.mock.calls[spy.mock.calls.length - 1]?.[1] as string[];
       expect(callArgs).toContain('src/subset/**');

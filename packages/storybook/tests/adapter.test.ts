@@ -3,11 +3,20 @@ import * as childProcess from 'node:child_process';
 import * as nodeFs from 'node:fs';
 import { Effect, Layer } from 'effect';
 import { storybook } from '../src/adapter';
-import { MemoryFileSystem, ProjectRootLive, FileFilterLive, SyntaxTreeStub, ImportResolverDefault } from '@gesetz/core';
+import {
+  MemoryFileSystem,
+  ProjectRootLive,
+  FileFilterLive,
+  SyntaxTreeStub,
+  ImportResolverDefault,
+} from '@gesetz/core';
 
 /** A child-process failure as `execFileSync` really throws it: status plus captured stdout. */
 function exitFailure(status: number, stdout = ''): Error & { status: number; stdout: string } {
-  const e = new Error(`Command failed: exit ${status}`) as Error & { status: number; stdout: string };
+  const e = new Error(`Command failed: exit ${status}`) as Error & {
+    status: number;
+    stdout: string;
+  };
   e.status = status;
   e.stdout = stdout;
   return e;

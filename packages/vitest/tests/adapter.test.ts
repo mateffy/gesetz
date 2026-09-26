@@ -2,7 +2,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import * as childProcess from 'node:child_process';
 import { Effect, Layer } from 'effect';
 import { vitest } from '../src/adapter';
-import { MemoryFileSystem, ProjectRootLive, FileFilterLive, SyntaxTreeStub, ImportResolverDefault } from '@gesetz/core';
+import {
+  MemoryFileSystem,
+  ProjectRootLive,
+  FileFilterLive,
+  SyntaxTreeStub,
+  ImportResolverDefault,
+} from '@gesetz/core';
 
 const TestLayer = Layer.mergeAll(
   MemoryFileSystem({}),
@@ -36,9 +42,7 @@ const VITEST_JSON = JSON.stringify({
           fullName: 'math > subtract',
           title: 'subtract',
           status: 'failed',
-          failureMessages: [
-            'expected 5 to be 3\n    at /project/src/utils/math.ts:12:5',
-          ],
+          failureMessages: ['expected 5 to be 3\n    at /project/src/utils/math.ts:12:5'],
         },
       ],
     },
@@ -130,12 +134,18 @@ describe('vitest adapter', () => {
       spy.mockImplementation(() => JSON.stringify({ numFailedTests: 0, testResults: [] }));
 
       const rule = vitest({ cwd: '/project' });
-      await Effect.runPromise(Effect.provide(rule.run,
-        Layer.mergeAll(
-          MemoryFileSystem({}), SyntaxTreeStub, ImportResolverDefault,
-          ProjectRootLive('/project'), FileFilterLive(['src/app/**', 'src/lib/**']),
+      await Effect.runPromise(
+        Effect.provide(
+          rule.run,
+          Layer.mergeAll(
+            MemoryFileSystem({}),
+            SyntaxTreeStub,
+            ImportResolverDefault,
+            ProjectRootLive('/project'),
+            FileFilterLive(['src/app/**', 'src/lib/**']),
+          ),
         ),
-      ));
+      );
 
       expect(spy).toHaveBeenCalledWith(
         expect.any(String),
@@ -173,7 +183,9 @@ describe('vitest adapter', () => {
       const positionalAfterOpts = callArgs.indexOf('--reporter=json') + 1;
       // All remaining args should be config options or project flags, not file patterns
       const remaining = callArgs.slice(positionalAfterOpts);
-      const hasNonOptPattern = remaining.some((a) => !a.startsWith('--') && a !== '--project' && a !== 'unit' && a !== 'component');
+      const hasNonOptPattern = remaining.some(
+        (a) => !a.startsWith('--') && a !== '--project' && a !== 'unit' && a !== 'component',
+      );
       expect(hasNonOptPattern).toBe(false);
     });
 
@@ -182,12 +194,18 @@ describe('vitest adapter', () => {
       spy.mockImplementation(() => JSON.stringify({ numFailedTests: 0, testResults: [] }));
 
       const rule = vitest({ cwd: '/project', pattern: 'src/everything.test.ts' });
-      await Effect.runPromise(Effect.provide(rule.run,
-        Layer.mergeAll(
-          MemoryFileSystem({}), SyntaxTreeStub, ImportResolverDefault,
-          ProjectRootLive('/project'), FileFilterLive(['src/subset.test.ts']),
+      await Effect.runPromise(
+        Effect.provide(
+          rule.run,
+          Layer.mergeAll(
+            MemoryFileSystem({}),
+            SyntaxTreeStub,
+            ImportResolverDefault,
+            ProjectRootLive('/project'),
+            FileFilterLive(['src/subset.test.ts']),
+          ),
         ),
-      ));
+      );
 
       const callArgs = spy.mock.calls[spy.mock.calls.length - 1]?.[1] as string[];
       expect(callArgs).toContain('src/subset.test.ts');

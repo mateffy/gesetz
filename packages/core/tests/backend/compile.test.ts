@@ -63,9 +63,11 @@ describe('compileRule (per-file rules)', () => {
   });
 
   it('process runs checks and returns violation markers', async () => {
-    const rule = select('src/**/*.ts').label('X').check(async (file) => [
-      { message: 'bad', path: file.path, line: 3, severity: 'warn', source: 'core' },
-    ]);
+    const rule = select('src/**/*.ts')
+      .label('X')
+      .check(async (file) => [
+        { message: 'bad', path: file.path, line: 3, severity: 'warn', source: 'core' },
+      ]);
     const ext = compileRule(rule, stubCtx());
     const markers = await ext.process!(sourceFile('src/a.ts'), 'whatever', stubExtCtx());
     expect(markers).toHaveLength(1);
@@ -97,7 +99,6 @@ describe('compileRule (per-file rules)', () => {
     expect(data.message).toContain('not fully checked');
   });
 
-
   it('applies predicates before running checks', async () => {
     let ran = 0;
     const rule = select('src/**/*.ts')
@@ -117,7 +118,9 @@ describe('compileRule (per-file rules)', () => {
     const a = compileRule(select('src/**/*.ts').label('A').check(noConsoleLog), stubCtx());
     const b = compileRule(select('lib/**/*.ts').label('A').check(noConsoleLog), stubCtx());
     const c = compileRule(
-      select('src/**/*.ts').label('A').check(async () => []),
+      select('src/**/*.ts')
+        .label('A')
+        .check(async () => []),
       stubCtx(),
     );
     expect(a.fingerprint).not.toBe(b.fingerprint);
@@ -133,7 +136,13 @@ describe('compileRule (run-only rules)', () => {
       id: 'hand-built',
       description: 'Hand built',
       run: Effect.succeed<Violation[]>([
-        { rule: 'hand-built', message: 'issue in a', path: 'src/a.ts', severity: 'error', source: 'custom' },
+        {
+          rule: 'hand-built',
+          message: 'issue in a',
+          path: 'src/a.ts',
+          severity: 'error',
+          source: 'custom',
+        },
       ]),
     };
 

@@ -104,7 +104,9 @@ export function runWithTempFile<T, R>(
           // Best-effort cleanup: a failure must not mask the run's real result,
           // but it is logged rather than discarded so a full disk or a locked
           // directory is visible instead of silently leaving temp files behind.
-          Effect.try(() => nodeFs.rmSync(nodePath.dirname(tmpFile), { recursive: true, force: true })).pipe(
+          Effect.try(() =>
+            nodeFs.rmSync(nodePath.dirname(tmpFile), { recursive: true, force: true }),
+          ).pipe(
             Effect.catchAll((cause) =>
               Effect.logWarning(
                 `[gesetz] could not remove temp directory ${nodePath.dirname(tmpFile)}: ${String(cause)}`,
@@ -125,7 +127,10 @@ export function runWithTempFile<T, R>(
  *   at /abs/path/file.test.ts:42:13
  *   at file:///abs/path/file.test.ts:42:13
  */
-export function extractLocation(failureMessage: string): { path: string; line: number | undefined } {
+export function extractLocation(failureMessage: string): {
+  path: string;
+  line: number | undefined;
+} {
   const match = /at\s+(?:file:\/\/)?([^\s]+):(\d+):\d+/.exec(failureMessage);
   if (match) {
     return { path: match[1] ?? '', line: Number(match[2] ?? 0) };

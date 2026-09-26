@@ -8,7 +8,6 @@ import { select } from '@gesetz/core';
 import { strictTypes, psrNamespace, noInlineQueries } from '@gesetz/php';
 import type { Rule, Check, Violation } from '@gesetz/core';
 
-
 // ─── declare strict_types=1 ───────────────────────────────────────────────────
 
 /**
@@ -95,7 +94,8 @@ export const noEnvOutsideConfig: Rule = select(
   })
   .check(
     noInlineQueries(['env('], {
-      message: "env() called outside config/. Use config('...') instead — env() breaks config caching.",
+      message:
+        "env() called outside config/. Use config('...') instead — env() breaks config caching.",
     }),
   );
 
@@ -168,8 +168,17 @@ export interface NoFacadesOptions {
 }
 
 const DEFAULT_FACADES = [
-  'Auth::', 'DB::', 'Cache::', 'Config::', 'Event::', 'Mail::',
-  'Notification::', 'Queue::', 'Route::', 'Session::', 'Storage::',
+  'Auth::',
+  'DB::',
+  'Cache::',
+  'Config::',
+  'Event::',
+  'Mail::',
+  'Notification::',
+  'Queue::',
+  'Route::',
+  'Session::',
+  'Storage::',
 ];
 
 /**
@@ -188,7 +197,8 @@ export function noFacades(opts: NoFacadesOptions = {}): Check {
           violations.push({
             severity: opts.severity ?? 'warn',
             source: 'core',
-            message: opts.message ?? `Avoid Laravel Facade '${f}' — use dependency injection instead`,
+            message:
+              opts.message ?? `Avoid Laravel Facade '${f}' — use dependency injection instead`,
             path: file.path,
             line: i + 1,
           });

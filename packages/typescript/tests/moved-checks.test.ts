@@ -16,7 +16,11 @@ const CWD = process.cwd();
 
 describe('noConsoleLog (moved from core)', () => {
   it('flags console.log', async () => {
-    const v = await runCheck(noConsoleLog(), makeFile('src/foo.ts', 'console.log("hello");'), makeCheckServices());
+    const v = await runCheck(
+      noConsoleLog(),
+      makeFile('src/foo.ts', 'console.log("hello");'),
+      makeCheckServices(),
+    );
     expect(v).toHaveLength(1);
     expect(v[0]?.rule).toBe('no-console-log');
   });
@@ -108,7 +112,10 @@ describe('noMagicNumbers (moved from core)', () => {
   it('treats a default parameter value as named by the parameter', async () => {
     const v = await runCheck(
       noMagicNumbers(),
-      makeFile('src/foo.ts', 'function bar(score: number, width = 20): string { return String(score); }'),
+      makeFile(
+        'src/foo.ts',
+        'function bar(score: number, width = 20): string { return String(score); }',
+      ),
       makeCheckServices(),
     );
     expect(v).toHaveLength(0);
@@ -143,21 +150,36 @@ describe('noMagicNumbers (moved from core)', () => {
   });
 
   it('is not capped at twenty violations', async () => {
-    const lines = Array.from({ length: 25 }, (_, i) => `const v${i} = compute(x) * ${30 + i};`).join('\n');
+    const lines = Array.from(
+      { length: 25 },
+      (_, i) => `const v${i} = compute(x) * ${30 + i};`,
+    ).join('\n');
     const v = await runCheck(noMagicNumbers(), makeFile('src/foo.ts', lines), makeCheckServices());
     expect(v).toHaveLength(25);
   });
 
   it('does not report numbers in a multi-line block comment', async () => {
     // Regression: a per-line scan saw `* 3. For each ...` as code.
-    const src = ['/**', ' * Steps:', ' * 3. For each rule, read the guidance', ' * 4. Apply the fix', ' */', 'const x = 1;'].join('\n');
+    const src = [
+      '/**',
+      ' * Steps:',
+      ' * 3. For each rule, read the guidance',
+      ' * 4. Apply the fix',
+      ' */',
+      'const x = 1;',
+    ].join('\n');
     const v = await runCheck(noMagicNumbers(), makeFile('src/foo.ts', src), makeCheckServices());
     expect(v).toHaveLength(0);
   });
 
   it('does not report numbers inside a multi-line template literal', async () => {
     // Regression: `5-question wizard` inside a template string was reported.
-    const src = ['const help = `', '  Interactive (5-question wizard)', '  gesetz check --since HEAD~5', '`;'].join('\n');
+    const src = [
+      'const help = `',
+      '  Interactive (5-question wizard)',
+      '  gesetz check --since HEAD~5',
+      '`;',
+    ].join('\n');
     const v = await runCheck(noMagicNumbers(), makeFile('src/foo.ts', src), makeCheckServices());
     expect(v).toHaveLength(0);
   });
@@ -211,13 +233,19 @@ describe('noMagicNumbers (moved from core)', () => {
   it('treats a destructuring default as named', async () => {
     // Regression: `const { bonus = 5 } = scoring` reported 5, as did each
     // element of `thresholds = [1, 3, 5, 8]`.
-    const src = ['const {', '  bonus = 5,', '  thresholds = [1, 3, 5, 8],', '} = scoring;'].join('\n');
+    const src = ['const {', '  bonus = 5,', '  thresholds = [1, 3, 5, 8],', '} = scoring;'].join(
+      '\n',
+    );
     const v = await runCheck(noMagicNumbers(), makeFile('src/foo.ts', src), makeCheckServices());
     expect(v).toHaveLength(0);
   });
 
   it('still reports a plain assignment', async () => {
-    const v = await runCheck(noMagicNumbers(), makeFile('src/foo.ts', 'retries = 42;'), makeCheckServices());
+    const v = await runCheck(
+      noMagicNumbers(),
+      makeFile('src/foo.ts', 'retries = 42;'),
+      makeCheckServices(),
+    );
     expect(v).toHaveLength(1);
   });
 
@@ -225,7 +253,14 @@ describe('noMagicNumbers (moved from core)', () => {
     // Regression: this rule's own docblock example was reported as a violation.
     const v = await runCheck(
       noConsoleLog(),
-      makeFile('src/foo.ts', ['// e.g. "console.log(" matches but "notconsole.log(" does not', '/* console.log(1) */', ' * console.log(2)'].join('\n')),
+      makeFile(
+        'src/foo.ts',
+        [
+          '// e.g. "console.log(" matches but "notconsole.log(" does not',
+          '/* console.log(1) */',
+          ' * console.log(2)',
+        ].join('\n'),
+      ),
       makeCheckServices(),
     );
     expect(v).toHaveLength(0);
@@ -275,7 +310,10 @@ describe('noTrivialComment (moved from core)', () => {
 
 describe('relativeImports (moved from core)', () => {
   it('passes when all relative imports resolve', async () => {
-    const file = makeFile('src/foo.ts', `import { x } from './bar';\nimport { y } from './baz/index';`);
+    const file = makeFile(
+      'src/foo.ts',
+      `import { x } from './bar';\nimport { y } from './baz/index';`,
+    );
     const services = makeCheckServices({
       projectRoot: CWD,
       files: {
@@ -317,7 +355,12 @@ describe('noTrivialComment', () => {
   it('flags a short comment that restates the next line', async () => {
     const v = await runCheck(
       noTrivialComment(),
-      makeFile('src/foo.ts', ['// Check expiry', 'const expired = now > ttl;', '// Return JSX', 'return jsx;'].join('\n')),
+      makeFile(
+        'src/foo.ts',
+        ['// Check expiry', 'const expired = now > ttl;', '// Return JSX', 'return jsx;'].join(
+          '\n',
+        ),
+      ),
       makeCheckServices(),
     );
     expect(v).toHaveLength(2);
@@ -334,14 +377,21 @@ describe('noTrivialComment', () => {
       '// Import edges resolved by netzwerk from import markers, so no re-parsing happens here.',
       '// Build a map: filePath -> layer name',
     ].join('\n');
-    const v = await runCheck(noTrivialComment(), makeFile('src/foo.ts', explains), makeCheckServices());
+    const v = await runCheck(
+      noTrivialComment(),
+      makeFile('src/foo.ts', explains),
+      makeCheckServices(),
+    );
     expect(v).toHaveLength(0);
   });
 
   it('leaves a long comment alone even without a reason marker', async () => {
     const v = await runCheck(
       noTrivialComment(),
-      makeFile('src/foo.ts', '// Build a map of testcase positions to the nearest preceding suite file for every case'),
+      makeFile(
+        'src/foo.ts',
+        '// Build a map of testcase positions to the nearest preceding suite file for every case',
+      ),
       makeCheckServices(),
     );
     expect(v).toHaveLength(0);

@@ -24,10 +24,13 @@ export interface PhpstanOptions {
 
 interface PhpstanJsonOutput {
   totals: { errors: number; file_errors: number };
-  files: Record<string, {
-    errors: number;
-    messages: Array<{ message: string; line: number; ignorable: boolean }>;
-  }>;
+  files: Record<
+    string,
+    {
+      errors: number;
+      messages: Array<{ message: string; line: number; ignorable: boolean }>;
+    }
+  >;
   errors: string[];
 }
 
@@ -115,9 +118,10 @@ export function phpstan(opts: PhpstanOptions = {}): Rule {
 
   const run: Rule['run'] = Effect.gen(function* () {
     const fileFilter = yield* FileFilter;
-    const patterns = fileFilter.patterns !== null && fileFilter.patterns.length > 0
-      ? [...fileFilter.patterns]
-      : defaultPatterns;
+    const patterns =
+      fileFilter.patterns !== null && fileFilter.patterns.length > 0
+        ? [...fileFilter.patterns]
+        : defaultPatterns;
 
     return yield* Effect.promise(() => executePhpstan(opts, id, bin, cwd, memoryLimit, patterns));
   });
