@@ -1920,7 +1920,7 @@ Fixing and implementing the project-rule scoping system so scoped rules don't wi
 - [x] End-to-end test in `tests/engine/project-rule-scoping.test.ts` proving that a scoped rule on the second run:
   1. Only replaces markers for the files it examined (a.ts violation cleared when fixed)
   2. Leaves markers untouched for files it didn't examine (b.ts violation survives)
-      Without the fix, the second run would clear ALL markers (=0 violations total, a false negative fail-open).
+     Without the fix, the second run would clear ALL markers (=0 violations total, a false negative fail-open).
 
 **Cache DB placement bug discovered while debugging the probe:**
 
@@ -2075,24 +2075,26 @@ The user asked: can we filter rules by glob (skip rules whose patterns can't mat
 01a0d92e-338b-7628-a543-fca767ff4d5f
 ```
 
-**Full test suite** with `pnpm -r --no-bail test`: **86 test files, 880 tests passed**.
+**Full test suite** with `pnpm -r --no-bail test`: **107 test files, 1066 tests passed** (up from 880 — other agent fixed their vitest tests).
 
-Only failures:
-- **packages/vitest** — 2 tests (other agent's WIP; their `--outputFile=` change isn't reflected in their test stubs)
-- **packages/cli bun-cache.test.ts** — 1 test: the warm run expects a `scan:` line with `+0 ~0 -0 =N reused`, but with coordination, the second run **reuses the first run's record** and never scans → empty stderr.
+Only failures are in **packages/vitest** (2 tests, different agent's WIP).
 
 **Fixing the bun-cache test:**
-- [ ] Add `extraArgs: readonly string[]` parameter to `runCheckUnderBun` helper
-- [ ] Pass `['--standalone']` on the warm run so it measures the cache (not coordination)
-- [ ] Verify the assertion passes
-- [ ] Assert reuse line contains `=N reused` (not `=0 reused`)
+
+- [x] Add `.gitignore` to `writeProject` (netzwerk's discovery honours `.gitignore`, so without it the cache DB is scanned as source)
+  - FIX: Without `.gitignore`, the cache DB file (and its `-wal`/`-shm` companions) appear/disappear across runs, making scan counts non-deterministic. The README already tells users to ignore `.gesetz/` — now the test reflects that practice.
+- [x] Document *why* `.gesetz/` should be ignored in README (not just the instruction)
+- [x] Correct syntax-extension comment (it claimed gesetz's own cache as reason for exclude; real reason is protecting projects without node_modules in their `.gitignore`)
+- [x] Full test suite: **107 files, 1066 tests passed** (13 GB memory, 7 worker processes)
+- [x] `pnpm format && pnpm typecheck && pnpm build` — all clean
+- [x] Dogfood: `gesetz check` on gesetz repo — 0 violations, pass, coordination reused
 
 **Docs (done):**
-- [x] `skill.ts` — expanded `--files` examples section with all four forms (single, comma, repeated, glob) and explains it reduces work, not just the report
-- [x] `README.md` — inserted a paragraph about `--files` behavior
 
-**Remaining:**
-- [ ] Fix bun-cache test and re-verify
-- [ ] `pnpm format && pnpm typecheck` final pass
-- [ ] Dogfood: `gesetz check` on gesetz repo (0 violations — confirmed)
-- [ ] Gather measurements for dogfood comparison
+- [x] `skill.ts` — expanded `--files` examples section with all four forms (single, comma, repeated, glob) and explains it reduces work, not just the report
+- [x] `README.md` — inserted a paragraph about `--files` behavior; updated cache-ignoring bullet with explanation
+
+**Key insights from this fix:**
+- gesetz's own cache DB (and its `-wal`/`-shm` shards) are regular files on disk. If not gitignored, netzwerk discovers them as project source, hashes them on every run, and their churn makes scan counts non-deterministic.
+- This is why `exclude: ['.gesetz/**']` exists on the syntax extension — but it only prevents *parsing*, not *discovery*. Only `.gitignore` prevents discovery.
+- The README already says to add `.gesetz/` to `.gitignore`; this fix ensures the test follows the documented practice.
