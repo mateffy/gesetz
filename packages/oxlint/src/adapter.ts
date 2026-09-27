@@ -1,7 +1,7 @@
 import * as nodePath from 'node:path';
 import { Effect } from 'effect';
 import type { Rule, Violation } from '@gesetz/core';
-import { FileFilter, execTool, toolWatchPatterns } from '@gesetz/core';
+import { FileFilter, execTool, scopedPatterns, toolWatchPatterns } from '@gesetz/core';
 
 export interface OxlintOptions {
   pattern?: string | string[];
@@ -129,7 +129,16 @@ export function oxlint(opts: OxlintOptions = {}): Rule {
     category: opts.category,
     project: {
       patterns: toolWatchPatterns([...defaultPatterns, '.oxlintrc*', 'oxlint.config.*']),
-      run: () => executeOxlint(opts, id, bin, cwd, defaultPatterns),
+      run: (ctx) => {
+        // A linter's answer for a file depends only on that file; see the note in
+        // the oxfmt adapter about why examinedPaths must be reported.
+        const scoped = scopedPatterns(ctx.changedFiles, defaultPatterns);
+        if (scoped === null) return Promise.resolve({ violations: [], examinedPaths: [] });
+        return executeOxlint(opts, id, bin, cwd, scoped).then((violations) => ({
+          violations,
+          examinedPaths: scoped,
+        }));
+      },
     },
   };
 }

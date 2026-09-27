@@ -109,6 +109,36 @@ describe('eslint adapter', () => {
     expect(bViolations).toHaveLength(0);
   });
 
+  describe('project runs scope the tool to the changed files', () => {
+    it('passes only the files this scan reprocessed', async () => {
+      const rule = eslint({ pattern: 'src/**/*.ts', cwd: '/project' });
+      const outcome = await rule.project!.run({
+        network: { glob: async () => [], file: async () => null },
+        changedFiles: ['src/a.ts', 'src/b.ts'],
+        rootDir: '/project',
+      });
+      expect(lastLintFilesPatterns).toEqual(['src/a.ts', 'src/b.ts']);
+      // The stub lints everything it is given, so the violations are not the
+      // point here: the scope is.
+      expect('examinedPaths' in outcome ? outcome.examinedPaths : null).toEqual([
+        'src/a.ts',
+        'src/b.ts',
+      ]);
+    });
+
+    it('does not call the linter at all when no changed file matches', async () => {
+      lastLintFilesPatterns = [];
+      const rule = eslint({ pattern: 'src/**/*.ts', cwd: '/project' });
+      const outcome = await rule.project!.run({
+        network: { glob: async () => [], file: async () => null },
+        changedFiles: ['src/a.php'],
+        rootDir: '/project',
+      });
+      expect(lastLintFilesPatterns).toEqual([]);
+      expect('examinedPaths' in outcome ? outcome.examinedPaths : null).toEqual([]);
+    });
+  });
+
   describe('FileFilter integration', () => {
     it('passes FileFilter patterns to lintFiles when --files is active', async () => {
       const rule = eslint({ cwd: '/project' });

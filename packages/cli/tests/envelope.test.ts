@@ -46,3 +46,26 @@ describe('buildEnvelope baseline split', () => {
     expect(JSON.parse(rendered).baseline.new).toBe(1);
   });
 });
+
+describe('coordination', () => {
+  it('carries the coordination block when one is passed', () => {
+    const envelope = formatEnvelope(baselinedResult(), {
+      coordination: {
+        mode: 'reused',
+        waitedMs: 3400,
+        runAgeMs: 2100,
+        listeners: 2,
+        recheckedFiles: 4,
+        pid: 57132,
+      },
+    });
+    const parsed = JSON.parse(envelope) as { coordination: { mode: string }; v: number };
+    expect(parsed.coordination.mode).toBe('reused');
+    expect(parsed.v).toBe(1);
+  });
+
+  it('omits the coordination block when none is passed', () => {
+    const parsed = JSON.parse(formatEnvelope(baselinedResult(), {})) as Record<string, unknown>;
+    expect('coordination' in parsed).toBe(false);
+  });
+});

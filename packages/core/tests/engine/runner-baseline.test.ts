@@ -215,5 +215,8 @@ describe('runAll with a baseline and --since', () => {
       expect(result.baseline?.baselined).toBe(0);
       expect(read(result)?.violations[0]?.path).toBe('src/b.ts');
     },
+    // Git init, a commit, and a full run. That is fast on an idle machine and can
+    // outlast the 5s default when the whole suite runs in parallel.
+    30_000,
   );
 });

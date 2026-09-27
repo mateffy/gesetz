@@ -53,6 +53,40 @@ gesetz check --format=json             # machine-readable envelope for agents
 gesetz check --no-baseline            # ignore the baseline; full inventory
 \`\`\`
 
+Invoke it as \`gesetz\`, \`pnpm exec gesetz\`, or \`npx gesetz\` — those run it under
+node, which is the runtime it is built and tested against. \`bun
+node_modules/.bin/gesetz\` also works (the violation cache is enabled under Bun
+too), but reach for the plain form: a check that cannot use its cache re-checks
+every file on every run, and that is the slowest thing this tool can do.
+
+### Several agents, one working tree
+
+\`gesetz check\` coordinates with other checks running in the same worktree. A
+second caller waits for the run in flight and reuses its result when that result
+already covers the current tree state, so ten agents editing one tree cost one
+scan and one run of each external tool — not ten.
+
+Every run says what it did, on stderr:
+
+\`\`\`
+cache: .gesetz/cache.db (runtime: node)
+coord: ran — no other gesetz check active — 2 other processes waited on this run
+coord: reused a run from 2.1s ago — this tree state was already checked
+coord: waited 8.4s for pid 1234, then ran — re-checked 4 changed files; this worktree is shared, so some results may not be yours
+\`\`\`
+
+If you parse stdout instead, read the \`coordination\` block in the JSON envelope.
+**A shared worktree means violations may come from files you did not edit.** When
+\`coordination.mode\` is \`reused\`, the result was not computed from your own run.
+
+Escape hatches, when you want a run of your own:
+
+\`\`\`
+gesetz check --standalone        # run now: no waiting, no reuse
+gesetz check --jobs 2            # allow two runs at once (default 1)
+gesetz check --wait-timeout 30   # seconds to wait before running anyway
+gesetz check --full              # no cache, and therefore no sharing
+
 ### Violation baseline
 
 A legacy codebase reports hundreds of violations from the first day, so the

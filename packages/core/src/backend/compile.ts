@@ -34,6 +34,7 @@ import { ImportResolver } from '../services/import-resolver';
 import { SyntaxTree, SyntaxTreeError } from '../services/syntax-tree';
 import { syntaxExtension } from './syntax-extension';
 import { violationToMarker } from './violation-markers';
+import { storeProjectViolations } from './project-violations';
 
 export interface CompileContext {
   readonly rootDir: string;
@@ -144,61 +145,6 @@ function compilePerFileRule(rule: Rule, ctx: CompileContext): NetworkExtension {
 // ─── after-hook rules (project + run-only) ──────────────────────────────────
 
 /** Groups violations by repo-relative path; absolute paths are relativized. */
-function groupByPath(
-  violations: readonly Violation[],
-  rootDir: string,
-): { byPath: Map<string, Violation[]>; orphaned: Violation[] } {
-  const byPath = new Map<string, Violation[]>();
-  const orphaned: Violation[] = [];
-  for (const violation of violations) {
-    let rel = violation.path;
-    if (nodePath.isAbsolute(violation.path)) {
-      rel = nodePath.relative(rootDir, violation.path).split(nodePath.sep).join('/');
-    }
-    if (rel === '' || rel.startsWith('..')) {
-      orphaned.push(violation);
-      continue;
-    }
-    const list = byPath.get(rel) ?? [];
-    list.push({ ...violation, path: rel });
-    byPath.set(rel, list);
-  }
-  return { byPath, orphaned };
-}
-
-/**
- * Replaces this rule's stored violation markers with the fresh set: every
- * path that previously carried this rule's markers is overwritten (with the
- * empty set when the violation disappeared), and new paths are stored.
- */
-async function storeProjectViolations(
-  storage: ExtensionContext['storage'],
-  rule: Rule,
-  violations: readonly Violation[],
-  ctx: CompileContext,
-): Promise<void> {
-  const { byPath, orphaned } = groupByPath(violations, ctx.rootDir);
-  for (const [path, markers] of await storage.allMarkers()) {
-    if (!byPath.has(path) && markers.some((m) => m.extension === rule.id)) {
-      await storage.putMarkers(path, rule.id, []);
-    }
-  }
-  for (const [path, pathViolations] of byPath) {
-    if ((await storage.getFile(path)) === undefined) {
-      orphaned.push(...pathViolations);
-      continue;
-    }
-    await storage.putMarkers(
-      path,
-      rule.id,
-      pathViolations.map((v) => violationToMarker({ ...v, rule: v.rule ?? rule.id }, rule)),
-    );
-  }
-  if (orphaned.length > 0 && ctx.pendingViolations !== undefined) {
-    ctx.pendingViolations.push(...orphaned);
-  }
-}
-
 /** Legacy service shims: the old Effect tags backed by the async services bag. */
 function shimLayers(
   services: CheckServices,
@@ -334,8 +280,15 @@ function compileProjectRule(rule: Rule, ctx: CompileContext): NetworkExtension {
 
       await refreshSharedPaths(ctx, extCtx);
       let violations: Violation[];
+      let examinedPaths: readonly string[] | undefined;
       try {
-        violations = await project.run(projectRuleContext(extCtx, ctx, changed));
+        const outcome = await project.run(projectRuleContext(extCtx, ctx, changed));
+        if ('violations' in outcome) {
+          violations = [...outcome.violations];
+          examinedPaths = outcome.examinedPaths;
+        } else {
+          violations = [...outcome];
+        }
       } catch (cause) {
         // A project rule that threw contributes nothing otherwise, which is
         // indistinguishable from "this project is clean". Adapters reach here
@@ -350,7 +303,7 @@ function compileProjectRule(rule: Rule, ctx: CompileContext): NetworkExtension {
           },
         ];
       }
-      await storeProjectViolations(extCtx.storage, rule, violations, ctx);
+      await storeProjectViolations(extCtx.storage, rule, violations, ctx, examinedPaths);
     },
   };
 }

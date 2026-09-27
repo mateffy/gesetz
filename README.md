@@ -106,8 +106,18 @@ gesetz check --full   # bypass the cache (no persistence)
 gesetz check --watch  # re-run incrementally on every file change
 ```
 
+Several agents in one working tree share the work instead of repeating it: a
+second `gesetz check` waits for the run in flight and reuses its result when that
+result already covers the tree. Every run reports what it did — `coord: …` on
+stderr, and a `coordination` block in `--format=json`. Use `--standalone` to opt
+out, `--jobs N` to let N runs proceed at once.
+
 - Add `.gesetz/` to your `.gitignore`.
 - `GESETZ_DB` overrides the cache location.
+- Every run prints `cache: <path> (runtime: <runtime>)`, so a run that is not
+  using its cache is visible rather than merely slow. The cache works under node
+  and under Bun; prefer invoking the CLI as `gesetz`, `pnpm exec gesetz`, or
+  `npx gesetz`.
 - Editing `gesetz.config.ts` invalidates the cache automatically (rule
   fingerprints); exemptions, thresholds, `--files`, and `--since` are
   aggregation-time filters and never trigger a rescan.

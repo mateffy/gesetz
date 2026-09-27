@@ -19,6 +19,8 @@
  * kept. Tool configuration files are the caller's business: pass them in too so
  * editing the tool's config re-runs the rule.
  */
+import micromatch from 'micromatch';
+
 export function toolWatchPatterns(patterns: readonly string[]): string[] {
   const out = new Set<string>();
   for (const raw of patterns) {
@@ -43,4 +45,25 @@ export function toolWatchPatterns(patterns: readonly string[]): string[] {
     out.add(`${pattern.replace(/\/+$/, '')}/**/*`);
   }
   return [...out];
+}
+
+/**
+ * The subset of `changedFiles` a tool is responsible for, or null when the tool
+ * has nothing to check this scan.
+ *
+ * Only sound for a tool whose answer for file X depends solely on file X — a
+ * formatter, a linter, per-file static analysis. A test runner or a browser tool
+ * answers about the project, not about a file, and must not be scoped this way.
+ *
+ * Null and `[]` are different answers, and returning empty is the dangerous one:
+ * a tool handed no paths scans nothing, reports nothing, and looks exactly like
+ * a clean project. The caller must skip the tool instead, and must report the
+ * paths it examined so the marks for untouched files are left alone.
+ */
+export function scopedPatterns(
+  changedFiles: readonly string[],
+  toolPatterns: readonly string[],
+): string[] | null {
+  const matches = changedFiles.filter((path) => micromatch.some([path], [...toolPatterns]));
+  return matches.length > 0 ? matches : null;
 }

@@ -73,7 +73,25 @@ export type {
 
 // ─── Exec helpers ─────────────────────────────────────────────────────────────
 export { execTool, runWithTempFile, extractLocation } from './engine/exec';
-export { toolWatchPatterns } from './engine/tool-patterns';
+export { scopedPatterns, toolWatchPatterns } from './engine/tool-patterns';
+export { fileSetFingerprint, treeStateFor, treeStatesMatch } from './engine/file-set';
+export type { TreeState } from './engine/file-set';
+export {
+  coordinateRun,
+  coordDirFor,
+  countWaiters,
+  findReusableRecord,
+  readRecords,
+  registerWaiter,
+  writeRecord,
+} from './engine/run-lock';
+export type {
+  CoordinateOptions,
+  CoordinationEvent,
+  CoordinationMode,
+  CoordinationOutcome,
+  RunRecord,
+} from './engine/run-lock';
 
 // ─── Services ─────────────────────────────────────────────────────────────────
 export {
@@ -118,7 +136,7 @@ export { select, slugify } from './primitives/select';
 export type { Selector } from './primitives/select';
 
 // ─── Check types ─────────────────────────────────────────────────────────────
-export type { CheckServices } from './engine/rule';
+export type { CheckServices, ProjectRuleOutcome, ProjectRuleResult } from './engine/rule';
 
 // ─── Test helpers ─────────────────────────────────────────────────────────────
 export { makeFile, makeCheckServices, runCheck } from './test-helpers';

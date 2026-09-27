@@ -200,4 +200,33 @@ describe('oxlint', () => {
       expect(callArgs).not.toContain('src/everything/**');
     });
   });
+
+  describe('project runs scope the tool to the changed files', () => {
+    const argsOf = (): string[] =>
+      (childProcess.execFileSync as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[1] as string[];
+
+    it('passes only the files this scan reprocessed', async () => {
+      (childProcess.execFileSync as ReturnType<typeof vi.fn>).mockImplementation(() => '[]');
+      const rule = oxlint({ pattern: 'src/**/*.ts', cwd: '/project', bin: 'oxlint' });
+      const outcome = await rule.project!.run({
+        network: { glob: async () => [], file: async () => null },
+        changedFiles: ['src/a.ts', 'src/b.ts'],
+        rootDir: '/project',
+      });
+      expect(argsOf()).toEqual(['--format=json', 'src/a.ts', 'src/b.ts']);
+      expect(outcome).toEqual({ violations: [], examinedPaths: ['src/a.ts', 'src/b.ts'] });
+    });
+
+    it('does not call the tool at all when no changed file matches', async () => {
+      (childProcess.execFileSync as ReturnType<typeof vi.fn>).mockImplementation(() => '[]');
+      const rule = oxlint({ pattern: 'src/**/*.ts', cwd: '/project', bin: 'oxlint' });
+      const outcome = await rule.project!.run({
+        network: { glob: async () => [], file: async () => null },
+        changedFiles: ['src/a.php'],
+        rootDir: '/project',
+      });
+      expect(childProcess.execFileSync).not.toHaveBeenCalled();
+      expect(outcome).toEqual({ violations: [], examinedPaths: [] });
+    });
+  });
 });

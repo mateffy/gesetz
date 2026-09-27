@@ -51,6 +51,22 @@ interface EnvelopeBaseline {
   byRule: EnvelopeBaselineRule[];
 }
 
+/**
+ * How this result was produced when other checks shared the worktree.
+ *
+ * Additive: `v` stays 1 and a parser that does not know this key ignores it. An
+ * agent that does read it can tell a result computed from its own run from one
+ * it reused, and can see that the worktree is shared.
+ */
+export interface EnvelopeCoordination {
+  mode: 'ran' | 'reused' | 'ran-after-wait' | 'standalone';
+  waitedMs: number;
+  runAgeMs: number;
+  listeners: number;
+  recheckedFiles: number;
+  pid: number;
+}
+
 interface Envelope {
   v: 1;
   status: 'pass' | 'fail';
@@ -63,6 +79,8 @@ interface Envelope {
   hint: string | null;
   /** Null when the run used no baseline. Additive: existing parsers ignore it. */
   baseline: EnvelopeBaseline | null;
+  /** Absent when the run was not coordinated. Additive. */
+  coordination?: EnvelopeCoordination | undefined;
 }
 
 /**
@@ -73,7 +91,11 @@ interface Envelope {
  */
 export function buildEnvelope(
   result: RunResult,
-  opts: { all?: boolean; thresholds?: Record<string, number> } = {},
+  opts: {
+    all?: boolean;
+    thresholds?: Record<string, number>;
+    coordination?: EnvelopeCoordination | undefined;
+  } = {},
 ): Envelope {
   const allViolations: EnvelopeViolation[] = [];
   for (const r of result.byRule) {
@@ -132,13 +154,18 @@ export function buildEnvelope(
               stale: rule.stale,
             })),
           },
+    ...(opts.coordination === undefined ? {} : { coordination: opts.coordination }),
   };
 }
 
 /** Renders the envelope as a single compact JSON line + trailing newline. */
 export function formatEnvelope(
   result: RunResult,
-  opts: { all?: boolean; thresholds?: Record<string, number> } = {},
+  opts: {
+    all?: boolean;
+    thresholds?: Record<string, number>;
+    coordination?: EnvelopeCoordination | undefined;
+  } = {},
 ): string {
   return JSON.stringify(buildEnvelope(result, opts)) + '\n';
 }

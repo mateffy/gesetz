@@ -1,7 +1,7 @@
 import * as nodePath from 'node:path';
 import { Effect } from 'effect';
 import type { Rule, Violation } from '@gesetz/core';
-import { execTool, FileFilter } from '@gesetz/core';
+import { execTool, FileFilter, scopedPatterns, toolWatchPatterns } from '@gesetz/core';
 
 export interface PhpstanOptions {
   /** Glob pattern(s) to analyse. If omitted, phpstan analyses the configured paths. */
@@ -136,14 +136,31 @@ export function phpstan(opts: PhpstanOptions = {}): Rule {
     return yield* Effect.promise(() => executePhpstan(opts, id, bin, cwd, memoryLimit, patterns));
   });
 
+  // PHPStan analyses files or directories; the fallback is the whole project and
+  // the config files, so editing phpstan.neon re-runs the analysis.
+  const projectPatterns: string[] = defaultPatterns ?? [
+    '**/*.php',
+    'phpstan.neon',
+    'phpstan.neon.*',
+  ];
+
   return {
     id,
     description,
     run,
     category: opts.category,
     project: {
-      patterns: defaultPatterns ?? ['**/*.php', 'phpstan.neon', 'phpstan.neon.*'],
-      run: () => executePhpstan(opts, id, bin, cwd, memoryLimit, defaultPatterns),
+      patterns: projectPatterns,
+      run: (ctx) => {
+        // Static analysis reports per file, so only the files this scan reprocessed
+        // need analysing; see the note in the oxfmt adapter about examinedPaths.
+        const scoped = scopedPatterns(ctx.changedFiles, projectPatterns);
+        if (scoped === null) return Promise.resolve({ violations: [], examinedPaths: [] });
+        return executePhpstan(opts, id, bin, cwd, memoryLimit, scoped).then((violations) => ({
+          violations,
+          examinedPaths: scoped,
+        }));
+      },
     },
   };
 }

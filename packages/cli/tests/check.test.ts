@@ -1,0 +1,132 @@
+import { describe, it, expect } from 'vitest';
+import type { CategoryThreshold, Rule } from '@gesetz/core';
+import { resolveCheckScope } from '../src/check';
+
+const rule = (id: string, category: string | undefined): Rule =>
+  ({ id, description: id, category }) as Rule;
+
+const RULES: Rule[] = [
+  rule('no-console-log', 'cleanup'),
+  rule('no-magic-numbers', 'cleanup'),
+  rule('require-strict-types', 'strictness'),
+  rule('no-category-rule', undefined),
+];
+
+const THRESHOLDS: CategoryThreshold[] = [
+  { category: 'cleanup', minScore: 7 },
+  { category: 'strictness', minScore: 10 },
+];
+
+describe('resolveCheckScope', () => {
+  it('keeps every rule and the configured thresholds when nothing is narrowed', () => {
+    const scope = resolveCheckScope({
+      rules: RULES,
+      configuredThresholds: THRESHOLDS,
+      categoryFilter: undefined,
+      thresholdOverride: undefined,
+    });
+    expect(scope.rules.map((r) => r.id)).toEqual(RULES.map((r) => r.id));
+    expect(scope.thresholds).toEqual(THRESHOLDS);
+  });
+
+  it('keeps only the requested categories', () => {
+    const scope = resolveCheckScope({
+      rules: RULES,
+      configuredThresholds: THRESHOLDS,
+      categoryFilter: 'cleanup',
+      thresholdOverride: undefined,
+    });
+    expect(scope.rules.map((r) => r.id)).toEqual(['no-console-log', 'no-magic-numbers']);
+  });
+
+  it('accepts several categories, with spaces', () => {
+    const scope = resolveCheckScope({
+      rules: RULES,
+      configuredThresholds: THRESHOLDS,
+      categoryFilter: 'cleanup, strictness',
+      thresholdOverride: undefined,
+    });
+    expect(scope.rules.map((r) => r.id)).toEqual([
+      'no-console-log',
+      'no-magic-numbers',
+      'require-strict-types',
+    ]);
+  });
+
+  it('never selects a rule with no category', () => {
+    const scope = resolveCheckScope({
+      rules: RULES,
+      configuredThresholds: THRESHOLDS,
+      categoryFilter: 'cleanup,strictness',
+      thresholdOverride: undefined,
+    });
+    expect(scope.rules.map((r) => r.id)).not.toContain('no-category-rule');
+  });
+
+  it('leaves the configured thresholds alone when only filtering', () => {
+    const scope = resolveCheckScope({
+      rules: RULES,
+      configuredThresholds: THRESHOLDS,
+      categoryFilter: 'cleanup',
+      thresholdOverride: undefined,
+    });
+    expect(scope.thresholds).toEqual(THRESHOLDS);
+  });
+
+  it('replaces the thresholds for the categories that will run', () => {
+    const scope = resolveCheckScope({
+      rules: RULES,
+      configuredThresholds: THRESHOLDS,
+      categoryFilter: undefined,
+      thresholdOverride: 3,
+    });
+    expect(scope.thresholds).toEqual([
+      { category: 'cleanup', minScore: 3 },
+      { category: 'strictness', minScore: 3 },
+    ]);
+  });
+
+  it('applies the override only to the filtered categories', () => {
+    // `--category strictness --threshold 3` scores strictness against 3 and says
+    // nothing about cleanup.
+    const scope = resolveCheckScope({
+      rules: RULES,
+      configuredThresholds: THRESHOLDS,
+      categoryFilter: 'strictness',
+      thresholdOverride: 3,
+    });
+    expect(scope.thresholds).toEqual([{ category: 'strictness', minScore: 3 }]);
+  });
+
+  it('produces no thresholds when a filter matches nothing', () => {
+    const scope = resolveCheckScope({
+      rules: RULES,
+      configuredThresholds: THRESHOLDS,
+      categoryFilter: 'no-such-category',
+      thresholdOverride: 5,
+    });
+    expect(scope.rules).toEqual([]);
+    expect(scope.thresholds).toEqual([]);
+  });
+
+  it('ignores empty entries in the category list', () => {
+    const scope = resolveCheckScope({
+      rules: RULES,
+      configuredThresholds: THRESHOLDS,
+      categoryFilter: 'cleanup,,  ,',
+      thresholdOverride: undefined,
+    });
+    expect(scope.rules.map((r) => r.id)).toEqual(['no-console-log', 'no-magic-numbers']);
+  });
+
+  it('does not mutate the rules it is given', () => {
+    const scope = resolveCheckScope({
+      rules: RULES,
+      configuredThresholds: THRESHOLDS,
+      categoryFilter: 'cleanup',
+      thresholdOverride: 1,
+    });
+    scope.rules.push(rule('added-by-the-caller', 'cleanup'));
+    expect(RULES).toHaveLength(4);
+  });
+});

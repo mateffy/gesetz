@@ -159,7 +159,7 @@ export interface Rule {
   readonly project?:
     | {
         readonly patterns: readonly string[];
-        readonly run: (ctx: ProjectRuleContext) => Promise<Violation[]>;
+        readonly run: (ctx: ProjectRuleContext) => Promise<ProjectRuleOutcome>;
       }
     | undefined;
 }
@@ -190,6 +190,23 @@ export interface NetworkFileLike {
 }
 
 /** Minimal network surface project rules are allowed to see. */
+/**
+ * What a project rule found, and which paths it looked at.
+ *
+ * Violation markers for a project rule are replaced wholesale, so a rule that
+ * examines only some files must say which ones: without `examinedPaths`, the
+ * marks for every path it did not mention are cleared, and a violation in a file
+ * nobody looked at silently disappears. A rule that examines the whole project
+ * omits it and keeps the wholesale behaviour.
+ */
+export type ProjectRuleOutcome = readonly Violation[] | ProjectRuleResult;
+
+export interface ProjectRuleResult {
+  readonly violations: readonly Violation[];
+  /** The paths this run examined. Absent means the whole project. */
+  readonly examinedPaths?: readonly string[] | undefined;
+}
+
 export interface ProjectRuleContext {
   readonly network: {
     glob(pattern: string): Promise<readonly NetworkFileLike[]>;

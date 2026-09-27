@@ -82,6 +82,50 @@ describe('oxfmt adapter', () => {
     expect(violations[0]?.path).toBe('src/main.rs');
   });
 
+  describe('project runs scope the tool to the changed files', () => {
+    /** The argv the adapter handed to the tool. */
+    const argsOf = (): string[] =>
+      (childProcess.execFileSync as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[1] as string[];
+
+    it('passes only the files this scan reprocessed', async () => {
+      (childProcess.execFileSync as ReturnType<typeof vi.fn>).mockImplementation(() => '');
+      const rule = oxfmt({ pattern: 'src/**/*.ts', cwd: '/project', bin: 'oxfmt' });
+      const outcome = await rule.project!.run({
+        network: { glob: async () => [], file: async () => null },
+        changedFiles: ['src/a.ts', 'src/b.ts'],
+        rootDir: '/project',
+      });
+      expect(argsOf()).toEqual(['--list-different', 'src/a.ts', 'src/b.ts']);
+      expect(outcome).toEqual({ violations: [], examinedPaths: ['src/a.ts', 'src/b.ts'] });
+    });
+
+    it('does not call the tool at all when no changed file matches', async () => {
+      // Null from scopedPatterns means "nothing to do". Handing the tool an empty
+      // list instead would make it scan nothing and report success, which looks
+      // exactly like a clean project.
+      (childProcess.execFileSync as ReturnType<typeof vi.fn>).mockImplementation(() => '');
+      const rule = oxfmt({ pattern: 'src/**/*.ts', cwd: '/project', bin: 'oxfmt' });
+      const outcome = await rule.project!.run({
+        network: { glob: async () => [], file: async () => null },
+        changedFiles: ['src/a.php'],
+        rootDir: '/project',
+      });
+      expect(childProcess.execFileSync).not.toHaveBeenCalled();
+      expect(outcome).toEqual({ violations: [], examinedPaths: [] });
+    });
+
+    it('reports the files it examined, so unexamined marks are left alone', async () => {
+      (childProcess.execFileSync as ReturnType<typeof vi.fn>).mockImplementation(() => 'src/a.ts');
+      const rule = oxfmt({ pattern: 'src/**/*.ts', cwd: '/project', bin: 'oxfmt' });
+      const outcome = await rule.project!.run({
+        network: { glob: async () => [], file: async () => null },
+        changedFiles: ['src/a.ts'],
+        rootDir: '/project',
+      });
+      expect('examinedPaths' in outcome && outcome.examinedPaths).toEqual(['src/a.ts']);
+    });
+  });
+
   describe('FileFilter integration', () => {
     it('passes FileFilter patterns when --files is active', async () => {
       const spy = childProcess.execFileSync as ReturnType<typeof vi.fn>;

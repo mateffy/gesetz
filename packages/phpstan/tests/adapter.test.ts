@@ -151,6 +151,40 @@ describe('phpstan adapter', () => {
     );
   });
 
+  describe('project runs scope the tool to the changed files', () => {
+    it('passes only the files this scan reprocessed', async () => {
+      (childProcess.execFileSync as ReturnType<typeof vi.fn>).mockImplementation(
+        () => '{"files":{}}',
+      );
+      const rule = phpstan({ pattern: 'src/**/*.ts', cwd: '/project' });
+      const outcome = await rule.project!.run({
+        network: { glob: async () => [], file: async () => null },
+        changedFiles: ['src/a.ts', 'src/b.ts'],
+        rootDir: '/project',
+      });
+      const args = (childProcess.execFileSync as ReturnType<typeof vi.fn>).mock.calls.at(
+        -1,
+      )?.[1] as string[];
+      expect(args).toContain('src/a.ts');
+      expect(args).toContain('src/b.ts');
+      expect(outcome).toEqual({ violations: [], examinedPaths: ['src/a.ts', 'src/b.ts'] });
+    });
+
+    it('does not call the tool at all when no changed file matches', async () => {
+      (childProcess.execFileSync as ReturnType<typeof vi.fn>).mockImplementation(
+        () => '{"files":{}}',
+      );
+      const rule = phpstan({ pattern: 'src/**/*.ts', cwd: '/project' });
+      const outcome = await rule.project!.run({
+        network: { glob: async () => [], file: async () => null },
+        changedFiles: ['src/a.php'],
+        rootDir: '/project',
+      });
+      expect(childProcess.execFileSync).not.toHaveBeenCalled();
+      expect(outcome).toEqual({ violations: [], examinedPaths: [] });
+    });
+  });
+
   describe('FileFilter integration', () => {
     it('passes FileFilter patterns to phpstan when --files is active', async () => {
       const spy = childProcess.execFileSync as ReturnType<typeof vi.fn>;

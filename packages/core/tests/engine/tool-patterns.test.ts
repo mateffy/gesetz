@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import micromatch from 'micromatch';
-import { toolWatchPatterns } from '../../src/engine/tool-patterns';
+import { scopedPatterns, toolWatchPatterns } from '../../src/engine/tool-patterns';
 
 describe('toolWatchPatterns', () => {
   it('turns a directory into a recursive glob', () => {
@@ -72,5 +72,47 @@ describe('toolWatchPatterns', () => {
     const watch = toolWatchPatterns(['src']);
     expect(micromatch.some(['src/a/b.ts'], watch, { dot: true })).toBe(true);
     expect(micromatch.some(['packages/a/b.ts'], watch, { dot: true })).toBe(false);
+  });
+});
+
+describe('scopedPatterns', () => {
+  it('returns the changed files that match the tool globs', () => {
+    expect(scopedPatterns(['src/a.ts', 'src/b.php'], ['src/**/*.ts'])).toEqual(['src/a.ts']);
+  });
+
+  it('returns null when no changed file matches, meaning "nothing to do"', () => {
+    // Null is distinct from []: [] would make a tool scan nothing and report a
+    // clean project, which is the fail-open shape this returns null to avoid.
+    expect(scopedPatterns(['src/a.php'], ['src/**/*.ts'])).toBeNull();
+  });
+
+  it('returns null for an empty changed list', () => {
+    expect(scopedPatterns([], ['src/**/*.ts'])).toBeNull();
+  });
+
+  it('ignores paths outside the project', () => {
+    expect(scopedPatterns(['../elsewhere/a.ts'], ['src/**/*.ts'])).toBeNull();
+  });
+
+  it('keeps every match, in the order they were given', () => {
+    expect(scopedPatterns(['src/z.ts', 'src/a.ts', 'src/b.ts'], ['src/**/*.ts'])).toEqual([
+      'src/z.ts',
+      'src/a.ts',
+      'src/b.ts',
+    ]);
+  });
+
+  it('accepts a directory-style tool pattern through its watch glob', () => {
+    // `oxfmt({ pattern: 'packages' })` becomes `packages/**\/*` for watching, and
+    // that is what changed files must be matched against.
+    expect(scopedPatterns(['packages/cli/src/a.ts'], toolWatchPatterns(['packages']))).toEqual([
+      'packages/cli/src/a.ts',
+    ]);
+  });
+
+  it('does not scope a rule whose tool config file changed', () => {
+    // A changed config file is not a file to lint, so the scope comes back null
+    // and the tool runs over the project instead.
+    expect(scopedPatterns(['.oxfmtrc.json'], toolWatchPatterns(['packages']))).toBeNull();
   });
 });

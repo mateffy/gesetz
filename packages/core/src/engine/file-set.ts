@@ -1,15 +1,16 @@
 /**
- * Fingerprint of the project's file set.
+ * What the project tree looks like right now: which files exist, and when each
+ * was last written.
  *
- * A check may consult files other than the one it is running for — `requireTest`
- * looks for a test file beside the source, `requireSibling` for a sibling. Those
- * answers change when a file is added or removed, but no *existing* file's
- * content changes, so a content-keyed cache would reuse the marker it stored
- * last time and the violation would outlive the file that fixed it.
+ * Two callers need this. A rule's cache key mixes in the file *set*, because a
+ * check may consult files other than the one it runs for — `requireTest` looks
+ * for a test file beside the source — so an added or deleted file must
+ * invalidate answers that depended on it. Concurrent `gesetz check` processes
+ * compare the whole tree state, so that a run one of them already performed can
+ * answer for the others.
  *
- * Mixing this fingerprint into a rule's cache key makes a change to the file set
- * reprocess everything, which is the only sound answer for a check that reads
- * the file system.
+ * Both are one walk plus one `stat` per file. Reading file *contents* is the
+ * cost this exists to avoid; contents are hashed per file by the scan.
  */
 import { createHash } from 'node:crypto';
 import * as nodeFs from 'node:fs';
@@ -27,11 +28,8 @@ const NEVER_SOURCE = new Set([
   'node_modules',
 ]);
 
-/**
- * Paths only, never contents: cheap, and contents are already hashed per file.
- * The sort makes the result independent of directory order.
- */
-export function fileSetFingerprint(rootDir: string): string {
+/** Sorted repo-relative paths of every file, skipping `NEVER_SOURCE`. */
+function walkPaths(rootDir: string): string[] {
   const paths: string[] = [];
   const walk = (dir: string): void => {
     let entries: nodeFs.Dirent[];
@@ -49,5 +47,61 @@ export function fileSetFingerprint(rootDir: string): string {
   };
   walk(rootDir);
   paths.sort();
+  return paths;
+}
+
+function fingerprintPaths(paths: readonly string[]): string {
   return createHash('sha256').update(paths.join('\n')).digest('hex');
+}
+
+/**
+ * Fingerprint of the set of paths under `rootDir`.
+ *
+ * Paths only, never contents: cheap, and contents are already hashed per file.
+ * The sort makes the result independent of directory order.
+ */
+export function fileSetFingerprint(rootDir: string): string {
+  return fingerprintPaths(walkPaths(rootDir));
+}
+
+export interface TreeState {
+  /** sha256 over the sorted relative paths. */
+  readonly pathsFingerprint: string;
+  /** Relative path → `${mtimeNs}:${size}`. */
+  readonly statMap: Readonly<Record<string, string>>;
+}
+
+/**
+ * The file set plus each file's metadata.
+ *
+ * ponytail: metadata equality is not proof of content equality. A writer that
+ * restores mtimes exactly, or writes inside the same nanosecond as the recorded
+ * one, is not detected. `--standalone` and `--full` skip reuse entirely.
+ */
+export function treeStateFor(rootDir: string): TreeState {
+  const paths = walkPaths(rootDir);
+  const statMap: Record<string, string> = {};
+  for (const relativePath of paths) {
+    try {
+      const stats = nodeFs.statSync(nodePath.join(rootDir, relativePath), { bigint: true });
+      statMap[relativePath] = `${stats.mtimeNs}:${stats.size}`;
+    } catch {
+      // Vanished between the walk and the stat, so it is not part of any state.
+      // Leaving it out changes the path count, so a comparison against a complete
+      // state refuses the reuse rather than accepting a stale one.
+      continue;
+    }
+  }
+  return { pathsFingerprint: fingerprintPaths(paths), statMap };
+}
+
+/** True when two tree states describe the same files with the same metadata. */
+export function treeStatesMatch(a: TreeState, b: TreeState): boolean {
+  if (a.pathsFingerprint !== b.pathsFingerprint) return false;
+  const aKeys = Object.keys(a.statMap);
+  if (aKeys.length !== Object.keys(b.statMap).length) return false;
+  for (const key of aKeys) {
+    if (a.statMap[key] !== b.statMap[key]) return false;
+  }
+  return true;
 }

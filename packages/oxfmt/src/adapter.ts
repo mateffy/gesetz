@@ -1,7 +1,7 @@
 import * as nodePath from 'node:path';
 import { Effect } from 'effect';
 import type { Rule, Violation } from '@gesetz/core';
-import { FileFilter, execTool, toolWatchPatterns } from '@gesetz/core';
+import { FileFilter, execTool, scopedPatterns, toolWatchPatterns } from '@gesetz/core';
 
 export interface OxfmtOptions {
   /**
@@ -94,7 +94,18 @@ export function oxfmt(opts: OxfmtOptions = {}): Rule {
     category: opts.category,
     project: {
       patterns: toolWatchPatterns(defaultPatterns),
-      run: () => executeOxfmt(opts, id, bin, cwd, defaultPatterns),
+      run: (ctx) => {
+        // A formatter's answer for a file depends only on that file, so only the
+        // files this scan reprocessed need answering. Reporting `examinedPaths` is
+        // what lets the marks for untouched files stand: without it the store
+        // would clear them and a violation would vanish unexamined.
+        const scoped = scopedPatterns(ctx.changedFiles, defaultPatterns);
+        if (scoped === null) return Promise.resolve({ violations: [], examinedPaths: [] });
+        return executeOxfmt(opts, id, bin, cwd, scoped).then((violations) => ({
+          violations,
+          examinedPaths: scoped,
+        }));
+      },
     },
   };
 }

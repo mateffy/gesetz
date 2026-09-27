@@ -1,7 +1,7 @@
 import * as nodePath from 'node:path';
 import { Effect } from 'effect';
 import type { Rule, Violation } from '@gesetz/core';
-import { FileFilter, toolWatchPatterns } from '@gesetz/core';
+import { FileFilter, scopedPatterns, toolWatchPatterns } from '@gesetz/core';
 
 export interface EslintOptions {
   pattern?: string | string[];
@@ -142,7 +142,17 @@ export function eslint(opts: EslintOptions = {}): Rule {
         '.eslintrc',
         '.eslintrc.*',
       ]),
-      run: () => executeEslint(opts, id, cwd, defaultPatterns),
+      run: (ctx) => {
+        // A linter's answer for a file depends only on that file, so only the files
+        // this scan reprocessed need answering; reporting `examinedPaths` is what
+        // keeps the marks for untouched files instead of clearing them unexamined.
+        const scoped = scopedPatterns(ctx.changedFiles, defaultPatterns);
+        if (scoped === null) return Promise.resolve({ violations: [], examinedPaths: [] });
+        return executeEslint(opts, id, cwd, scoped).then((violations) => ({
+          violations,
+          examinedPaths: scoped,
+        }));
+      },
     },
   };
 }
