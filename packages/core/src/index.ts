@@ -74,7 +74,7 @@ export type {
 // ─── Exec helpers ─────────────────────────────────────────────────────────────
 export { execTool, runWithTempFile, extractLocation } from './engine/exec';
 export { scopedPatterns, toolWatchPatterns } from './engine/tool-patterns';
-export { fileSetFingerprint, treeStateFor, treeStatesMatch } from './engine/file-set';
+export { listFiles, treeStateFor, treeStatesMatch } from './engine/file-set';
 export type { TreeState } from './engine/file-set';
 export {
   coordinateRun,

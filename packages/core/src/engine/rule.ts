@@ -77,7 +77,19 @@ export interface CheckServices {
  * A single-file analysis function. Returns a promise of violations.
  * Errors are absorbed by the runner — never throw (return [] on failure).
  */
-export type Check = (file: File, services: CheckServices) => Promise<Violation[]>;
+export type Check = ((file: File, services: CheckServices) => Promise<Violation[]>) & {
+  /**
+   * True when this check's answer for a file depends on which *other* files
+   * exist — `requireTest` looks for a test file beside the source.
+   *
+   * Such a check cannot be cached against the file's own content: adding the
+   * missing file changes the answer without touching the file. Rules made only of
+   * these checks are compiled as project rules, which re-run when any file is
+   * added or removed, instead of being tied to a fingerprint of the whole file
+   * set — a fingerprint that would invalidate every other rule's cache too.
+   */
+  needsFileSet?: boolean;
+};
 
 /**
  * A named rule that runs against the entire project context.

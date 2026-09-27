@@ -1,7 +1,6 @@
 import * as childProcess from 'node:child_process';
 import { Effect } from 'effect';
 import micromatch from 'micromatch';
-import { fileSetFingerprint } from './file-set';
 import { expandRequest, rulesForRequest } from '../backend/request-scope';
 import { createNetwork } from 'netzwerk';
 import type { NetworkStorageConfig } from 'netzwerk';
@@ -240,7 +239,6 @@ export const runAll = (
         : { ...config, rules: rulesForRequest(config.rules, requestedPaths) };
     const compileCtx: CompileContext = {
       rootDir: config.projectRoot,
-      fileSet: fileSetFingerprint(config.projectRoot),
       requestedPaths,
       getServices: () => services,
       pendingViolations,

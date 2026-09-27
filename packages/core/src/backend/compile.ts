@@ -35,14 +35,17 @@ import { SyntaxTree, SyntaxTreeError } from '../services/syntax-tree';
 import { syntaxExtension } from './syntax-extension';
 import { violationToMarker } from './violation-markers';
 import { storeProjectViolations } from './project-violations';
+import { compileFileSetRule, needsFileSet } from './file-set-rule';
+import {
+  hasStoredMarkers,
+  networkFileFromStorage,
+  projectRuleContext,
+  refreshSharedPaths,
+  ruleFingerprint,
+} from './compile-shared';
 
 export interface CompileContext {
   readonly rootDir: string;
-  /**
-   * Fingerprint of the project's file set. Mixed into every rule fingerprint so
-   * that adding or deleting a file invalidates cached violations.
-   */
-  readonly fileSet?: string | undefined;
   /**
    * Paths the caller asked about (`--files`), or null for an unscoped run.
    * Rules are compiled to look only at these, which is what makes a scoped run
@@ -68,26 +71,6 @@ export interface CompileContext {
   readonly sharedPaths?: Set<string>;
 }
 
-function hash(material: unknown): string {
-  return createHash('sha256').update(JSON.stringify(material)).digest('hex');
-}
-
-function ruleFingerprint(rule: Rule, fileSet: string): string {
-  return hash({
-    fileSet,
-    id: rule.id,
-    category: rule.category ?? null,
-    patterns: rule.perFile?.patterns ?? rule.project?.patterns ?? null,
-    exclusions: rule.perFile?.exclusions ?? null,
-    checks: rule.perFile?.checks.map((fn) => fn.toString()) ?? null,
-    predicates: rule.perFile?.predicates.map((fn) => fn.toString()) ?? null,
-    // NOTE: fn.toString() misses closed-over constant changes; checks built
-    // by factories take options objects, so editing gesetz.config.ts changes
-    // the produced source. Dynamically generated checks must bump the config
-    // to invalidate — same class of risk as any build cache.
-  });
-}
-
 function gesetzFileFromSource(file: SourceFile, content: string): File {
   const relativePath = file.relativePath;
   const name = relativePath.slice(relativePath.lastIndexOf('/') + 1);
@@ -107,13 +90,47 @@ function gesetzFileFromSource(file: SourceFile, content: string): File {
   };
 }
 
+/**
+ * A `File` for a record in storage, without going through a `SourceFile`.
+ *
+ * `gesetzFileFromSource` takes netzwerk's own source-file type, which the scan
+ * builds. A project rule walks the stored records instead, so it builds the same
+ * shape from a path and the content it read.
+ */
+function fileFromRecord(rootDir: string, relativePath: string, content: string): File {
+  const name = relativePath.slice(relativePath.lastIndexOf('/') + 1);
+  const ext = nodePath.extname(name);
+  const stem = ext === '' ? name : name.slice(0, name.length - ext.length);
+  const slash = relativePath.lastIndexOf('/');
+  return {
+    path: relativePath,
+    absolutePath: nodePath.join(rootDir, relativePath),
+    name,
+    stem,
+    ext,
+    dir: slash === -1 ? '' : relativePath.slice(0, slash),
+    content,
+    size: content.length,
+    mtimeMs: 0,
+  };
+}
+
 // ─── per-file rules ──────────────────────────────────────────────────────────
 
+/**
+ * Compiles a rule whose checks consult the file system into a project rule.
+ *
+ * It runs once per scan over every file the rule matches, in memory — no parsing,
+ * just `fs.exists` against the network — and reports which paths it examined, so
+ * the marks of everything else are left alone. It re-runs whenever a file is
+ * added, changed or removed inside its patterns, which is exactly when a
+ * `requireSibling`-style answer can change.
+ */
 function compilePerFileRule(rule: Rule, ctx: CompileContext): NetworkExtension {
   const perFile = rule.perFile!;
   return {
     name: rule.id,
-    fingerprint: ruleFingerprint(rule, ctx.fileSet ?? ''),
+    fingerprint: ruleFingerprint(rule),
     // Deliberately NOT narrowed to the request. A rule whose file list is narrowed
     // never examines the files it left out, and an unexamined file has no marks —
     // so a later `--files` request for one of them would find nothing to report
@@ -185,67 +202,10 @@ function shimLayers(
 }
 
 /** Storage-backed NetworkFile facade for project rules. */
-async function networkFileFromStorage(
-  storage: ExtensionContext['storage'],
-  rootDir: string,
-  path: string,
-): Promise<NetworkFile> {
-  const stored = await storage.markersFor(path);
-  // Raw `type` plus `extension`, matching what netzwerk hands back for a file it
-  // processed. Prefixing the type instead produced `gesetz-syntax.import`, which
-  // this module's own `markersOf` matched but netzwerk did not: `resolveImportEdges`
-  // requires `type === 'import'` and silently skips anything else, so the import
-  // graph and cycle detection were dead on every path that reads from storage.
-  const markers = stored.map((m) => ({
-    type: m.type,
-    extension: m.extension,
-    data: m.data,
-    ...(m.lines === undefined ? {} : { lines: m.lines }),
-  }));
-  return {
-    path,
-    markers,
-    hasMarker(type: string) {
-      return markers.some((m) => m.type === type);
-    },
-    markersOf(type: string) {
-      return markers.filter((m) => m.type === type) as never;
-    },
-    content: () => readFile(nodePath.join(rootDir, path), 'utf8'),
-  };
-}
-
-function projectRuleContext(
-  extCtx: ExtensionContext,
-  ctx: CompileContext,
-  changedFiles: readonly string[],
-  requestedPaths: readonly string[] | null,
-): ProjectRuleContext {
-  return {
-    network: {
-      glob: async (pattern: string) => {
-        const records = await extCtx.storage.listFiles();
-        return Promise.all(
-          records
-            .filter((record) => globMatch(pattern, record.path))
-            .map((record) => networkFileFromStorage(extCtx.storage, ctx.rootDir, record.path)),
-        );
-      },
-      file: async (path: string) => {
-        if ((await extCtx.storage.getFile(path)) === undefined) return null;
-        return networkFileFromStorage(extCtx.storage, ctx.rootDir, path);
-      },
-    },
-    changedFiles,
-    requestedPaths,
-    rootDir: ctx.rootDir,
-  };
-}
-
 function compileRunOnlyRule(rule: Rule, ctx: CompileContext): NetworkExtension {
   return {
     name: rule.id,
-    fingerprint: ruleFingerprint(rule, ctx.fileSet ?? ''),
+    fingerprint: ruleFingerprint(rule),
 
     // Conservative: re-executes on every scan (legacy behavior). Violation
     // markers are replaced wholesale per path, so warm runs stay correct.
@@ -277,7 +237,7 @@ function compileProjectRule(rule: Rule, ctx: CompileContext): NetworkExtension {
   const project = rule.project!;
   return {
     name: rule.id,
-    fingerprint: ruleFingerprint(rule, ctx.fileSet ?? ''),
+    fingerprint: ruleFingerprint(rule),
 
     async after(entries, extCtx) {
       // Skip when nothing relevant changed — cached markers survive. Runs
@@ -330,25 +290,11 @@ function compileProjectRule(rule: Rule, ctx: CompileContext): NetworkExtension {
 }
 
 /** Refills the shared path set from storage so imports.resolve is fresh. */
-async function refreshSharedPaths(ctx: CompileContext, extCtx: ExtensionContext): Promise<void> {
-  if (ctx.sharedPaths === undefined) return;
-  ctx.sharedPaths.clear();
-  for (const record of await extCtx.storage.listFiles()) ctx.sharedPaths.add(record.path);
-}
-
-async function hasStoredMarkers(
-  storage: ExtensionContext['storage'],
-  ruleId: string,
-): Promise<boolean> {
-  for (const [, markers] of await storage.allMarkers()) {
-    if (markers.some((m) => m.extension === ruleId)) return true;
-  }
-  return false;
-}
-
 /** Compiles one rule to a netzwerk extension. */
 export function compileRule(rule: Rule, ctx: CompileContext): NetworkExtension {
-  if (rule.perFile !== undefined) return compilePerFileRule(rule, ctx);
+  if (rule.perFile !== undefined) {
+    return needsFileSet(rule) ? compileFileSetRule(rule, ctx) : compilePerFileRule(rule, ctx);
+  }
   if (rule.project !== undefined) return compileProjectRule(rule, ctx);
   return compileRunOnlyRule(rule, ctx);
 }

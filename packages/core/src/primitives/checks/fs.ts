@@ -74,7 +74,7 @@ export interface RequireTestOptions {
  */
 export function requireTest(options: RequireTestOptions = {}): Check {
   const suffixes = options.suffixes ?? ['.test.ts', '.test.tsx', '.spec.ts'];
-  return async (file, { fs }) => {
+  const check: Check = async (file, { fs }) => {
     const candidates = testCandidates(file.absolutePath, suffixes);
     for (const candidate of candidates) {
       if (await fs.exists(candidate)) return [];
@@ -89,6 +89,11 @@ export function requireTest(options: RequireTestOptions = {}): Check {
       },
     ];
   };
+  // The answer lives in the file system, not in this file: a rule made only of
+  // these checks is compiled as a project rule so that adding the missing file
+  // re-runs it.
+  check.needsFileSet = true;
+  return check;
 }
 
 /**
@@ -102,7 +107,7 @@ export function requireSibling(
   suffix: string,
   opts: { message?: string; severity?: Violation['severity'] } = {},
 ): Check {
-  return async (file, { fs }) => {
+  const check: Check = async (file, { fs }) => {
     const siblingPath = nodePath.join(nodePath.dirname(file.absolutePath), file.stem + suffix);
     const exists = await fs.exists(siblingPath);
     if (exists) {
@@ -117,6 +122,8 @@ export function requireSibling(
       },
     ];
   };
+  check.needsFileSet = true;
+  return check;
 }
 
 /**
@@ -131,7 +138,7 @@ export function requireChildren(
   requiredPaths: string[],
   opts: { message?: (missing: string) => string } = {},
 ): Check {
-  return async (file, { fs }) => {
+  const check: Check = async (file, { fs }) => {
     const dir = nodePath.dirname(file.absolutePath);
     const violations: Violation[] = [];
 
@@ -150,6 +157,8 @@ export function requireChildren(
 
     return violations;
   };
+  check.needsFileSet = true;
+  return check;
 }
 
 /**

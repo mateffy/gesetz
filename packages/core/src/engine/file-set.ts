@@ -59,16 +59,6 @@ function fingerprintPaths(paths: readonly string[]): string {
   return createHash('sha256').update(paths.join('\n')).digest('hex');
 }
 
-/**
- * Fingerprint of the set of paths under `rootDir`.
- *
- * Paths only, never contents: cheap, and contents are already hashed per file.
- * The sort makes the result independent of directory order.
- */
-export function fileSetFingerprint(rootDir: string): string {
-  return fingerprintPaths(listFiles(rootDir));
-}
-
 export interface TreeState {
   /** sha256 over the sorted relative paths. */
   readonly pathsFingerprint: string;

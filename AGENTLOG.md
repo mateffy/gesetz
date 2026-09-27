@@ -1920,7 +1920,7 @@ Fixing and implementing the project-rule scoping system so scoped rules don't wi
 - [x] End-to-end test in `tests/engine/project-rule-scoping.test.ts` proving that a scoped rule on the second run:
   1. Only replaces markers for the files it examined (a.ts violation cleared when fixed)
   2. Leaves markers untouched for files it didn't examine (b.ts violation survives)
-     Without the fix, the second run would clear ALL markers (=0 violations total, a false negative fail-open).
+    Without the fix, the second run would clear ALL markers (=0 violations total, a false negative fail-open).
 
 **Cache DB placement bug discovered while debugging the probe:**
 
@@ -2095,6 +2095,71 @@ Only failures are in **packages/vitest** (2 tests, different agent's WIP).
 - [x] `README.md` — inserted a paragraph about `--files` behavior; updated cache-ignoring bullet with explanation
 
 **Key insights from this fix:**
+
 - gesetz's own cache DB (and its `-wal`/`-shm` shards) are regular files on disk. If not gitignored, netzwerk discovers them as project source, hashes them on every run, and their churn makes scan counts non-deterministic.
 - This is why `exclude: ['.gesetz/**']` exists on the syntax extension — but it only prevents *parsing*, not *discovery*. Only `.gitignore` prevents discovery.
 - The README already says to add `.gesetz/` to `.gitignore`; this fix ensures the test follows the documented practice.
+
+## 2026-09-27 19:49:33Z Benchmarking gesetz on brave-tiger (13k file repo)
+
+```session
+01a0d92e-338b-7628-a543-fca767ff4d5f
+```
+
+**New task**: User asked about slow `gesetz check` on a large monorepo (brave-tiger). Investigating whether rc.4 or my latest work is faster.
+
+**Repo context**: 12,952 tracked files (6,033 PHP, 896 TS/TSX). Their `node_modules/@gesetz/cli` and `@gesetz/core` symlink into my working repo. 14 untracked files in `immoui/src/components/primitives` — the user's scoped run targeted these (which don't exist in git → `git ls-files` returned 0).
+
+**Key discovery — dist is stale**: Core's dist was built at 21:11 but is missing `rulesForRequest` (—files work reduction), `examinedPaths` (adapter contract), and `expandRequest`/`requestedPaths` (request-scope). Only `scopedPatterns` and `coordinateRun` are present. The source was modified later (21:00-21:01). Need to **rebuild** before measuring.
+
+**Plan**:
+
+- [ ] Rebuild core + CLI (`pnpm build`)
+- [ ] Verify dist has `rulesForRequest` etc.
+- [ ] Benchmark: scan-only time (nothing matches) → floor cost
+- [ ] Benchmark: warm cache repeat
+- [ ] Benchmark: with `--files immoui/src/components/primitives/*` (their scoped run)
+- [ ] Compare: their original run time (rc.4) vs my latest
+- [ ] Report findings to user with concrete numbers
+
+**Notes from exploration so far**:
+
+- Their repo has no `.gesetz/` in `.gitignore` (they have the line but commented? Let me check — line 58 has `.gesetz/`).
+- rc.4's `--files` doesn't reduce work (my code does, but only when core's dist is current).
+- The 14 primitives files are untracked → my code would still scan them (netzwerk picks up untracked files too). But `--files` narrowing would only examine those 14 files, skipping the other 12,938.
+
+## 2026-09-27 19:56:45Z Extracting shared helpers + file-set-rule module, flattening nesting, gates passing
+
+```session
+01a0d92e-338b-7628-a543-fca767ff4d5f
+```
+
+**Root cause identified**: The file-set fingerprint mixed into every rule's cache key was invalidating *all* rules whenever any file was added/removed. In a 9,247-file repo, adding one file caused full reprocess (150s). The fix: existence-dependent checks (`requireTest`, `requireSibling`, `requireChildren`) are now marked with `needsFileSet` and compiled as project rules that only re-run when files match their patterns, instead of poisoning every rule's fingerprint.
+
+**Done so far**:
+
+- [x] Added `Check.needsFileSet?: boolean` marker to the `Check` type in `rule.ts`
+- [x] Marked `requireTest`, `requireSibling`, `requireChildren` with `needsFileSet = true` in `fs.ts`
+- [x] Added `needsFileSet()` detection function in `compile.ts`
+- [x] Added `compileFileSetRule()` — project-rule form that runs checks over all matching files when a relevant file is added/removed
+- [x] Changed `ruleFingerprint()` to no longer accept/use the file set parameter
+- [x] Changed `compilePerFileRule()` to use fingerprint without file set
+- [x] Changed `compileRule()` to route `needsFileSet` rules to `compileFileSetRule` instead of per-file
+- [x] Removed all `ctx.fileSet` usage from fingerprint calls
+- [x] Extracted `needsFileSet` + `compileFileSetRule` into `file-set-rule.ts` (compile.ts was growing past 400 lines)
+- [x] Extracted shared helpers (`networkFileFromStorage`, `refreshSharedPaths`, `hasStoredMarkers`) into `compile-shared.ts` to avoid a circular import between compile.ts ↔ file-set-rule.ts
+- [x] Moving `projectRuleContext` into `compile-shared.ts` to get compile.ts under 400 lines
+- [x] Fixed imports — `compile-shared.test.ts` had wrong types (`File`, `Rule` not exported from `compile`), fixed by importing from their own modules
+- [x] Flattened loop nesting in `file-set-rule.ts` (extracted `ruleCovers()` and `runChecks()` helpers) — was triggering `no-deep-nesting` dogfood rule at 6 levels
+
+**Remaining**:
+
+- [x] Write tests for `compile-shared.ts` (the three helpers + `projectRuleContext` + `ruleFingerprint`)
+- [x] Write tests for `file-set-rule.ts` (`needsFileSet` + one integration case via `runAll`)
+- [x] Build (`pnpm build`) — must succeed
+- [x] Run all gates — 53 test files, 532 tests pass, typecheck clean, build clean, dogfood passes (0 violations)
+- [ ] Remove `fileSetFingerprint` from `file-set.ts` (now unused) and update/delete its tests
+- [ ] Handle `ctx.fileSet` in `runner.ts` — remove the field from compile context (no longer needed) or keep for other uses?
+- [ ] Measure in their repo: adding a file should show `+1 ~0 -0 =9247 reused` instead of +9247
+
+**User instruction**: Fix the file-set fingerprint regression — existence checks become project rules instead of poisoning every rule's cache. Measured in their 13k-file monorepo.
