@@ -1,7 +1,14 @@
 import * as nodePath from 'node:path';
+import * as nodeFs from 'node:fs';
 import { Effect } from 'effect';
 import type { Rule, Violation } from '@gesetz/core';
-import { FileFilter, execTool, extractLocation, toolWatchPatterns } from '@gesetz/core';
+import {
+  FileFilter,
+  execTool,
+  extractLocation,
+  runWithTempFile,
+  toolWatchPatterns,
+} from '@gesetz/core';
 
 /** Lines of a failure message kept as violation context. */
 const FAILURE_CONTEXT_LINES = 6;
@@ -45,10 +52,10 @@ interface VitestJsonResult {
   }>;
 }
 
-function parseVitestJson(stdout: string, cwd: string, ruleId: string): Violation[] {
+function parseVitestJson(report: string, cwd: string, ruleId: string): Violation[] {
   let parsed: VitestJsonResult;
   try {
-    parsed = JSON.parse(stdout) as VitestJsonResult;
+    parsed = JSON.parse(report) as VitestJsonResult;
   } catch (cause) {
     return [
       {
@@ -105,24 +112,47 @@ async function executeVitest(
   cwd: string,
   patterns: readonly string[] | null,
 ): Promise<Violation[]> {
-  const args: string[] = ['run', '--reporter=json'];
+  return Effect.runPromise(
+    runWithTempFile('gesetz-vitest-', 'report.json', (tmpFile) =>
+      Effect.gen(function* () {
+        const args: string[] = ['run', '--reporter=json', `--outputFile=${tmpFile}`];
 
-  if (opts.configFile) args.push('--config', opts.configFile);
-  if (opts.project) {
-    const projects = Array.isArray(opts.project) ? opts.project : [opts.project];
-    for (const p of projects) args.push('--project', p);
-  }
-  if (patterns) args.push(...patterns);
+        if (opts.configFile) args.push('--config', opts.configFile);
+        if (opts.project) {
+          const projects = Array.isArray(opts.project) ? opts.project : [opts.project];
+          for (const p of projects) args.push('--project', p);
+        }
+        if (patterns) args.push(...patterns);
 
-  const stdout = await Effect.runPromise(
-    execTool(bin, args, cwd, 'vitest', { requireStdout: true }),
+        // A failing test run exits non-zero, which is the expected case here: the
+        // report file is the result, not the exit code. So the exit is ignored and
+        // the file is read instead.
+        yield* execTool(bin, args, cwd, 'vitest').pipe(Effect.ignore);
+
+        let json = '';
+        try {
+          json = nodeFs.readFileSync(tmpFile, 'utf-8');
+        } catch {
+          json = '';
+        }
+
+        if (!json.trim()) {
+          return [
+            {
+              rule: id,
+              message:
+                'vitest wrote no JSON report, so nothing was checked. The tool failed to run or to write its report. Fix the tool, then re-run.',
+              path: '.',
+              severity: 'error',
+              source: 'custom',
+            },
+          ];
+        }
+
+        return parseVitestJson(json, cwd, id);
+      }),
+    ),
   );
-
-  // Empty stdout without a non-zero exit is a clean run: the reporter emitted
-  // nothing because nothing ran. A non-zero exit with empty stdout already
-  // died inside execTool.
-  if (!stdout.trim()) return [];
-  return parseVitestJson(stdout, cwd, id);
 }
 
 export function vitest(opts: VitestOptions = {}): Rule {
