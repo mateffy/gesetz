@@ -144,7 +144,9 @@ sys.stdout.buffer.write(bytes(out))`,
         cwd: REPO_ROOT,
         encoding: 'utf8',
         stdio: ['ignore', 'pipe', 'ignore'],
-        timeout: 30000,
+        // Over the suite's load a full `check` in this repository can outlast the
+        // default ceiling: this test is about which bytes come out, not how fast.
+        timeout: 120_000,
       },
     );
     expect(out).not.toMatch(/\u2500/);

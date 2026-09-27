@@ -89,6 +89,11 @@ describe('two concurrent checks in one worktree', () => {
       const outcomes = await Promise.all([first, second]);
 
       const modes = outcomes.map((outcome) => outcome.coordination?.mode);
+      // A missing mode means the envelope was not on stdout at all, so the failure
+      // should say what was there: these two processes run under load, where a
+      // bare `undefined` tells you nothing.
+      const transcript = outcomes.map((outcome) => `[${outcome.stdout.slice(0, 400)}]`).join(' | ');
+      expect(modes, transcript).toContain('ran');
       expect(modes.filter((mode) => mode === 'ran')).toHaveLength(1);
       expect(modes.filter((mode) => mode === 'reused' || mode === 'ran-after-wait')).toHaveLength(
         1,
@@ -126,10 +131,10 @@ describe('two concurrent checks in one worktree', () => {
       const second = runCli(dir, ['--standalone']);
       const outcomes = await Promise.all([first, second]);
 
-      expect(outcomes.map((outcome) => outcome.coordination?.mode)).toEqual([
-        'standalone',
-        'standalone',
-      ]);
+      expect(
+        outcomes.map((outcome) => outcome.coordination?.mode),
+        outcomes.map((outcome) => `[${outcome.stdout.slice(0, 400)}]`).join(' | '),
+      ).toEqual(['standalone', 'standalone']);
       // Standalone means standalone: each process did its own scan.
       expect(outcomes.map((outcome) => scanLines(outcome).length)).toEqual([1, 1]);
     } finally {

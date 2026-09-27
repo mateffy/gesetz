@@ -74,6 +74,8 @@ export type {
 // ─── Exec helpers ─────────────────────────────────────────────────────────────
 export { execTool, runWithTempFile, extractLocation } from './engine/exec';
 export { scopedPatterns, toolWatchPatterns } from './engine/tool-patterns';
+export { DEFAULT_TEST_SUFFIXES, testFilesForPaths } from './backend/test-scope';
+export type { TestScopeOptions } from './backend/test-scope';
 export { listFiles, treeStateFor, treeStatesMatch } from './engine/file-set';
 export type { TreeState } from './engine/file-set';
 export {
@@ -136,7 +138,12 @@ export { select, slugify } from './primitives/select';
 export type { Selector } from './primitives/select';
 
 // ─── Check types ─────────────────────────────────────────────────────────────
-export type { CheckServices, ProjectRuleOutcome, ProjectRuleResult } from './engine/rule';
+export type {
+  CheckServices,
+  ProjectRuleContext,
+  ProjectRuleOutcome,
+  ProjectRuleResult,
+} from './engine/rule';
 
 // ─── Test helpers ─────────────────────────────────────────────────────────────
 export { makeFile, makeCheckServices, runCheck } from './test-helpers';

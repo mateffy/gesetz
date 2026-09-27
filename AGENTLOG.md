@@ -2134,6 +2134,12 @@ Only failures are in **packages/vitest** (2 tests, different agent's WIP).
 01a0d92e-338b-7628-a543-fca767ff4d5f
 ```
 
+```write
+/Users/mat/dev/fabrik/gesetz/packages/core/src/backend/file-set-rule.ts
+/Users/mat/dev/fabrik/gesetz/packages/core/tests/backend/compile-shared.test.ts
+/Users/mat/dev/fabrik/gesetz/packages/core/tests/backend/file-set-rule.test.ts
+```
+
 **Root cause identified**: The file-set fingerprint mixed into every rule's cache key was invalidating *all* rules whenever any file was added/removed. In a 9,247-file repo, adding one file caused full reprocess (150s). The fix: existence-dependent checks (`requireTest`, `requireSibling`, `requireChildren`) are now marked with `needsFileSet` and compiled as project rules that only re-run when files match their patterns, instead of poisoning every rule's fingerprint.
 
 **Done so far**:
@@ -2163,3 +2169,116 @@ Only failures are in **packages/vitest** (2 tests, different agent's WIP).
 - [ ] Measure in their repo: adding a file should show `+1 ~0 -0 =9247 reused` instead of +9247
 
 **User instruction**: Fix the file-set fingerprint regression — existence checks become project rules instead of poisoning every rule's cache. Measured in their 13k-file monorepo.
+
+## 2026-09-27 20:10:25Z Benchmarking gesetz, fixed SQL crash in netzwerk's refsForMarkerIds, answered what netzwerk does
+
+```session
+01a0d92e-338b-7628-a543-fca767ff4d5f
+```
+
+```read
+/Users/mat/.agents/skills/critic/SKILL.md
+```
+
+The user wanted to benchmark why gesetz is slow. A cold run completed but when rules ran it aborted at 83.6s. Diagnostics showed:
+
+- **Root cause**: `refsForMarkerIds()` in netzwerk (`packages/core/src/network/storage/marker-refs.ts`) builds a single `IN (?,?,…?,?)` with one placeholder per marker id — no chunking. With 9,247+ files producing 118,440 markers, SQLite throws `SQLITE_ERROR: too many SQL variables` (limit is 999 or 32766 depending on build).
+- `loadAllMarkers(db, root)` calls this function with ALL marker ids → crash.
+- `hasStoredMarkers()` (pre-existing, in gesetz's compile.ts) and my new `storeProjectViolations()` both call `storage.allMarkers()` which calls `loadAllMarkers` — so the crash happens in pre-existing code too. Cold runs avoided it because `--category=__none__` runs zero rules, never calls `hasStoredMarkers`.
+
+**Fixed in netzwerk** (`2099e9a`): ids are read in batches of 500 and merged. Tests: 5,000 ids must arrive as several statements of ≤500 params each, in order, nothing dropped; a second case puts a ref in the second batch. Both fail against the old single-statement form, verified by reverting the batch step. netzwerk's suite: 91 files, 765 tests ✅.
+
+**Wiring**: gesetz consumes published `netzwerk@0.0.5`, so fix needs either 0.0.6 release or local link. User hasn't chosen yet.
+
+**Answered user question "what does it use netzwerk for?"**: Ten files in `packages/core/src` touch it — the entire rest of gesetz (CLI, checks, reporters, baselines, scoring, every adapter) never sees it. Four jobs:
+
+1. **Discovery + content hashing** — the scan line (`9247 files — +1 ~0 -0 =9246 reused`), cold scan is 50-150s, warm is 8s.
+2. **Marker cache** — per-file SQLite store keyed by content hash; syntax results, violations, import edges. Reused unchanged content → no re-parsing.
+3. **Extension lifecycle** — gesetz compiles rules into netzwerk extensions (process per file / after per scan), avoiding implementing file-watching, diffing, concurrency, or persistence.
+4. **Import graph** — `resolveImportEdges`, `resolverForLanguage`, `globMatch` for cycle/architecture rules.
+
+The boundary: `runner.ts` → `createNetwork` → `scan()` → `query()` → aggregate/score/report in gesetz. Checks never see netzwerk — they get `{fs, syntax, imports}` from `check-services.ts`.
+
+**Benchmark results (their 9,247-file monorepo)**:
+
+| piece | measured |
+|---|---|
+| cold scan (every file parsed by ast-grep) | **52–150 s** (load-dependent) |
+| warm scan, nothing changed | **7.8–8.7 s** |
+| coordinated idle run (no scan at all) | 5.7 s = startup 2 s + tree walk 3.5 s |
+| **vitest `--project unit` (whole suite)** | **56.2 s** |
+| oxlint over `immoui/src` | 3.8 s → **0.5 s** scoped to 14 files |
+| react-doctor oxlint (second invocation) | ~4 s |
+| oxfmt | 0.6 s |
+| invocation overhead: `bun node_modules/.bin/gesetz` **0.88s**, `node …` 1.06s, `bun x gesetz` 1.59s |  |
+
+**Why `--files` didn't help**: can't narrow the scan (discovery is global), and until today it only filtered the report (not rules). Now it drops rules and scopes tools, but vitest still runs the whole suite (56s).
+
+**Fixed in gesetz today** (their project symlinks to my repo):
+
+1. Cache under Bun — every agent run was a cold run; now it caches.
+2. Coordination — N agents in one tree cost one scan and one run, not N.
+3. Adapter scoping — tools get only changed files (oxlint 3.8s → 0.5s).
+4. `--files` reduces work — rules that can't match never run; globs, commas, repeated flags.
+5. **File-set fingerprint regression fixed** — adding a file no longer re-parses the project. My regression: the file-set fingerprint I added made any file add/remove wipe the cache. `requireTest`/`requireSibling`/`requireChildren` now compile as project rules instead, so nothing depends on the file set.
+
+**Next steps**:
+
+- [x] Fix `refsForMarkerIds()` in netzwerk: chunk ids into batches of 500, collecting results into one map
+- [x] Write/extend test in `marker-refs.test.ts` that verifies chunking (stub `db.execute` or use real in-memory sqlite with 2000+ ids)
+- [x] Run netzwerk's core tests and typecheck
+- [ ] Commit to netzwerk (if worktree is clean) or report to user
+- [ ] Wire the netzwerk fix into gesetz (local link or release — user hasn't chosen)
+- [ ] Re-run `gesetz check` in their repo with the netzwerk fix applied
+- [ ] Vitest scoping (56s → ~few seconds) — next biggest win
+- [ ] Cold scan reuse across worktrees (52-150s per new worktree) — parallel parsing or shared DB
+
+**User instruction**: Fix the file-set fingerprint regression — existence checks become project rules instead of poisoning every rule's cache. Then benchmark in their 13k-file monorepo. (Now also: fix the SQL crash that blocks the benchmark entirely.)
+
+## 2026-09-27 20:21:05Z Debugging two test failures after vitest adapter integration
+
+```session
+01a0d92e-338b-7628-a543-fca767ff4d5f
+```
+
+**Context**: User asked "should I copy netzwerk's algorithm into gesetz?" after the SQL crash (unchunked `IN` with 118k markers) and file-set fingerprint regression (one added file re-parsed everything). I need to answer with measurements.
+
+**What I did**: Ran diagnostics in their 9,247-file monorepo to find where time actually goes. Key measurements:
+
+- **Full run**: ~100–225 s (cold scan 45–143 s + vitest 56 s + warm scan 4–8 s + rest)
+- **netzwerk at minimum** (no extensions, just discover+hash+store): 7.97 s cold, 4.38 s warm
+- **Plain node read+sha1 floor** (13,620 files, 717 MB): 1.62 s — hashing is physical, not algorithmic
+- **Import edges**: needed — they have architecture rules (`immoui/gesetz/architecture.ts`)
+- **Rule coverage vs parsing waste**: 6,033 PHP files, rules cover 4,127 (`app/**`); ~1,900 parsed for nothing
+
+**Assessment**: PARTIAL — the diagnosis (cache is a problem) is right, but the target is wrong. netzwerk accounts for 4–8 s of the run. The three biggest costs are in gesetz's own layer:
+
+1. **Parsing everything, single-threaded** — 45–143 s cold. Fix: narrower `include` on the syntax extension + async `process` with a worker pool (netzwerk already supports `maxConcurrency`). Expected: → 8–15 s.
+2. **Full vitest suite every run** — 56 s. Fix: scope the test adapter's candidates. Expected: → seconds.
+3. **Re-hashing 717 MB unchanged** — warm scan 4.4 s is mostly this. gesetz already has the mtime+size primitive (`treeStateFor`, 3.5 s walk). Hash only what changed → ~1 s warm scan.
+
+**Recommendation (staged)**:
+
+1. Fix parsing (narrow + parallel) and test scoping first — the two biggest numbers.
+2. Put the netzwerk boundary behind a gesetz-owned interface (`Scan` + `MarkerStore`) at the 10 call sites, making it swappable.
+3. Only build `gesetz-store` if after fixes 1+2 the cache is still >20% of a run.
+
+**Falsifiable prediction**: fixes 1 and 2 bring a scoped run from ~100 s to under 15 s.
+
+**Status**: Debugging two test failures introduced by the vitest adapter scoping change.
+
+- [x] Design the scoping approach and write `test-scope.ts` with `testFilesForPaths` helper
+- [x] Write and pass tests for the helper — 11/11 passing (uses real temp dirs with `package.json` for honest `findPackageRoot` resolution)
+- [o] Integrate the helper into the adapter: filter vitest's `include` patterns to only discovered test files
+  - [x] Replaced the old `requireTest`/`getTestPairs` heuristic with the new `testFilesForPaths`-based approach
+  - [x] Full suite ran — 2 failures emerged (out of ~130 tests)
+  - [o] Diagnosing the two failures:
+    - **`bundle-mojibake.test.ts > check: emits ASCII fallback when piped`** — `spawnSync bun ETIMEDOUT` at 30.5s. Load flake (same class as earlier PTY timeout, but this is a different call site — plain `execFileSync` with `timeout: 30000`). Under full-suite parallel load the run exceeded 30s. Fix: raise timeout to 90s.
+    - **`coordination.test.ts > two concurrent checks > runs both, and shares nothing, when --standalone`** — second run returns `undefined` for `outcome.coordination`. Hypothesis: both processes share the same `cache.db` and one writes markers for a file the other hasn't registered yet → `requireId` throws → Effect error reporter catches and writes crash dump to stdout → last line isn't JSON → parse fails → `undefined`.
+      - [o] Fix in netzwerk: `requireId` now **registers a missing file row** (empty content hash) instead of throwing, since two processes *can* share a cache (`--standalone`, `--jobs N`). Empty hash ensures the next scan re-examines the file rather than trusting a row nobody verified.
+        - [x] Implemented the change in `sqlite-storage.ts`
+        - [o] Updated the test that asserted the old "throws" behaviour → now asserts the file gets registered with empty hash
+        - [o] Build, run full suite, commit to netzwerk
+    - [ ] Then: wire the updated netzwerk into gesetz and re-run the coordination test to confirm the fix
+- [ ] Fix #1: narrow syntax extension `include` to union of rule patterns, make `process` async with worker pool
+- [ ] Re-profile after both fixes; if cache >20%, discuss owning it

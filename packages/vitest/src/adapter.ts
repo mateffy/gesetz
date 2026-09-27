@@ -1,12 +1,13 @@
 import * as nodePath from 'node:path';
 import * as nodeFs from 'node:fs';
 import { Effect } from 'effect';
-import type { Rule, Violation } from '@gesetz/core';
+import type { ProjectRuleContext, Rule, Violation } from '@gesetz/core';
 import {
   FileFilter,
   execTool,
   extractLocation,
   runWithTempFile,
+  testFilesForPaths,
   toolWatchPatterns,
 } from '@gesetz/core';
 
@@ -27,6 +28,12 @@ export interface VitestOptions {
   configFile?: string;
   /** Vitest project filter (e.g. 'unit', 'component'). Passed as `--project <name>`. */
   project?: string | string[];
+  /**
+   * Test file suffixes this project uses, for matching a source file to its test.
+   * Defaults to the conventions every adapter in this repository follows
+   * (`.test.ts`, `.spec.ts`, `.test.tsx`, `.test.js`, …).
+   */
+  testSuffixes?: string[];
   /** Rule label for the violation output */
   label?: string;
   /** Rule id override. Default: 'vitest' */
@@ -93,6 +100,29 @@ function parseVitestJson(report: string, cwd: string, ruleId: string): Violation
   }
 
   return violations;
+}
+
+/**
+ * The test files to run for a scan, or null when none of the files in play have
+ * tests.
+ *
+ * Paths come back relative to the runner's own directory, because that is where
+ * the tool is invoked from and vitest matches its filters against its cwd.
+ */
+async function testsToRun(
+  ctx: ProjectRuleContext,
+  opts: VitestOptions,
+  cwd: string,
+): Promise<string[] | null> {
+  const wanted = ctx.requestedPaths ?? ctx.changedFiles;
+  if (wanted.length === 0) return null;
+  return testFilesForPaths({
+    rootDir: ctx.rootDir,
+    cwd,
+    wantedPaths: wanted,
+    ...(opts.testSuffixes === undefined ? {} : { suffixes: opts.testSuffixes }),
+    exists: async (path) => (await ctx.network.file(path)) !== null,
+  });
 }
 
 /**
@@ -185,7 +215,18 @@ export function vitest(opts: VitestOptions = {}): Rule {
       // Test outcomes depend on any source change — conservative: re-run
       // whenever anything changed, skip only zero-change runs.
       patterns: toolWatchPatterns(defaultPatterns ?? ['.']),
-      run: () => executeVitest(opts, id, bin, cwd, defaultPatterns),
+      run: async (ctx) => {
+        // Run the tests that cover the files in play, not the whole suite. A
+        // whole-suite run costs what the project costs — 56 seconds, measured on
+        // a large repository — however narrow the request was; the tests for one
+        // file cost what that file costs.
+        const scope = await testsToRun(ctx, opts, cwd);
+        if (scope === null) return { violations: [], examinedPaths: [] };
+        const violations = await executeVitest(opts, id, bin, cwd, scope);
+        // Reporting which files were examined is what keeps the marks for the
+        // tests that did *not* run: skipping a test must not look like passing it.
+        return { violations, examinedPaths: scope };
+      },
     },
   };
 }
