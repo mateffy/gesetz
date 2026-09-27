@@ -2,6 +2,7 @@ import * as childProcess from 'node:child_process';
 import { Effect } from 'effect';
 import micromatch from 'micromatch';
 import { fileSetFingerprint } from './file-set';
+import { expandRequest, rulesForRequest } from '../backend/request-scope';
 import { createNetwork } from 'netzwerk';
 import type { NetworkStorageConfig } from 'netzwerk';
 import type { Violation, Exemption, CheckServices } from './rule';
@@ -227,16 +228,27 @@ export const runAll = (
     const pendingViolations: Violation[] = [];
     const sharedPaths = new Set<string>();
     let services: CheckServices;
+    // `--files` becomes concrete paths here, once: they decide which rules are
+    // worth compiling at all, and which files those rules look at.
+    const requestedPaths =
+      options.fileFilter === null || options.fileFilter === undefined
+        ? null
+        : expandRequest(config.projectRoot, options.fileFilter);
+    const scopedConfig =
+      requestedPaths === null
+        ? config
+        : { ...config, rules: rulesForRequest(config.rules, requestedPaths) };
     const compileCtx: CompileContext = {
       rootDir: config.projectRoot,
       fileSet: fileSetFingerprint(config.projectRoot),
+      requestedPaths,
       getServices: () => services,
       pendingViolations,
       sharedPaths,
     };
     const network = createNetwork({
       rootPath: config.projectRoot,
-      extensions: compileConfig(config, compileCtx),
+      extensions: compileConfig(scopedConfig, compileCtx),
       storage: toNetworkStorage(config.storage),
     });
 

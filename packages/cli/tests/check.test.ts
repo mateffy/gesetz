@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { CategoryThreshold, Rule } from '@gesetz/core';
-import { resolveCheckScope } from '../src/check';
+import { parseFileRequest, resolveCheckScope } from '../src/check';
 
 const rule = (id: string, category: string | undefined): Rule =>
   ({ id, description: id, category }) as Rule;
@@ -128,5 +128,51 @@ describe('resolveCheckScope', () => {
     });
     scope.rules.push(rule('added-by-the-caller', 'cleanup'));
     expect(RULES).toHaveLength(4);
+  });
+});
+
+describe('parseFileRequest', () => {
+  it('accepts one path', () => {
+    expect(parseFileRequest(['src/a.ts'])).toEqual(['src/a.ts']);
+  });
+
+  it('accepts a comma-separated list', () => {
+    expect(parseFileRequest(['src/a.ts,src/b.ts,app/M.php'])).toEqual([
+      'src/a.ts',
+      'src/b.ts',
+      'app/M.php',
+    ]);
+  });
+
+  it('accepts a repeated flag', () => {
+    // `--files a.ts --files b.ts` is the same request as the comma-separated form.
+    expect(parseFileRequest(['src/a.ts', 'src/b.ts'])).toEqual(['src/a.ts', 'src/b.ts']);
+  });
+
+  it('combines both spellings', () => {
+    expect(parseFileRequest(['src/a.ts,src/b.ts', 'src/c.ts'])).toEqual([
+      'src/a.ts',
+      'src/b.ts',
+      'src/c.ts',
+    ]);
+  });
+
+  it('trims whitespace around entries', () => {
+    expect(parseFileRequest([' src/a.ts , src/b.ts '])).toEqual(['src/a.ts', 'src/b.ts']);
+  });
+
+  it('ignores empty entries', () => {
+    expect(parseFileRequest(['src/a.ts,,  ,'])).toEqual(['src/a.ts']);
+  });
+
+  it('returns null when nothing was asked for, meaning the whole project', () => {
+    // Null and [] are different answers: [] would mean "no files", which would
+    // make an empty flag value look like a clean run.
+    expect(parseFileRequest([])).toBeNull();
+    expect(parseFileRequest(['', '   '])).toBeNull();
+  });
+
+  it('keeps glob patterns as they were written', () => {
+    expect(parseFileRequest(['src/**/*.tsx'])).toEqual(['src/**/*.tsx']);
   });
 });

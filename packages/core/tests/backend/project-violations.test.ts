@@ -5,7 +5,8 @@ import {
   normalizeRulePath,
   storeProjectViolations,
 } from '../../src/backend/project-violations';
-import type { CompileContext, Rule, Violation } from '../../src/engine/rule';
+import type { CompileContext } from '../../src/backend/compile';
+import type { Rule, Violation } from '../../src/engine/rule';
 
 const RULE = { id: 'oxfmt', description: 'formats' } as Rule;
 

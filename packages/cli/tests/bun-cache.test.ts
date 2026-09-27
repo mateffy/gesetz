@@ -22,8 +22,11 @@ const BUN_BIN = nodeFs.existsSync('/Users/mat/.bun/bin/bun')
  * in-memory storage, so every such run re-parsed every file and re-ran every
  * external tool. Ten agents doing that is what put the machine on the floor.
  */
-const runCheckUnderBun = (cwd: string): { stdout: string; stderr: string } => {
-  const result = spawnSync(BUN_BIN, [DIST_MAIN, 'check'], {
+const runCheckUnderBun = (
+  cwd: string,
+  extraArgs: readonly string[] = [],
+): { stdout: string; stderr: string } => {
+  const result = spawnSync(BUN_BIN, [DIST_MAIN, 'check', ...extraArgs], {
     cwd,
     encoding: 'utf8',
     timeout: 120_000,
@@ -34,6 +37,11 @@ const runCheckUnderBun = (cwd: string): { stdout: string; stderr: string } => {
 /** A project with one deterministic violation and nothing else to run. */
 const writeProject = async (dir: string): Promise<void> => {
   await mkdir(nodePath.join(dir, 'src'), { recursive: true });
+  // Without this the cache database is discovered as project source: it is
+  // counted in the scan, re-hashed on every run, and its `-wal`/`-shm`
+  // companions make the added/removed counts jump around. netzwerk's discovery
+  // honours .gitignore, which is why the README says to ignore .gesetz/.
+  await writeFile(nodePath.join(dir, '.gitignore'), '.gesetz/\nnode_modules/\n');
   await writeFile(nodePath.join(dir, 'src/a.ts'), 'export const a = 1;\n');
   await writeFile(nodePath.join(dir, 'src/b.ts'), 'export const b = 2;\n');
   await writeFile(
@@ -78,7 +86,11 @@ describe('the violation cache under Bun', () => {
       expect(cold.stderr).toContain('.gesetz/cache.db');
       expect(cold.stderr).toContain('runtime: bun');
 
-      const warm = runCheckUnderBun(dir);
+      // --standalone on the second run, so this measures the *cache* rather than
+      // the coordination: without it the second run reuses the first one's record
+      // and never scans at all, which is the coordination doing its job and would
+      // leave no scan line to assert on.
+      const warm = runCheckUnderBun(dir, ['--standalone']);
       expect(scanLine(warm.stderr)).toMatch(/\+0 ~0 -0 =\d+ reused/);
       expect(scanLine(warm.stderr)).not.toContain('=0 reused');
       expect(warm.stderr).not.toContain('(bun) violation cache disabled');

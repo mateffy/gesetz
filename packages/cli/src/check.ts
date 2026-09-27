@@ -47,6 +47,22 @@ import { watchForChanges } from './watch';
  * actually run, which is why the filter is applied first: `--category strictness
  * --threshold 3` scores strictness against 3 and says nothing about the rest.
  */
+/**
+ * The files a run was asked about, from however the caller spelled it.
+ *
+ * Both spellings are accepted and they combine: `--files a.ts,b.ts` and
+ * `--files a.ts --files b.ts` are the same request. A path is a glob, so an exact
+ * file name is a valid entry. Returns null when nothing was asked for, which
+ * means "the whole project" rather than "no files".
+ */
+export const parseFileRequest = (values: readonly string[]): string[] | null => {
+  const globs = values
+    .flatMap((value) => value.split(','))
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+  return globs.length > 0 ? globs : null;
+};
+
 export const resolveCheckScope = (input: {
   rules: readonly Rule[];
   configuredThresholds: readonly CategoryThreshold[];
@@ -114,9 +130,9 @@ export const checkCommand = Command.make(
     ),
     files: Options.text('files').pipe(
       Options.withDescription(
-        'Only check files matching these comma-separated globs (e.g. "src/components/**")',
+        'Only check these globs (e.g. "src/a.ts,src/**"). Repeatable, and comma-separated.',
       ),
-      Options.optional,
+      Options.repeated,
     ),
     full: Options.boolean('full').pipe(
       Options.withDescription(
@@ -164,12 +180,7 @@ export const checkCommand = Command.make(
       const root = nodePath.resolve(Option.getOrElse(opts.projectRoot, () => process.cwd()));
       const changedSince = Option.getOrUndefined(opts.since);
       const configPath = Option.getOrUndefined(opts.config);
-      const filesGlobs = Option.map(opts.files, (v) =>
-        v
-          .split(',')
-          .map((s) => s.trim())
-          .filter(Boolean),
-      );
+      const fileRequest = parseFileRequest(opts.files);
       const config = yield* loadConfig(root, { changedSince, configPath }).pipe(
         Effect.catchTag('ConfigNotFoundError', (e) =>
           Effect.gen(function* () {
@@ -247,7 +258,7 @@ export const checkCommand = Command.make(
         configPath,
         rules: filteredConfig.rules,
         thresholds,
-        fileFilter: Option.getOrUndefined(filesGlobs) ?? null,
+        fileFilter: fileRequest,
         changedSince,
         baselineBytes,
         storage,
@@ -270,7 +281,7 @@ export const checkCommand = Command.make(
                   { ...filteredConfig, thresholds, storage },
                   {
                     baseline,
-                    fileFilter: Option.getOrUndefined(filesGlobs) ?? null,
+                    fileFilter: fileRequest,
                     onScan: (scan) => {
                       lastScan = scan;
                       process.stderr.write(

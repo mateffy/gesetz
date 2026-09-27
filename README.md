@@ -106,13 +106,21 @@ gesetz check --full   # bypass the cache (no persistence)
 gesetz check --watch  # re-run incrementally on every file change
 ```
 
+`--files` narrows a run to the files you name — exact paths or globs, separated
+by commas or repeated flags — and it reduces work rather than only hiding
+results: a rule that cannot match the request is not run at all, and the external
+tools receive just those paths. Files nothing changed in come from the cache.
+
 Several agents in one working tree share the work instead of repeating it: a
 second `gesetz check` waits for the run in flight and reuses its result when that
 result already covers the tree. Every run reports what it did — `coord: …` on
 stderr, and a `coordination` block in `--format=json`. Use `--standalone` to opt
 out, `--jobs N` to let N runs proceed at once.
 
-- Add `.gesetz/` to your `.gitignore`.
+- Add `.gesetz/` to your `.gitignore`. The scan honours it, so this also keeps
+  the cache database out of the file set: otherwise it is discovered as project
+  source, re-hashed on every run, and its `-wal`/`-shm` companions make the
+  scan's added/removed counts move around.
 - `GESETZ_DB` overrides the cache location.
 - Every run prints `cache: <path> (runtime: <runtime>)`, so a run that is not
   using its cache is visible rather than merely slow. The cache works under node

@@ -28,8 +28,13 @@ const NEVER_SOURCE = new Set([
   'node_modules',
 ]);
 
-/** Sorted repo-relative paths of every file, skipping `NEVER_SOURCE`. */
-function walkPaths(rootDir: string): string[] {
+/**
+ * Sorted repo-relative paths of every file, skipping `NEVER_SOURCE`.
+ *
+ * Exported so a `--files` request can be turned into the paths it matches
+ * without a second, differently-filtered walk.
+ */
+export function listFiles(rootDir: string): string[] {
   const paths: string[] = [];
   const walk = (dir: string): void => {
     let entries: nodeFs.Dirent[];
@@ -61,7 +66,7 @@ function fingerprintPaths(paths: readonly string[]): string {
  * The sort makes the result independent of directory order.
  */
 export function fileSetFingerprint(rootDir: string): string {
-  return fingerprintPaths(walkPaths(rootDir));
+  return fingerprintPaths(listFiles(rootDir));
 }
 
 export interface TreeState {
@@ -79,7 +84,7 @@ export interface TreeState {
  * one, is not detected. `--standalone` and `--full` skip reuse entirely.
  */
 export function treeStateFor(rootDir: string): TreeState {
-  const paths = walkPaths(rootDir);
+  const paths = listFiles(rootDir);
   const statMap: Record<string, string> = {};
   for (const relativePath of paths) {
     try {

@@ -54,6 +54,11 @@ export function syntaxExtension(backends: readonly SyntaxBackend[]): NetworkExte
     name: SYNTAX_EXTENSION,
     fingerprint: fingerprintFor(backends),
     include,
+    // Dependencies are not this project's source. netzwerk's discovery already
+    // honours .gitignore, so this matters for a project whose .gitignore does not
+    // list `node_modules` — the include globs below would otherwise parse every
+    // bundled `.js` file in the dependency tree.
+    exclude: ['.gesetz/**', '.git/**', 'node_modules/**'],
 
     process(file, content): readonly FileMarker[] {
       const dot = file.relativePath.lastIndexOf('.');

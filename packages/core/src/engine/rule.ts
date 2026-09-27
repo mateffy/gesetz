@@ -212,8 +212,18 @@ export interface ProjectRuleContext {
     glob(pattern: string): Promise<readonly NetworkFileLike[]>;
     file(path: string): Promise<NetworkFileLike | null>;
   };
-  /** Repo-relative paths reprocessed by this scan (added + changed). */
+  /**
+   * Repo-relative paths reprocessed by this scan (added + changed), already
+   * narrowed to the caller's `--files` request when there was one. A rule that
+   * hands paths to an external tool hands it these.
+   */
   readonly changedFiles: readonly string[];
+  /**
+   * Repo-relative paths the caller asked about, or null when the run was not
+   * scoped. A rule that examines only some files should report the ones it
+   * examined in `examinedPaths`; the marks for the rest are left alone.
+   */
+  readonly requestedPaths?: readonly string[] | null | undefined;
   readonly rootDir: string;
 }
 

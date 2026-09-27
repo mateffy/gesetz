@@ -1992,10 +1992,18 @@ During investigation, found that placing the cache database *inside* the walked 
 - `packages/cli/tests/watch.test.ts` — 10 deterministic tests ✅
 - Core tsc clean ✅, existing tests still passing ✅
 
-## 2026-09-27 18:47:12Z All gates green — discussing --files scoping to adapters + rule filtering
+## 2026-09-27 18:47:12Z Integrating --files scoping — 20 tests pass, per-file narrowing reverted for correctness
 
 ```session
 01a0d92e-338b-7628-a543-fca767ff4d5f
+```
+
+```write
+/Users/mat/dev/fabrik/gesetz/packages/cli/src/skill.ts
+/Users/mat/dev/fabrik/gesetz/packages/cli/tests/file-scope.test.ts
+/Users/mat/dev/fabrik/gesetz/packages/core/src/backend/request-scope.ts
+/Users/mat/dev/fabrik/gesetz/packages/core/tests/backend/request-scope.test.ts
+/Users/mat/dev/fabrik/gesetz/packages/core/tests/engine/file-filter.test.ts
 ```
 
 **Gate results after Phase 4 scoping implementation:**
@@ -2029,6 +2037,62 @@ The user asked: can we filter rules by glob (skip rules whose patterns can't mat
 2. **Pass requested paths to adapters**: `requestedPaths ∩ rule patterns` via the same `scopedPatterns` helper — a small extension since the infrastructure already exists. The context should expose `scopedFiles` = the files this run is about (union of changed files and requested files).
 3. **Test adapters (vitest/pest/phpunit/bun-test)**: pass paths so only matching test files run. `requireTest`'s `testCandidates` already maps source paths → test files (e.g. `src/a.ts` → `src/a.test.ts`). Soundness holds because `examinedPaths` preserves marks for unexamined files.
 
-**Recommendation**: land the current changes first (the uncommitted diff is already large: core + 5 adapters + CLI watch + tests), then implement `--files` scoping in a follow-up phase — the foundation (`examinedPaths`, `scopedPatterns`, concurrent coordination) is now in place making it cheap and safe.
+**Implementation progress — `request-scope.test.ts` low-level tests all passing:**
 
-**Plan for dogfood**: run `gesetz check` on the gesetz repo itself to confirm the full pipeline end-to-end.
+- [x] `request-scope.test.ts` low-level unit tests: **13 passed** — `rulesForRequest`, `requestedPathsFor`, `expandRequest` all work correctly
+- [x] `parseFileRequest` extracted + tested at CLI layer: **8 unit tests** covering single path, comma-separated, repeated flag, combined, whitespace trimming, empty entries, null-vs-empty semantics, glob pass-through
+
+**CLI change: repeatable `--files` flag**
+
+- The `--files` flag was a single optional text value → now `Options.repeated`, accepting both `--files a.ts,b.ts` (comma-separated) and `--files a.ts --files b.ts` (repeated flag)
+- `parseFileRequest()` extracted and tested: accepts `readonly string[]` and returns `string[] | null` (null = whole project)
+- End-to-end verified: `gesetz check` (full) reports 2 violations, `--files src/a.ts` reports 1
+
+**Integration tests in `file-filter.test.ts` — 10 pass, 0 fail:**
+
+- [x] Gives a matching rule only the requested files — **REWRITTEN**: the rule now examines every changed file (deliberately — narrowing the file list would leave unexamined files with no marks, making later requests for them read as clean). Only the *report* is narrowed.
+- [x] Gives a project rule a changed list narrowed to the request
+- [x] Tells an unscoped rule that nothing was requested
+- [x] Still walks every file, because discovery is global
+- [x] Does not run a rule that cannot match any requested file
+- [x] Serves an unchanged requested file from the cache
+- [x] Does not clear the marks of files outside the request
+- [x] Does not hide a later change to a file the scoped run did not look at
+- [x] Re-checks a requested file that the previous scoped run did not cover
+- [x] Reports only requested files while examining the rest
+
+**Key design decision: per-file narrowing reverted**
+
+- **Attempted**: in `compilePerFileRule`, intersect rule's `include` list with `requestedPaths` so the rule only walks requested files. Saved time by skipping unrequested changed files.
+- **Hole found**: a skipped file is never examined → it has no marks. A subsequent `--files` run that *does* ask for that file would find no violations.
+- **Resolution**: reverted the narrowing in `compilePerFileRule`. The rule still examines every changed file it is responsible for; only the *report* (aggregation-time filtering) is narrowed. Comment documents the reason.
+- `requestedPathsFor` helper deleted (no remaining consumers) along with its tests.
+- Net result: 20 tests passing, correctness preserved.
+
+## 2026-09-27 19:08:49Z Full-suite verification: fixing bun-cache test for coordination interaction, docs --files
+
+```session
+01a0d92e-338b-7628-a543-fca767ff4d5f
+```
+
+**Full test suite** with `pnpm -r --no-bail test`: **86 test files, 880 tests passed**.
+
+Only failures:
+- **packages/vitest** — 2 tests (other agent's WIP; their `--outputFile=` change isn't reflected in their test stubs)
+- **packages/cli bun-cache.test.ts** — 1 test: the warm run expects a `scan:` line with `+0 ~0 -0 =N reused`, but with coordination, the second run **reuses the first run's record** and never scans → empty stderr.
+
+**Fixing the bun-cache test:**
+- [ ] Add `extraArgs: readonly string[]` parameter to `runCheckUnderBun` helper
+- [ ] Pass `['--standalone']` on the warm run so it measures the cache (not coordination)
+- [ ] Verify the assertion passes
+- [ ] Assert reuse line contains `=N reused` (not `=0 reused`)
+
+**Docs (done):**
+- [x] `skill.ts` — expanded `--files` examples section with all four forms (single, comma, repeated, glob) and explains it reduces work, not just the report
+- [x] `README.md` — inserted a paragraph about `--files` behavior
+
+**Remaining:**
+- [ ] Fix bun-cache test and re-verify
+- [ ] `pnpm format && pnpm typecheck` final pass
+- [ ] Dogfood: `gesetz check` on gesetz repo (0 violations — confirmed)
+- [ ] Gather measurements for dogfood comparison

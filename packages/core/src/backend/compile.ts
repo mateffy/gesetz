@@ -44,6 +44,12 @@ export interface CompileContext {
    */
   readonly fileSet?: string | undefined;
   /**
+   * Paths the caller asked about (`--files`), or null for an unscoped run.
+   * Rules are compiled to look only at these, which is what makes a scoped run
+   * cheaper rather than merely quieter.
+   */
+  readonly requestedPaths?: readonly string[] | null | undefined;
+  /**
    * Lazy: the CheckServices are created from the network, which is created
    * from the compiled extensions — resolved by the time scan() calls hooks.
    */
@@ -108,6 +114,12 @@ function compilePerFileRule(rule: Rule, ctx: CompileContext): NetworkExtension {
   return {
     name: rule.id,
     fingerprint: ruleFingerprint(rule, ctx.fileSet ?? ''),
+    // Deliberately NOT narrowed to the request. A rule whose file list is narrowed
+    // never examines the files it left out, and an unexamined file has no marks —
+    // so a later `--files` request for one of them would find nothing to report
+    // and read as clean. The saving would be small anyway: a caller asking about
+    // the files it just edited has already narrowed the changed set to those same
+    // files. What a scoped run does not report, it still leaves correct.
     include: [...perFile.patterns],
     ...(perFile.exclusions.length > 0 ? { exclude: [...perFile.exclusions] } : {}),
 
@@ -207,6 +219,7 @@ function projectRuleContext(
   extCtx: ExtensionContext,
   ctx: CompileContext,
   changedFiles: readonly string[],
+  requestedPaths: readonly string[] | null,
 ): ProjectRuleContext {
   return {
     network: {
@@ -224,6 +237,7 @@ function projectRuleContext(
       },
     },
     changedFiles,
+    requestedPaths,
     rootDir: ctx.rootDir,
   };
 }
@@ -270,19 +284,26 @@ function compileProjectRule(rule: Rule, ctx: CompileContext): NetworkExtension {
       // when any reprocessed OR REMOVED file matches the rule's patterns
       // (a deletion can dissolve a cycle / layer violation), or when the
       // rule has never produced markers (first scan / fingerprint reset).
-      const changed = entries.map((entry) => entry.path);
-      const relevant = micromatch.some(
-        [...changed, ...extCtx.removedPaths],
-        [...project.patterns],
-        { dot: true },
-      );
+      const reprocessed = entries.map((entry) => entry.path);
+      // A scoped run only cares about the files it was asked about. Everything
+      // else is somebody else's question, and its marks stay as they are.
+      const requested = ctx.requestedPaths ?? null;
+      const changed =
+        requested === null ? reprocessed : reprocessed.filter((path) => requested.includes(path));
+      const removed =
+        requested === null
+          ? extCtx.removedPaths
+          : extCtx.removedPaths.filter((path) => requested.includes(path));
+      const relevant = micromatch.some([...changed, ...removed], [...project.patterns], {
+        dot: true,
+      });
       if (!relevant && (await hasStoredMarkers(extCtx.storage, rule.id))) return;
 
       await refreshSharedPaths(ctx, extCtx);
       let violations: Violation[];
       let examinedPaths: readonly string[] | undefined;
       try {
-        const outcome = await project.run(projectRuleContext(extCtx, ctx, changed));
+        const outcome = await project.run(projectRuleContext(extCtx, ctx, changed, requested));
         if ('violations' in outcome) {
           violations = [...outcome.violations];
           examinedPaths = outcome.examinedPaths;
