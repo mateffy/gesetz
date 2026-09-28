@@ -1920,7 +1920,7 @@ Fixing and implementing the project-rule scoping system so scoped rules don't wi
 - [x] End-to-end test in `tests/engine/project-rule-scoping.test.ts` proving that a scoped rule on the second run:
   1. Only replaces markers for the files it examined (a.ts violation cleared when fixed)
   2. Leaves markers untouched for files it didn't examine (b.ts violation survives)
-    Without the fix, the second run would clear ALL markers (=0 violations total, a false negative fail-open).
+      Without the fix, the second run would clear ALL markers (=0 violations total, a false negative fail-open).
 
 **Cache DB placement bug discovered while debugging the probe:**
 
@@ -2241,6 +2241,12 @@ The boundary: `runner.ts` → `createNetwork` → `scan()` → `query()` → agg
 01a0d92e-338b-7628-a543-fca767ff4d5f
 ```
 
+```write
+/Users/mat/dev/fabrik/gesetz/packages/cli/tests/coordination.test.ts
+/Users/mat/dev/fabrik/gesetz/packages/core/src/backend/test-scope.ts
+/Users/mat/dev/fabrik/gesetz/packages/core/tests/backend/test-scope.test.ts
+```
+
 **Context**: User asked "should I copy netzwerk's algorithm into gesetz?" after the SQL crash (unchunked `IN` with 118k markers) and file-set fingerprint regression (one added file re-parsed everything). I need to answer with measurements.
 
 **What I did**: Ran diagnostics in their 9,247-file monorepo to find where time actually goes. Key measurements:
@@ -2282,3 +2288,92 @@ The boundary: `runner.ts` → `createNetwork` → `scan()` → `query()` → agg
     - [ ] Then: wire the updated netzwerk into gesetz and re-run the coordination test to confirm the fix
 - [ ] Fix #1: narrow syntax extension `include` to union of rule patterns, make `process` async with worker pool
 - [ ] Re-profile after both fixes; if cache >20%, discuss owning it
+
+## 2026-09-27 21:59:13Z All gates green; offered parallel parsing or netzwerk wiring next
+
+```session
+01a0d92e-338b-7628-a543-fca767ff4d5f
+```
+
+**Summary**: Implemented and committed vitest scoping (56s→10.8s), fixed a second netzwerk bug (concurrent uncoordinated writers crash), hardened two flakes, answered the user's three performance questions. Now wiring the netzwerk fixes into gesetz's workspace to verify the crash stops in their project.
+
+**What was implemented**:
+
+- [x] `testFilesForPaths` helper in `packages/core` — maps source→test using co-located and `tests/` conventions
+- [x] Vitest adapter integration: passes those paths as filter instead of running the whole suite
+  - [x] Replaced the old `requireTest`/`getTestPairs` heuristic
+  - [x] Soundness via `examinedPaths` — tests not run keep their marks
+  - [x] `testSuffixes` configurable
+- [x] Fixed two vitest stubs left red by another agent's temp-report change
+- [x] Hardened mojibake test: timeout 30s→120s
+- [x] Hardened coordination test: prints failing process's stdout on assertion failure
+
+**Second netzwerk bug found via hardening**:
+
+- [x] Concurrent `--standalone`/`--jobs N` writers crash with `sqlite storage: unknown file "…" — putFile first`
+- [x] Fix: `requireId` now registers the missing row with empty content hash (so next scan re-examines it)
+- [x] Old "throws" test updated to new contract
+- [x] Committed to netzwerk as `a64a37f`
+
+**Wiring status**:
+
+- [o] Link netzwerk fixes into gesetz so the two crashes actually stop
+  - [x] First attempt: `pnpm.overrides` in root `package.json` → pnpm 11 ignores this, uses `pnpm-workspace.yaml` instead
+  - [x] Moved override to `pnpm-workspace.yaml`: `overrides: { netzwerk: link:../netzwerk/packages/netzwerk }`
+  - [x] `pnpm install` relinked: `packages/core/node_modules/netzwerk → ../../../../netzwerk/packages/netzwerk` (live from local checkout)
+  - [x] Restored `package.json` formatting to match `git show HEAD:package.json`
+  - [ ] Full verification: run their command against their own cache (31 MB, 118k markers — the crash scenario). First run timed out (1800s limit hit during cold scan). Need to retry with longer timeout or run portions separately.
+  - [ ] Second run (warm, coordinated) and 3 concurrent runs for resource check
+
+**Status gates**: typecheck ✓, build ✓, dogfood 0 ✓, core 543 tests ✓, vitest 14 tests ✓, coordination `--standalone` case pending (should work now with linked netzwerk).
+
+**User's three questions answered**:
+
+1. *Parse on the fly?* — No: same work, serial, rules wait. Parallelism is the win.
+2. *Not for everything?* — Unsafe: ~1,900 PHP files outside rule patterns would vanish from the graph, dropping cross-boundary cycles.
+3. *Filter vitest by glob?* — Done: 56.2s → 10.8s measured.
+
+## 2026-09-28 15:40:14Z Planning adoption of built-in cache engine (netzwerk branch → main)
+
+```session
+01a0d92e-338b-7628-a543-fca767ff4d5f
+```
+
+**User asked to plan merging the `origin/netzwerk` branch (built-in cache engine) into main, replacing the 856MB netzwerk dependency.** This is a major architectural change — the new engine is file-major (parse once, run all rules), has its own SQLite cache (no IN-list crash — uses per-row deletes in `prune` ✓), and has no markers/edges. 50+ conflicting files expected.
+
+**What I've investigated and decided for the plan**:
+
+- [x] Analysed the branch's engine shape and what main's 14 commits port onto it
+  - [x] Branch structure: `backend/compile.ts` deleted, `packages/core/src/cache/` (store-sqlite.ts, project-cache.ts, scope.ts), `packages/core/src/runner/` (file-major runner), CLI adapted
+  - [x] Project cache keys: `projectHash = hash([path, contentHash] for relevant)` — no `examinedPaths` → adapter scoping needs an examined-set-aware cache key (design: `hashValue([projectHash, examinedPaths])`)
+  - [x] Per-file cache: one scope keyed by `{backends, rules, files: allPaths}` → add/remove wipes all → needs the two-scope invalidation fix (Phase 2)
+  - [x] No parse memo for PHP (only TypeScript) → must add one (Phase 6)
+  - [x] `changedFiles` already passed to project rules ✓ → `scopedPatterns` is available for adapter scoping ✓
+  - [x] No `IN (?,…)` crash in store-sqlite.ts — `prune` uses per-row deletes ✓
+  - [x] Merge strategy decided: branch off `origin/netzwerk`, merge `main` in with policy "engine from branch; additive wins from main" → resolve ~50 conflicts
+  - [x] Integration branch name: `cache-engine` (to be created)
+  - [x] Cache migration: old XDG netzwerk cache orphaned (delete `.gesetz/` + XDG dir); `pnpm-workspace.yaml` override removed
+- [x] Drafting `./plans/adopt-built-in-cache/PLAN.md` (full planner skill template)
+  - **Phases defined** (8 phases, now 9 with a Phase 0 for baseline benchmark):
+    1. Prep: freeze state, fetch branch, baseline benchmark in immocore
+    2. Merge + get green (typecheck/test/dogfood)
+    3. Existence invalidation fix (two-scope design + `needsFileSet` markers)
+    4. `--files` work reduction (request-scope + runner wiring)
+    5. Adapter scoping (examined-set-aware project cache)
+    6. Coordination (run-lock + CLI + two-process test)
+    7. Test scoping (vitest adapter) + PHP parse memo
+    8. Benchmark + verify in immocore (no crash at 118k scale, diff violations against main)
+    9. Optional: parallel parsing, mtime fast path
+  - **Risks identified**: import resolution regression (PSR-4/tsconfig-paths), three fail-open classes to re-pin with tests, merge conflict volume, SQLite concurrency at scale
+  - **Verification**: diff violations on immocore between engines; scale test with 50k+ entries; cold/warm/scoped benchmark numbers
+- [x] Self-review against actual repo — verified all cited files exist
+  - [x] `packages/core/tests/cache/kernel.test.ts` exists on the branch (fixed Task 3.1 to say "extend, do not create")
+  - [x] All 15 files the plan tells the agent to port are `present` on main
+  - [x] `purity.test.ts` exists on the branch
+- [x] Tightened three spots in the plan:
+  - [x] Task 3.1: "create if absent" → "extend it (it already exists)"
+  - [x] Task 2.2 Step 2: replaced placeholder sketch with concrete `runFileSystemRule` code (~50 lines, with `makeCheckRunner` extraction note)
+  - [x] Fixed broken cross-reference: "Task 5.5" → "Task 5.2 Step 5"
+- [x] Plan written: **`.plans/adopt-built-in-cache/PLAN.md`** (1,277 lines, 9 phases, 21 tasks)
+
+**Key finding communicated back to user**: the branch's whole-path-set fingerprint means an add/remove recomputes *all* per-file results (fine at 203 files, fatal at 9,247). Phase 2 removes the path set and routes file-system checks through the project pass — the same fix that stopped today's crash, but applied at the cache-engine layer. Three fail-open gates are each demonstrated to fail without their fix. Correctness diff against main is a hard gate (the branch's relative-only resolver could silently lose edges in immocore).
