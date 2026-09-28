@@ -8,29 +8,23 @@ import type { CheckServices } from '../../src/engine/rule';
  * Builds a CheckServices bag from the given Effect layers.
  * Use this in unit tests to run async checks against mocked services.
  */
-export async function buildCheckServices(
-  ...layers: Layer.Layer<any>[]
-): Promise<CheckServices> {
+export async function buildCheckServices(...layers: Layer.Layer<any>[]): Promise<CheckServices> {
   const program = Effect.gen(function* () {
     const fs = yield* FileSystem;
     const st = yield* SyntaxTree;
     const ir = yield* ImportResolver;
     const root = yield* ProjectRoot;
-    const runtime = yield* Effect.runtime<
-      FileSystem | SyntaxTree | ImportResolver | ProjectRoot
-    >();
+    const runtime = yield* Effect.runtime<FileSystem | SyntaxTree | ImportResolver | ProjectRoot>();
 
     const services: CheckServices = {
       fs: {
-        glob: async (pattern, options) =>
-          Runtime.runPromise(runtime)(fs.glob(pattern, options)),
+        glob: async (pattern, options) => Runtime.runPromise(runtime)(fs.glob(pattern, options)),
         readFile: async (path) => Runtime.runPromise(runtime)(fs.readFile(path)),
         exists: async (path) => Runtime.runPromise(runtime)(fs.exists(path)),
       },
       syntax: {
         canProcess: (file) => st.canProcess(file),
-        process: async (file, options) =>
-          Runtime.runPromise(runtime)(st.process(file, options)),
+        process: async (file, options) => Runtime.runPromise(runtime)(st.process(file, options)),
       },
       imports: {
         resolve: (fromFile, specifier) => ir.resolve(fromFile, specifier),

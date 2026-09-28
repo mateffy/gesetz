@@ -31,9 +31,23 @@ export interface SyncOptions<Value> {
   /** Reads a file into `{ content, hash }`. Default: read bytes, sha1, utf8. */
   readonly read?: ((file: FileRef) => Promise<FileSource>) | undefined;
   /** Computes the cached value for an added or changed file. */
-  readonly compute: (file: FileRef, source: FileSource) => Promise<Value>;
+  readonly compute: (file: FileRef, source: FileSource) => Promise<ComputeResult<Value>>;
   readonly onProgress?: ((event: SyncProgress) => void) | undefined;
 }
+
+/**
+ * Returned by `compute` to mean "I did not compute a value for this file; leave
+ * whatever is stored for it alone".
+ *
+ * `sync` prunes a scope to the files it is given, so a caller that narrows the list
+ * — a `--files` run — would otherwise delete the entries of every file it skipped,
+ * and store an empty result for the ones it looked at. Neither is acceptable: a
+ * skipped file's entry is still valid (its content did not change), and an empty
+ * result is indistinguishable from a clean file.
+ */
+export const KEEP_STORED: unique symbol = Symbol('gesetz.cache.keep-stored');
+
+export type ComputeResult<Value> = Value | typeof KEEP_STORED;
 
 export interface SyncResult<Value> {
   readonly values: ReadonlyMap<string, Value>;
@@ -53,6 +67,20 @@ async function defaultRead(file: FileRef): Promise<FileSource> {
 }
 
 /** Reads a file, returning null when it vanished since discovery. */
+/**
+ * Reads a file, returning null when there is nothing to read.
+ *
+ * Two structural cases, both of which discovery can hand us because it lists what
+ * git has rather than what is on disk:
+ *
+ * - `ENOENT` — the file is in the index but deleted (a colleague's in-flight
+ *   state, or a checkout mid-edit).
+ * - `EISDIR` — the path is a symlink to a directory. Laravel's `public/storage`
+ *   is the common one, and git stores the symlink as a file.
+ *
+ * Anything else is a real error and is raised: silently skipping an unreadable
+ * file would look exactly like checking it and finding nothing.
+ */
 async function readSafely(
   read: (file: FileRef) => Promise<FileSource>,
   file: FileRef,
@@ -60,7 +88,8 @@ async function readSafely(
   try {
     return await read(file);
   } catch (error) {
-    if ((error as { code?: unknown }).code === 'ENOENT') return null;
+    const code = (error as { code?: unknown }).code;
+    if (code === 'ENOENT' || code === 'EISDIR') return null;
     throw error;
   }
 }
@@ -148,6 +177,14 @@ export async function sync<Value>(options: SyncOptions<Value>): Promise<SyncResu
     const file = files[index] as FileRef;
     const source = sources[index] as FileSource;
     const value = await compute(file, source);
+    if (value === KEEP_STORED) {
+      // Nothing computed for this file this time. Its stored entry stands — it is
+      // still valid, because the content hash has not moved — and `keep` already
+      // holds the path, so pruning leaves it alone too.
+      const previous = stored.get(file.path);
+      if (previous !== undefined) values.set(file.path, previous.value);
+      continue;
+    }
     values.set(file.path, value);
     const entry: CacheEntry<Value> = {
       hash: source.hash,

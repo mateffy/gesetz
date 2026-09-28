@@ -82,11 +82,20 @@ describe('runAll incremental caching (sqlite storage)', () => {
       storage: { kind: 'sqlite', path: dbPath },
       rules: [
         select('src/**/*.ts').label('No console log').check(noConsoleLog),
-        select('src/**/*.ts').label('No default export').check(async (file) =>
-          file.content.includes('export default')
-            ? [{ message: 'no default export', path: file.path, severity: 'warn', source: 'core' }]
-            : [],
-        ),
+        select('src/**/*.ts')
+          .label('No default export')
+          .check(async (file) =>
+            file.content.includes('export default')
+              ? [
+                  {
+                    message: 'no default export',
+                    path: file.path,
+                    severity: 'warn',
+                    source: 'core',
+                  },
+                ]
+              : [],
+          ),
       ],
     });
     const second = await run(withTwoRules);

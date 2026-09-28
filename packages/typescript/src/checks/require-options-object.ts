@@ -1,4 +1,3 @@
-import type { SgNode } from '@ast-grep/napi';
 import type { Check, Violation } from '@gesetz/core';
 import { parseFile, findByKind, getCallArgs, startLine } from './shared';
 
@@ -23,10 +22,7 @@ export interface RequireOptionsObjectOptions {
  * // queryOptions() must define queryKey and queryFn (first argument)
  * requireOptionsObject('queryOptions', { requiredKeys: ['queryKey', 'queryFn'] })
  */
-export function requireOptionsObject(
-  fnName: string,
-  opts: RequireOptionsObjectOptions,
-): Check {
+export function requireOptionsObject(fnName: string, opts: RequireOptionsObjectOptions): Check {
   const argIndex = opts.argIndex ?? 0;
   const requiredKeys = opts.requiredKeys;
 

@@ -50,6 +50,12 @@ export interface RunResult {
    * Absent when no rule failed.
    */
   readonly failedRules?: readonly string[] | undefined;
+  /**
+   * Baseline split for this run, when a baseline was applied. `byRule` holds the
+   * violations that count; baselined ones are counted here and reported nowhere,
+   * matching the pass/fail decision.
+   */
+  readonly baseline?: import('./baseline-apply').BaselineStats | undefined;
 }
 
 /** Weight applied to each severity when scoring a category. */

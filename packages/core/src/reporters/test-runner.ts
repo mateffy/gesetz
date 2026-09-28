@@ -144,9 +144,7 @@ export async function defineQualityTestsBunTest(
 ): Promise<void> {
   // @ts-expect-error — bun:test is only available in the Bun runtime; the
   // module is untyped in non-Bun environments. The catch below handles absence.
-  const bunTest: typeof import('bun:test') | null = await import('bun:test').catch(
-    () => null,
-  );
+  const bunTest: typeof import('bun:test') | null = await import('bun:test').catch(() => null);
   if (bunTest === null) {
     return Promise.reject(new Error('bun:test is not available — run this file with Bun'));
   }

@@ -6,6 +6,7 @@ export {
   strictTypes,
   psrNamespace,
   noInlineQueries,
+  indexOfCall,
   requireTypeHints,
   requireReturnType,
   requireNamespace,

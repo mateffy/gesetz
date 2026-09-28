@@ -1,7 +1,7 @@
 import * as nodePath from 'node:path';
 import { Effect } from 'effect';
 import type { Rule, Violation } from '@gesetz/core';
-import { execTool, FileFilter, ProjectRoot, resolveToolBin, resolveToolCwd } from '@gesetz/core';
+import { execTool, FileFilter, ProjectRoot, resolveToolBin, resolveToolCwd, toolScope } from '@gesetz/core';
 
 export interface OxfmtOptions {
   /**
@@ -101,8 +101,12 @@ export function oxfmt(opts: OxfmtOptions = {}): Rule {
     project: {
       patterns: opts.pattern !== undefined ? defaultPatterns : ['**/*'],
       run: (ctx) => {
+        // A `--files` request narrows what the tool looks at; without one it runs
+        // over its own patterns, which is what its cached result is keyed by.
+        const scope = toolScope(ctx.requestedPaths, defaultPatterns);
+        if (scope === null) return Promise.resolve([]);
         const { bin, cwd } = locate(ctx.rootDir);
-        return executeOxfmt(opts, id, bin, cwd, defaultPatterns);
+        return executeOxfmt(opts, id, bin, cwd, scope);
       },
     },
   };

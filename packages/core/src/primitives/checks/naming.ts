@@ -1,5 +1,5 @@
-import type { StructureItem } from '../../services/syntax-tree';
 import type { Check, Violation } from '../../engine/rule';
+import { flattenStructure } from './walk';
 
 export interface RequireNamingConventionOptions {
   /** e.g. ['function', 'class'] — if omitted, all kinds */
@@ -23,27 +23,17 @@ export function requireNamingConvention(opts: RequireNamingConventionOptions): C
 
     try {
       const result = await syntax.process(file, { structure: true });
-      const violations: Violation[] = [];
-
-      function checkItems(items: readonly StructureItem[]): void {
-        for (const item of items) {
-          const kindMatch = !opts.kinds || opts.kinds.includes(item.kind);
-          if (kindMatch && !opts.pattern.test(item.name)) {
-            violations.push({
-              severity: opts.severity ?? 'warn',
-              source: 'core',
-              message:
-                opts.message ?? `'${item.name}' does not match naming convention ${opts.pattern}`,
-              path: file.path,
-              line: item.startLine,
-            });
-          }
-          if (item.children.length > 0) checkItems(item.children);
-        }
-      }
-
-      checkItems(result.structure);
-      return violations;
+      return flattenStructure(result.structure)
+        .filter((item) => !opts.kinds || opts.kinds.includes(item.kind))
+        .filter((item) => !opts.pattern.test(item.name))
+        .map((item): Violation => ({
+          severity: opts.severity ?? 'warn',
+          source: 'core',
+          message:
+            opts.message ?? `'${item.name}' does not match naming convention ${opts.pattern}`,
+          path: file.path,
+          line: item.startLine,
+        }));
     } catch {
       return [];
     }
@@ -77,26 +67,16 @@ export function noForbiddenNames(
 
     try {
       const result = await syntax.process(file, { structure: true });
-      const violations: Violation[] = [];
-
-      function checkItems(items: readonly StructureItem[]): void {
-        for (const item of items) {
-          const kindMatch = !opts.kinds || opts.kinds.includes(item.kind);
-          if (kindMatch && matcher(item.name)) {
-            violations.push({
-              severity: opts.severity ?? 'error',
-              source: 'core',
-              message: opts.message?.(item.name) ?? `Forbidden name: '${item.name}'`,
-              path: file.path,
-              line: item.startLine,
-            });
-          }
-          if (item.children.length > 0) checkItems(item.children);
-        }
-      }
-
-      checkItems(result.structure);
-      return violations;
+      return flattenStructure(result.structure)
+        .filter((item) => !opts.kinds || opts.kinds.includes(item.kind))
+        .filter((item) => matcher(item.name))
+        .map((item): Violation => ({
+          severity: opts.severity ?? 'error',
+          source: 'core',
+          message: opts.message?.(item.name) ?? `Forbidden name: '${item.name}'`,
+          path: file.path,
+          line: item.startLine,
+        }));
     } catch {
       return [];
     }

@@ -170,7 +170,10 @@ export function makeCheckServices(options: MakeCheckServicesOptions = {}): Check
     syntax: {
       canProcess: (file: File) =>
         ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.php'].includes(file.ext),
-      process: async (_file: File, _options: SyntaxTreeProcessOptions): Promise<SyntaxBackendProcessResult> => ({
+      process: async (
+        _file: File,
+        _options: SyntaxTreeProcessOptions,
+      ): Promise<SyntaxBackendProcessResult> => ({
         imports: [],
         calls: [],
         exports: [],
@@ -215,10 +218,6 @@ export function makeCheckServices(options: MakeCheckServicesOptions = {}): Check
  * const violations = await runCheck(noImportFrom('lodash'), file, services);
  * ```
  */
-export function runCheck(
-  check: Check,
-  file: File,
-  services: CheckServices,
-): Promise<Violation[]> {
+export function runCheck(check: Check, file: File, services: CheckServices): Promise<Violation[]> {
   return check(file, services);
 }

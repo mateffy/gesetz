@@ -9,7 +9,16 @@ import type { ResolvedConfig } from './config';
 const GIT_MAX_BUFFER_BYTES = 64 * 1024 * 1024;
 
 /** Ignored on top of whatever the file source already excludes. */
-const ALWAYS_IGNORED = ['**/node_modules/**', '**/.git/**'];
+const ALWAYS_IGNORED = [
+  '**/node_modules/**',
+  '**/.git/**',
+  // gesetz's own cache and coordination records. Without this, a project that does
+  // not gitignore `.gesetz/` scans its own cache database: the SQLite file and its
+  // `-wal`/`-shm` companions appear and disappear, so every run sees a changed path
+  // set — and the file-system rules, whose cache key includes the path set,
+  // recompute on every invocation.
+  '**/.gesetz/**',
+];
 
 /**
  * Lists every tracked file plus every untracked, non-ignored file, relative to

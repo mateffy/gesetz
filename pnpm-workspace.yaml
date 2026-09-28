@@ -10,3 +10,11 @@ allowBuilds:
   onnxruntime-node: false
   protobufjs: false
   sharp: false
+
+minimumReleaseAgeExclude:
+  - '@netzwerk/cli@0.0.5'
+  - '@netzwerk/core@0.0.5'
+  - '@netzwerk/php@0.0.5'
+  - '@netzwerk/summarize@0.0.5'
+  - '@netzwerk/typescript@0.0.5'
+  - netzwerk@0.0.5

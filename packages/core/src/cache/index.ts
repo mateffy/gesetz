@@ -1,6 +1,7 @@
 export type { CacheEntry, CacheStore, FileRef } from './types';
 export { hashBytes, hashValue } from './hash';
-export { sync } from './kernel';
+export { KEEP_STORED, sync } from './kernel';
+export type { ComputeResult } from './kernel';
 export type { FileSource, SyncOptions, SyncProgress, SyncResult } from './kernel';
 export {
   getCacheDriver,

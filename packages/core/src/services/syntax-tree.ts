@@ -111,13 +111,6 @@ export class SyntaxTreeError extends Data.TaggedError('SyntaxTreeError')<{
   readonly cause: string;
 }> {}
 
-const EMPTY_RESULT: SyntaxBackendProcessResult = {
-  imports: [],
-  calls: [],
-  exports: [],
-  structure: [],
-};
-
 /**
  * Creates the live SyntaxTree service from a list of SyntaxBackend objects.
  * Routes to the correct backend by file extension. First registered backend

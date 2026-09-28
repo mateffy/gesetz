@@ -1,10 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import * as childProcess from 'node:child_process';
 import * as nodeFs from 'node:fs';
-import * as nodePath from 'node:path';
+
 import { Effect, Layer } from 'effect';
 import { pest } from '../src/adapter';
-import { MemoryFileSystem, ProjectRootLive, FileFilterLive, SyntaxTreeStub, ImportResolverDefault } from '@gesetz/core';
+import {
+  MemoryFileSystem,
+  ProjectRootLive,
+  FileFilterLive,
+  SyntaxTreeStub,
+  ImportResolverDefault,
+} from '@gesetz/core';
 
 const TestLayer = Layer.mergeAll(
   MemoryFileSystem({}),
@@ -103,7 +109,7 @@ describe('pest adapter', () => {
     );
   });
 
-  it('returns empty array when JUnit file is unreadable', async () => {
+  it('reports a violation when the JUnit file is unreadable', async () => {
     const tmpDir = '/tmp/gesetz-pest-test-4';
     (nodeFs.mkdtempSync as ReturnType<typeof vi.fn>).mockReturnValue(tmpDir);
     (nodeFs.readFileSync as ReturnType<typeof vi.fn>).mockImplementation(() => {
@@ -113,7 +119,9 @@ describe('pest adapter', () => {
 
     const rule = pest({ cwd: '/project' });
     const violations = await Effect.runPromise(Effect.provide(rule.run, TestLayer));
-    expect(violations).toEqual([]);
+    expect(violations).toHaveLength(1);
+    expect(violations[0]?.severity).toBe('error');
+    expect(violations[0]?.message).toContain('nothing was checked');
   });
 
   describe('FileFilter integration', () => {
@@ -127,12 +135,18 @@ describe('pest adapter', () => {
       spy.mockImplementation(() => '');
 
       const rule = pest({ cwd: '/project' });
-      await Effect.runPromise(Effect.provide(rule.run,
-        Layer.mergeAll(
-          MemoryFileSystem({}), SyntaxTreeStub, ImportResolverDefault,
-          ProjectRootLive('/project'), FileFilterLive(['tests/Unit/**']),
+      await Effect.runPromise(
+        Effect.provide(
+          rule.run,
+          Layer.mergeAll(
+            MemoryFileSystem({}),
+            SyntaxTreeStub,
+            ImportResolverDefault,
+            ProjectRootLive('/project'),
+            FileFilterLive(['tests/Unit/**']),
+          ),
         ),
-      ));
+      );
 
       expect(spy).toHaveBeenCalledWith(
         'vendor/bin/pest',
@@ -174,7 +188,14 @@ describe('pest adapter', () => {
 
       // Without patterns, pest runs its configured suite — no extra positional args
       const callArgs = spy.mock.calls[spy.mock.calls.length - 1]?.[1] as string[];
-      const positionalArgs = callArgs.filter((a) => !a.startsWith('--') && !a.startsWith('=') && a !== 'vendor/bin/pest' && !a.startsWith('/tmp/') && !a.includes('junit.xml'));
+      const positionalArgs = callArgs.filter(
+        (a) =>
+          !a.startsWith('--') &&
+          !a.startsWith('=') &&
+          a !== 'vendor/bin/pest' &&
+          !a.startsWith('/tmp/') &&
+          !a.includes('junit.xml'),
+      );
       // Only --log-junit, --no-progress and the temp file path
       expect(positionalArgs.length).toBe(0);
     });
@@ -189,12 +210,18 @@ describe('pest adapter', () => {
       spy.mockImplementation(() => '');
 
       const rule = pest({ cwd: '/project', pattern: 'tests/Everything' });
-      await Effect.runPromise(Effect.provide(rule.run,
-        Layer.mergeAll(
-          MemoryFileSystem({}), SyntaxTreeStub, ImportResolverDefault,
-          ProjectRootLive('/project'), FileFilterLive(['tests/Subset']),
+      await Effect.runPromise(
+        Effect.provide(
+          rule.run,
+          Layer.mergeAll(
+            MemoryFileSystem({}),
+            SyntaxTreeStub,
+            ImportResolverDefault,
+            ProjectRootLive('/project'),
+            FileFilterLive(['tests/Subset']),
+          ),
         ),
-      ));
+      );
 
       const callArgs = spy.mock.calls[spy.mock.calls.length - 1]?.[1] as string[];
       expect(callArgs).toContain('tests/Subset');

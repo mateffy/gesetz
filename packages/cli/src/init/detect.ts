@@ -11,12 +11,7 @@ import * as nodePath from 'node:path';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type Framework =
-  | 'tanstack-start'
-  | 'react'
-  | 'effect-ts'
-  | 'laravel'
-  | 'generic';
+export type Framework = 'tanstack-start' | 'react' | 'effect-ts' | 'laravel' | 'generic';
 
 export type PresetId = 'blank' | 'generic' | 'tanstack-start' | 'react' | 'laravel';
 
@@ -172,17 +167,16 @@ function detectTools(cwd: string, pkg: PkgJson | null): DetectedTool[] {
   return tools;
 }
 
-function detectFramework(
-  pkg: PkgJson | null,
-  hasComposer: boolean,
-): Framework {
+function detectFramework(cwd: string, pkg: PkgJson | null, hasComposer: boolean): Framework {
   if (pkg) {
     const deps = { ...pkg.dependencies, ...pkg.devDependencies };
     if (deps['@tanstack/react-start']) return 'tanstack-start';
     if (deps['react'] && deps['react-dom']) return 'react';
     if (deps['effect'] && !deps['react']) return 'effect-ts';
   }
-  if (hasComposer || exists('artisan')) return 'laravel';
+  // `artisan` must be looked for in the project being detected, not in whatever
+  // directory the process happens to run from.
+  if (hasComposer || exists(nodePath.join(cwd, 'artisan'))) return 'laravel';
   return 'generic';
 }
 
@@ -209,7 +203,12 @@ function detectPackageManager(cwd: string, isLaravel: boolean): PackageManager {
   return 'npm';
 }
 
-const CONFIG_FILENAMES = ['gesetz.config.ts', 'gesetz.config.js', 'gesetz.config.mts', 'gesetz.config.mjs'];
+const CONFIG_FILENAMES = [
+  'gesetz.config.ts',
+  'gesetz.config.js',
+  'gesetz.config.mts',
+  'gesetz.config.mjs',
+];
 
 // ─── Public entry point ───────────────────────────────────────────────────────
 
@@ -218,7 +217,7 @@ export function detectProject(cwd: string): ProjectProfile {
   const pkg = readJson<PkgJson>(pkgPath);
   const hasComposer = exists(nodePath.join(cwd, 'composer.json'));
 
-  const framework = detectFramework(pkg, hasComposer);
+  const framework = detectFramework(cwd, pkg, hasComposer);
   const detectedTools = detectTools(cwd, pkg);
   const packageManager = detectPackageManager(cwd, framework === 'laravel');
 

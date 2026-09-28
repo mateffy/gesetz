@@ -27,15 +27,13 @@ export function noDirectCalls(names: readonly string[], opts: NoDirectCallsOptio
       const result = await syntax.process(file, { calls: true });
       return result.calls
         .filter((call) => nameSet.has(call.name))
-        .map(
-          (call): Violation => ({
-            severity: opts.severity ?? 'error',
-            source: 'core',
-            message: opts.message?.(call.name) ?? `Forbidden call: ${call.name}()`,
-            path: file.path,
-            line: call.line,
-          }),
-        );
+        .map((call): Violation => ({
+          severity: opts.severity ?? 'error',
+          source: 'core',
+          message: opts.message?.(call.name) ?? `Forbidden call: ${call.name}()`,
+          path: file.path,
+          line: call.line,
+        }));
     } catch {
       return [];
     }

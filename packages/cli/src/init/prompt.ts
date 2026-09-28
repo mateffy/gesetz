@@ -79,11 +79,7 @@ function runToolsPrompt(
   return Prompt.multiSelect({
     message: `Select QA tools to wire in (detected: ${detectedList.join(', ') || 'none'} \u2014 press space to toggle)`,
     choices,
-  }).pipe(
-    Effect.map((arr) =>
-      arr.filter((s): s is ToolId => ALL_TOOLS.includes(s as ToolId)),
-    ),
-  );
+  }).pipe(Effect.map((arr) => arr.filter((s): s is ToolId => ALL_TOOLS.includes(s as ToolId))));
 }
 
 function runRulesPrompt(
@@ -142,12 +138,8 @@ export function runWizard(
     const toolsArr = yield* runToolsPrompt(profile, preset);
     const tools = new Set(toolsArr);
     const rulesArr = yield* runRulesPrompt(profile, preset, tools);
-    const install = flags.install
-      ? yield* runInstallPrompt(profile.packageManager)
-      : false;
-    const qaScript = flags.qaScript
-      ? yield* runQaScriptPrompt()
-      : false;
+    const install = flags.install ? yield* runInstallPrompt(profile.packageManager) : false;
+    const qaScript = flags.qaScript ? yield* runQaScriptPrompt() : false;
 
     return {
       preset,

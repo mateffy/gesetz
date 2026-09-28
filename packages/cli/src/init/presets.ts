@@ -26,6 +26,14 @@ export const PRESET_CHOICES: PresetChoice[] = [
   { title: 'blank', value: 'blank', description: 'Empty config \u2014 build from scratch' },
   { title: 'generic', value: 'generic', description: 'Framework-agnostic TS/JS quality rules' },
   { title: 'react', value: 'react', description: 'Generic React app (Vite/Next)' },
-  { title: 'tanstack-start', value: 'tanstack-start', description: 'TanStack Start: route discipline + domains' },
-  { title: 'laravel', value: 'laravel', description: 'Laravel/PHP: strict types, PSR-4, no raw DB' },
+  {
+    title: 'tanstack-start',
+    value: 'tanstack-start',
+    description: 'TanStack Start: route discipline + domains',
+  },
+  {
+    title: 'laravel',
+    value: 'laravel',
+    description: 'Laravel/PHP: strict types, PSR-4, no raw DB',
+  },
 ];

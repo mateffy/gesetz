@@ -1,9 +1,11 @@
 import * as childProcess from 'node:child_process';
+import { readFile } from 'node:fs/promises';
 import { Effect } from 'effect';
 import micromatch from 'micromatch';
 import { hashValue, sync } from '../cache';
 import type { CacheEntry, FileRef } from '../cache';
-import type { Violation, CheckServices, File, Rule } from './rule';
+import { KEEP_STORED } from '../cache';
+import type { Violation, CheckServices, File, Rule, ProjectRuleOutcome } from './rule';
 import type { ResolvedConfig } from './config';
 import { createConfiguredStore } from './cache-store';
 import { candidateFileRefs, listProjectFiles } from './discovery';
@@ -11,6 +13,9 @@ import { backendFingerprint, ruleFingerprint } from './fingerprint';
 import { createCheckServices } from '../services/check-services';
 import { servicesLayer } from './services-layer';
 import { applyExemptions, computeCategoryScores } from './result';
+import { expandRequest, rulesForRequest } from '../backend/request-scope';
+import { partitionByBaseline, type BaselineStats } from './baseline-apply';
+import { STALE_RULE_ID, type BaselineFile } from './baseline';
 import type { CategoryScore, RuleResult, RunResult } from './result';
 
 // Re-exported so the public entry point keeps a single source of truth.
@@ -20,11 +25,18 @@ export type { CategoryScore, RuleResult, RunResult } from './result';
 
 export interface RunAllOptions {
   /**
-   * When set (CLI `--files`), violations for files not matching these
-   * micromatch globs are suppressed. Pure aggregation-time filter — the cache
-   * is unaffected.
+   * When set (CLI `--files`), the run is scoped to the files matching these
+   * micromatch globs: rules that cannot match any of them are not run at all,
+   * files outside the request keep their cached results, and violations for them
+   * are suppressed. This reduces work, not just output.
    */
   readonly fileFilter?: readonly string[] | null | undefined;
+  /**
+   * Violation baseline to check against. When set, violations already in the
+   * baseline are counted but not reported, and entries with no violation left
+   * are reported as stale. `null`/absent means no baseline.
+   */
+  readonly baseline?: BaselineFile | null | undefined;
   /** Called with the scan statistics after the run (for CLI reporting). */
   readonly onScan?: ((result: ScanStats) => void) | undefined;
   /**
@@ -45,6 +57,8 @@ export interface ScanStats {
   readonly durationMs: number;
 }
 
+/** Bumped when the rules-scope key's meaning changes, invalidating old entries. */
+const CACHE_KEY_VERSION = 3;
 /** Cache scope holding one entry per file: `{ [ruleId]: Violation[] }`. */
 const RULES_SCOPE = 'rules';
 /** Synthetic cache key for whole-project rule results. */
@@ -125,6 +139,47 @@ async function runChecks(
   return violations.map((violation) => ({ ...violation, rule: violation.rule ?? rule.id }));
 }
 
+/**
+ * True when any of a rule's checks asks the file system rather than being a
+ * function of its own file.
+ *
+ * Such a rule cannot be cached against file content: `requireTest` asks whether a
+ * test file *exists*, so adding it changes the answer without touching the source.
+ */
+function ruleReadsFileSystem(rule: Rule): boolean {
+  const checks = rule.perFile?.checks;
+  if (checks === undefined || checks.length === 0) return false;
+  return checks.some((check) => check.needsFileSet === true);
+}
+
+/**
+ * Runs a file-system rule over the files it covers.
+ *
+ * This is the per-file check loop, run over a whole rule's file set instead of one
+ * file at a time, in the project pass — because the answer depends on more than
+ * one file. It reads each covered file and runs the checks; they ask `fs.exists`
+ * against the run's file list, so nothing is parsed and recomputing is cheap.
+ */
+async function executeFileSystemRule(
+  rule: Rule,
+  relevant: readonly FileRef[],
+  services: CheckServices,
+): Promise<{ violations: Violation[]; failed: boolean; examinedPaths: string[] }> {
+  const violations: Violation[] = [];
+  const examinedPaths: string[] = [];
+  for (const reference of relevant) {
+    let content: string;
+    try {
+      content = await readFile(reference.absolutePath, 'utf-8');
+    } catch {
+      continue; // vanished since discovery
+    }
+    examinedPaths.push(reference.path);
+    violations.push(...(await runChecks(rule, fileFromRef(reference, content), services)));
+  }
+  return { violations, failed: false, examinedPaths };
+}
+
 /** Human-readable detail for a rule failure, preferring the error message. */
 function describeCause(cause: unknown): string {
   if (cause instanceof Error && cause.message !== '') return cause.message;
@@ -137,20 +192,37 @@ function describeCause(cause: unknown): string {
  */
 async function executeProjectRule(
   rule: Rule,
-  context: { readonly rootDir: string; readonly changedFiles: readonly string[] },
+  context: {
+    readonly rootDir: string;
+    readonly changedFiles: readonly string[];
+    readonly requestedPaths: readonly string[] | null;
+  },
   services: CheckServices,
   fileFilter: readonly string[] | null,
   throwOnError: boolean,
-): Promise<{ violations: Violation[]; failed: boolean }> {
+): Promise<{ violations: Violation[]; failed: boolean; examinedPaths?: readonly string[] }> {
   try {
-    const violations =
-      rule.project !== undefined
-        ? await rule.project.run(context)
-        : await Effect.runPromise(Effect.provide(rule.run, servicesLayer(services, fileFilter)));
-    return { violations, failed: false };
+    if (rule.project === undefined) {
+      const violations = await Effect.runPromise(
+        Effect.provide(rule.run, servicesLayer(services, fileFilter)),
+      );
+      return { violations, failed: false };
+    }
+    const outcome: ProjectRuleOutcome = await rule.project.run(context);
+    if ('violations' in outcome) {
+      return {
+        violations: [...outcome.violations],
+        failed: false,
+        ...(outcome.examinedPaths === undefined
+          ? {}
+          : { examinedPaths: outcome.examinedPaths }),
+      };
+    }
+    return { violations: [...outcome], failed: false };
   } catch (cause) {
     if (throwOnError) throw cause;
     return {
+      failed: true,
       violations: [
         {
           rule: rule.id,
@@ -161,7 +233,6 @@ async function executeProjectRule(
           fix: 'Fix the underlying tool or rule so it can run. Pass --throw to surface the full error instead of a violation.',
         },
       ],
-      failed: true,
     };
   }
 }
@@ -198,8 +269,20 @@ export const runAll = (
         allPaths,
       });
 
-      const perFileRules = config.rules.filter((rule) => rule.perFile !== undefined);
-      const projectRules = config.rules.filter((rule) => rule.perFile === undefined);
+      const requestedPaths = fileFilterActive ? expandRequest(allPaths, fileFilter) : null;
+      const activeRules =
+        requestedPaths === null ? config.rules : rulesForRequest(config.rules, requestedPaths);
+
+      const perFileRules = activeRules.filter((rule) => rule.perFile !== undefined);
+      // A rule whose checks ask the file system cannot be cached against file
+      // content: adding the file they are looking for changes the answer without
+      // touching the source. They run in the project pass, which is keyed by the
+      // set of files the rule covers, so an add or a delete recomputes them and an
+      // edit does not — and they parse nothing, so recomputing is cheap.
+      const fileSystemRules = perFileRules.filter((rule) => ruleReadsFileSystem(rule));
+      const contentRules = perFileRules.filter((rule) => !ruleReadsFileSystem(rule));
+      const projectRules = activeRules.filter((rule) => rule.perFile === undefined);
+      const rulePasses = [...projectRules, ...fileSystemRules];
 
       const changed = new Set<string>();
       const violationsByRule = new Map<string, Violation[]>();
@@ -208,23 +291,20 @@ export const runAll = (
       // ── Per-file rules ───────────────────────────────────────────────────
       // One cache scope, one entry per file.
       //
-      // The fingerprint must cover every input a per-file result depends on, or
-      // the cache serves stale violations. Those inputs are:
-      //   - the rule definitions and the syntax backends,
-      //   - and the *project's path set*: checks are not pure functions of one
-      //     file. `requireSibling` asks `fs.exists`, `requireChildren`/`forbidFile`
-      //     and `imports.resolve` consult the file listing. Without the path set
-      //     here, deleting `a.test.ts` would leave `a.ts`'s cached result saying
-      //     "sibling present" — a silent pass.
-      //
-      // Paths only, not their contents: an *edit* must stay cheap (only the
-      // edited file recomputes), while an add/remove/rename recomputes all
-      // per-file results.
+      // The fingerprint covers every input a *content-pure* per-file result
+      // depends on: the rule definitions and the syntax backends.
+      // The project's path set is deliberately NOT here. It used to be, so that a
+      // check asking `fs.exists` (`requireSibling` and friends) could not serve a
+      // stale "sibling present" after the sibling was deleted — but folding it in
+      // meant one added file recomputed every per-file result in the project, which
+      // is unaffordable where files come and go. Those rules run in the project
+      // pass instead (see `fileSystemRules`), which is keyed by the covered path
+      // set, so correctness is kept and the cost lands only on the rules that asked
+      // for it.
       const scopeFingerprint = hashValue({
-        v: 2,
+        v: CACHE_KEY_VERSION,
         backends: backendFingerprint(config.adapters),
-        rules: perFileRules.map((rule) => [rule.id, ruleFingerprint(rule)]),
-        files: allPaths,
+        rules: contentRules.map((rule) => [rule.id, ruleFingerprint(rule)]),
       });
 
       const synced = await sync<FileRuleResults>({
@@ -233,9 +313,16 @@ export const runAll = (
         files: candidates,
         fingerprint: scopeFingerprint,
         compute: async (reference, source) => {
+          if (requestedPaths !== null && !requestedPaths.includes(reference.path)) {
+            // Not this run's business. Its stored result stays as it is: if the
+            // content did not change it is still correct, and if it did the hash no
+            // longer matches, so the next run that covers the file recomputes it.
+            // Storing an empty result here would erase a violation nobody looked at.
+            return KEEP_STORED;
+          }
           const file = fileFromRef(reference, source.content);
           const results: Record<string, Violation[]> = {};
-          for (const rule of perFileRules) {
+          for (const rule of contentRules) {
             const perFile = rule.perFile;
             if (perFile === undefined) continue;
             if (!matchesPerFile(reference.path, perFile)) continue;
@@ -255,40 +342,82 @@ export const runAll = (
         }
       }
 
-      // ── Project and run-only rules ───────────────────────────────────────
-      for (const rule of projectRules) {
-        const patterns = rule.project?.patterns ?? null;
+      // ── Deterministic rules: project rules and file-system rules ─────────
+      //
+      // One cache entry per rule, keyed by the content hashes of the files it
+      // covers — so an add, delete or rename recomputes it and an edit does not.
+      for (const rule of rulePasses) {
+        const perFile = rule.perFile;
+        const patterns = perFile?.patterns ?? rule.project?.patterns ?? null;
+        const inPatterns =
+          perFile !== undefined
+            ? candidates.filter((file) => matchesPerFile(file.path, perFile))
+            : patterns === null
+              ? candidates
+              : candidates.filter((file) =>
+                  micromatch.isMatch(file.path, [...patterns], { dot: true }),
+                );
+        // A scoped run looks at the requested files only; an unscoped run looks at
+        // everything the rule covers. Either way the set is deterministic given the
+        // request, which is what makes it safe to use as a cache key.
         const relevant =
-          patterns === null
-            ? candidates
-            : candidates.filter((file) =>
-                micromatch.isMatch(file.path, [...patterns], { dot: true }),
-              );
-        const projectHash = hashValue(
-          relevant.map((file) => [file.path, synced.hashes.get(file.path) ?? '']),
-        );
+          requestedPaths === null
+            ? inPatterns
+            : inPatterns.filter((file) => requestedPaths.includes(file.path));
+        // A file-system rule's answer depends on which files exist, not only on the
+        // contents of the ones it covers: `requireTest` asks whether a test file is
+        // *there*, and that file is usually outside the rule's own patterns (they
+        // exclude tests). So the path set is part of its key — paths only, so an
+        // edit does not recompute it and an add or a delete does.
+        //
+        // ponytail: a file-system rule that reads the *contents* of files outside its
+        // patterns can serve a stale answer, because those contents are not in the
+        // key. Core's three (`requireTest`, `requireSibling`, `requireChildren`) only
+        // ask existence. A custom rule that reads further should widen its patterns
+        // or set an explicit `Rule.fingerprint`.
+        const projectHash = hashValue([
+          ['covered', relevant.map((file) => [file.path, synced.hashes.get(file.path) ?? ''])],
+          ...(perFile === undefined ? [] : [['paths', allPaths] as const]),
+        ]);
         const fingerprint = ruleFingerprint(rule);
         const cached: CacheEntry<Violation[]> | undefined = await store.get<Violation[]>(
           rule.id,
           PROJECT_KEY,
         );
 
+        // A `--files` request is part of the key: a run that looked at three files
+        // must never be served for a run that was supposed to look at the project.
+        // (The requested paths also narrow `relevant`, so this is belt and braces —
+        // but a key that cannot be read as "which question did this answer" is how
+        // these caches go wrong.)
+        const cacheHash = hashValue([
+          ['project', projectHash],
+          ['request', requestedPaths === null ? null : [...requestedPaths].sort()],
+        ]);
+
         if (
           cached !== undefined &&
-          cached.hash === projectHash &&
+          cached.hash === cacheHash &&
           cached.meta?.['fingerprint'] === fingerprint
         ) {
           violationsByRule.set(rule.id, cached.value);
           continue;
         }
 
-        const execution = await executeProjectRule(
-          rule,
-          { rootDir: config.projectRoot, changedFiles: [...changed] },
-          services,
-          fileFilter,
-          options.throwOnRuleError === true,
-        );
+        const execution =
+          perFile !== undefined
+            ? await executeFileSystemRule(rule, relevant, services)
+            : await executeProjectRule(
+                rule,
+                {
+                  rootDir: config.projectRoot,
+                  changedFiles: [...changed],
+                  requestedPaths,
+                },
+                services,
+                fileFilter,
+                options.throwOnRuleError === true,
+              );
 
         if (execution.failed) {
           failedRules.push(rule.id);
@@ -297,7 +426,7 @@ export const runAll = (
           await store.delete(rule.id, PROJECT_KEY);
         } else {
           await store.put(rule.id, PROJECT_KEY, {
-            hash: projectHash,
+            hash: cacheHash,
             value: execution.violations,
             meta: { fingerprint },
           });
@@ -306,8 +435,6 @@ export const runAll = (
       }
 
       // ── Aggregation ──────────────────────────────────────────────────────
-      const changedFiles = resolveChangedFiles(config.changedSince, config.projectRoot);
-
       const buildResult = (
         ruleId: string,
         description: string,
@@ -319,26 +446,80 @@ export const runAll = (
             micromatch.isMatch(violation.path, [...fileFilter]),
           );
         }
-        if (changedFiles !== null) {
-          violations = violations.filter((violation) => changedFiles.has(violation.path));
+        if (changedSinceFiles !== null) {
+          violations = violations.filter((violation) => changedSinceFiles.has(violation.path));
         }
         violations = applyExemptions(violations, config.exemptions, ruleId);
         return { ruleId, description, category, violations };
       };
 
-      const results: RuleResult[] = config.rules.map((rule) =>
+      const changedSinceFiles = resolveChangedFiles(config.changedSince, config.projectRoot);
+      /**
+       * Whether a path is inside what this run examined. A `--since` or `--files`
+       * run cannot see files outside its scope, so a baseline entry for such a file
+       * is not stale — it was simply not looked at.
+       */
+      const inScope = (path: string): boolean => {
+        if (fileFilterActive && fileFilter !== null && !micromatch.isMatch(path, [...fileFilter])) {
+          return false;
+        }
+        if (changedSinceFiles !== null && !changedSinceFiles.has(path)) return false;
+        return true;
+      };
+
+      let results: RuleResult[] = activeRules.map((rule) =>
         buildResult(rule.id, rule.description, rule.category),
       );
+
+      let baselineStats: BaselineStats | undefined;
+      if (options.baseline !== undefined && options.baseline !== null) {
+        const modes = new Map(
+          config.rules.map((rule) => [rule.id, rule.baselineMessage ?? 'normalized'] as const),
+        );
+        const partition = partitionByBaseline(
+          results.map((result) => ({ rule: result.ruleId, violations: result.violations })),
+          options.baseline,
+          {
+            modes,
+            inScope,
+            allowStale: (path) =>
+              applyExemptions(
+                [{ message: '', path, severity: 'error', source: 'core' }],
+                config.exemptions,
+                STALE_RULE_ID,
+              ).length > 0,
+          },
+        );
+        results = results.map((result) => ({
+          ...result,
+          violations: partition.newByRule.get(result.ruleId) ?? [],
+        }));
+        if (partition.stale.length > 0) {
+          results.push({
+            ruleId: STALE_RULE_ID,
+            description: 'A baseline entry no longer matches a violation',
+            category: undefined,
+            violations: [...partition.stale],
+          });
+        }
+        baselineStats = partition.stats;
+      }
 
       const totalViolations = results.reduce((sum, result) => sum + result.violations.length, 0);
       const byCategory = computeCategoryScores(results, config.thresholds);
       // A rule that could not run makes the run incomplete: never report a pass.
-      const passing =
+      const categoriesPass =
         failedRules.length === 0 &&
         (byCategory.length === 0 || byCategory.every((category) => category.passing));
+      // With a baseline in play, the baseline is the gate: a category score can be
+      // high enough while a new violation or a stale entry still needs attention.
+      const passing =
+        baselineStats === undefined
+          ? categoriesPass
+          : categoriesPass && baselineStats.new === 0 && baselineStats.stale === 0;
 
       options.onScan?.({
-        filesSeen: candidates.length,
+        filesSeen: allPaths.length,
         added: synced.added.length,
         changed: synced.changed.length,
         removed: synced.removed.length,
@@ -352,6 +533,7 @@ export const runAll = (
         totalViolations,
         passing,
         ...(failedRules.length > 0 ? { failedRules } : {}),
+        ...(baselineStats === undefined ? {} : { baseline: baselineStats }),
       };
     } finally {
       await store.close();

@@ -46,8 +46,7 @@ export function relativeImports(opts: { message?: (imp: string) => string } = {}
           severity: 'error',
           source: 'core',
           message:
-            opts.message?.(imp) ??
-            `Relative import '${imp}' does not resolve to an existing file`,
+            opts.message?.(imp) ?? `Relative import '${imp}' does not resolve to an existing file`,
           path: file.path,
         });
       }

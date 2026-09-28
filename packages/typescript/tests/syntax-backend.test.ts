@@ -26,49 +26,51 @@ export function named(): void {}`;
 
 describe('typescriptSyntaxBackend', () => {
   describe('extensions', () => {
-    it('handles .ts, .tsx, .js, .jsx, .mjs, .cjs', () => {
+    it('handles .ts, .tsx, .js, .jsx, .mjs, .cjs', async () => {
       expect(typescriptSyntaxBackend.extensions).toEqual([
-        '.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs',
+        '.ts',
+        '.tsx',
+        '.js',
+        '.jsx',
+        '.mjs',
+        '.cjs',
       ]);
     });
   });
 
   describe('extractImports', () => {
-    it('returns clean module specifiers with named imports', () => {
+    it('returns clean module specifiers with named imports', async () => {
       const imports = typescriptSyntaxBackend.extractImports(TS, 'test.ts');
       const specifiers = imports.map((i) => i.specifier);
       expect(specifiers).toEqual(['react', './foo', './types', '@/lib/bar']);
     });
 
-    it('captures named import names', () => {
+    it('captures named import names', async () => {
       const imports = typescriptSyntaxBackend.extractImports(TS, 'test.ts');
       const react = imports.find((i) => i.specifier === 'react');
       expect(react?.names).toEqual(['useState', 'useEffect']);
     });
 
-    it('reports 1-indexed line numbers', () => {
+    it('reports 1-indexed line numbers', async () => {
       const imports = typescriptSyntaxBackend.extractImports(TS, 'test.ts');
       expect(imports[0]?.line).toBe(1);
       expect(imports[1]?.line).toBe(2);
     });
 
-    it('returns [] for unparseable input', () => {
+    it('returns [] for unparseable input', async () => {
       const imports = typescriptSyntaxBackend.extractImports('@@@ not valid js @@@', 'bad.ts');
       expect(imports).toEqual([]);
     });
 
-    it('handles default imports (no names)', () => {
-      const imports = typescriptSyntaxBackend.extractImports(
-        `import foo from './foo';`,
-        'test.ts',
-      );
+    it('handles default imports (no names)', async () => {
+      const imports = typescriptSyntaxBackend.extractImports(`import foo from './foo';`, 'test.ts');
       expect(imports[0]?.specifier).toBe('./foo');
       expect(imports[0]?.names).toEqual([]);
     });
   });
 
   describe('extractExports', () => {
-    it('returns exported identifier names, excluding default', () => {
+    it('returns exported identifier names, excluding default', async () => {
       const exports = typescriptSyntaxBackend.extractExports(TS, 'test.ts');
       const names = exports.map((e) => e.name);
       expect(names).toContain('counter');
@@ -81,20 +83,20 @@ describe('typescriptSyntaxBackend', () => {
   });
 
   describe('extractCalls', () => {
-    it('returns call names including member access', () => {
+    it('returns call names including member access', async () => {
       const calls = typescriptSyntaxBackend.extractCalls(TS, 'test.ts');
       const names = calls.map((c) => c.name);
       expect(names).toContain('console.log');
       expect(names).toContain('fetch');
     });
 
-    it('reports 1-indexed line numbers', () => {
+    it('reports 1-indexed line numbers', async () => {
       const calls = typescriptSyntaxBackend.extractCalls(TS, 'test.ts');
       const consoleLog = calls.find((c) => c.name === 'console.log');
       expect(consoleLog?.line).toBe(8);
     });
 
-    it('uses the correct parser for .tsx', () => {
+    it('uses the correct parser for .tsx', async () => {
       const tsx = `const x = <Comp onClick={() => handleClick()}>hi</Comp>;`;
       const calls = typescriptSyntaxBackend.extractCalls(tsx, 'test.tsx');
       expect(calls.map((c) => c.name)).toContain('handleClick');
@@ -102,7 +104,7 @@ describe('typescriptSyntaxBackend', () => {
   });
 
   describe('extractStructure', () => {
-    it('finds function and class declarations', () => {
+    it('finds function and class declarations', async () => {
       const items = typescriptSyntaxBackend.extractStructure(TS, 'test.ts', false);
       const kinds = items.map((i) => i.kind);
       expect(kinds).toContain('function');
@@ -112,7 +114,7 @@ describe('typescriptSyntaxBackend', () => {
       expect(fnNames).toContain('nonExported');
     });
 
-    it('attaches methods as children of classes', () => {
+    it('attaches methods as children of classes', async () => {
       const items = typescriptSyntaxBackend.extractStructure(TS, 'test.ts', false);
       const cls = items.find((i) => i.kind === 'class');
       expect(cls?.name).toBe('UserService');
@@ -121,25 +123,25 @@ describe('typescriptSyntaxBackend', () => {
       expect(methodNames).toContain('helper');
     });
 
-    it('reports 1-indexed start lines', () => {
+    it('reports 1-indexed start lines', async () => {
       const items = typescriptSyntaxBackend.extractStructure(TS, 'test.ts', false);
       const cls = items.find((i) => i.kind === 'class');
       expect(cls?.startLine).toBe(14); // `class UserService {`
     });
 
-    it('extracts docstrings when includeDocstrings is true', () => {
+    it('extracts docstrings when includeDocstrings is true', async () => {
       const items = typescriptSyntaxBackend.extractStructure(TS, 'test.ts', true);
       const named = items.find((i) => i.kind === 'function' && i.name === 'named');
       expect(named?.docstring).toContain('Doc for named');
     });
 
-    it('returns null docstrings when includeDocstrings is false', () => {
+    it('returns null docstrings when includeDocstrings is false', async () => {
       const items = typescriptSyntaxBackend.extractStructure(TS, 'test.ts', false);
       const named = items.find((i) => i.kind === 'function' && i.name === 'named');
       expect(named?.docstring).toBeNull();
     });
 
-    it('returns [] for unparseable input', () => {
+    it('returns [] for unparseable input', async () => {
       const items = typescriptSyntaxBackend.extractStructure('@@@ bad', 'bad.ts', false);
       expect(items).toEqual([]);
     });

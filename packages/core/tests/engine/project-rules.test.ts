@@ -97,9 +97,7 @@ describe('defineArchitecture (project rule)', () => {
     const violations =
       result.byRule.find((r) => r.ruleId === 'architecture-layer-violations')?.violations ?? [];
     expect(violations).toHaveLength(1);
-    expect(violations[0]?.message).toBe(
-      "Layer 'a' must not import from layer 'b'. Allowed: [].",
-    );
+    expect(violations[0]?.message).toBe("Layer 'a' must not import from layer 'b'. Allowed: [].");
     expect(violations[0]?.path).toBe('src/a/index.ts');
   });
 
@@ -132,9 +130,7 @@ describe('defineArchitecture (project rule)', () => {
     const violations =
       result.byRule.find((r) => r.ruleId === 'architecture-layer-violations')?.violations ?? [];
     expect(violations).toHaveLength(1);
-    expect(violations[0]?.message).toBe(
-      "Layer 'a' must not import external package 'react'.",
-    );
+    expect(violations[0]?.message).toBe("Layer 'a' must not import external package 'react'.");
   });
 
   it('honors explicit forbidden pairs with a custom message', async () => {

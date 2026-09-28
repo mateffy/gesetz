@@ -18,20 +18,32 @@ import {
   isNodeSqliteAvailable,
   runAll,
   sqliteUnavailableMessage,
+  baselinePathFor,
+  type BaselineFile,
+  coordinateRun,
+  type CoordinationOutcome,
+  type RunResult,
 } from '@gesetz/core';
 import { loadConfig } from './load-config';
+import { baselineCommand, loadBaseline } from './baseline';
+import { describeCoordination, requestKeyFor, resolveCoordinationKnobs } from './check-coordination';
+import { parseFileRequest, resolveCheckScope } from './check';
+import { watchForChanges } from './watch';
 import {
   formatCategoryTable,
   formatViolations,
-  formatEnvelope,
   formatCi,
   formatStatusBanner,
   formatList,
   detectFormat,
   type OutputFormat,
 } from './format';
+import { formatEnvelope } from './envelope';
 import { SKILL_MARKDOWN } from './skill';
 import { initCommand } from './init';
+
+/** The JavaScript runtime this process is on, for the cache banner. */
+const RUNTIME = typeof (globalThis as { Bun?: unknown }).Bun === 'undefined' ? 'node' : 'bun';
 
 /** Debounce for watch-mode re-runs, in milliseconds. */
 const WATCH_DEBOUNCE_MS = 150;
@@ -148,8 +160,10 @@ const checkCommand = Command.make(
       Options.optional,
     ),
     files: Options.text('files').pipe(
-      Options.withDescription('Only check files matching these comma-separated globs (e.g. "src/components/**")'),
-      Options.optional,
+      Options.withDescription(
+        'Only check these globs (e.g. "src/a.ts,src/**"). Repeatable, and comma-separated. Rules that cannot match are not run.',
+      ),
+      Options.repeated,
     ),
     full: Options.boolean('full').pipe(
       Options.withDescription('Bypass the violation cache and re-check everything (no SQLite persistence)'),
@@ -165,20 +179,37 @@ const checkCommand = Command.make(
       ),
       Options.withDefault(false),
     ),
+    standalone: Options.boolean('standalone').pipe(
+      Options.withDescription(
+        'Run immediately: do not wait for, or reuse, another gesetz check in this worktree',
+      ),
+      Options.withDefault(false),
+    ),
+    jobs: Options.integer('jobs').pipe(
+      Options.withDescription(
+        'How many gesetz check runs may proceed at once in this worktree (default 1). GESETZ_JOBS overrides.',
+      ),
+      Options.withDefault(1),
+    ),
+    waitTimeout: Options.integer('wait-timeout').pipe(
+      Options.withDescription('Seconds to wait for a run in flight before running anyway (default 600)'),
+      Options.optional,
+    ),
+    baseline: Options.boolean('baseline').pipe(
+      Options.withDescription('Report against .gesetz-baseline.json (the default when the file exists)'),
+      Options.withDefault(false),
+    ),
+    noBaseline: Options.boolean('no-baseline').pipe(
+      Options.withDescription('Ignore .gesetz-baseline.json and report the full inventory'),
+      Options.withDefault(false),
+    ),
   },
   (opts) =>
     Effect.gen(function* () {
       const root = nodePath.resolve(Option.getOrElse(opts.projectRoot, () => process.cwd()));
       const changedSince = Option.getOrUndefined(opts.since);
       const configPath = Option.getOrUndefined(opts.config);
-      const filesGlobs = Option.map(opts.files, (v) =>
-        v.split(',').map((s) => s.trim()).filter(Boolean),
-      );
-      const categoryFilter = Option.map(
-        opts.category,
-        (v) => new Set(v.split(',').map((s) => s.trim())),
-      );
-
+      const fileRequest = parseFileRequest(opts.files);
       const config = yield* loadConfig(root, {
         changedSince,
         configPath,
@@ -194,24 +225,45 @@ const checkCommand = Command.make(
         ),
       );
 
-      // Apply category filter
-      const filteredConfig = Option.isSome(categoryFilter)
-        ? {
-            ...config,
-            rules: config.rules.filter(
-              (r) => r.category !== undefined && categoryFilter.value.has(r.category),
-            ),
-          }
-        : config;
-
-      // Apply threshold override
-      const thresholds = Option.match(opts.threshold, {
-        onNone: () => filteredConfig.thresholds,
-        onSome: (t) =>
-          [...new Set(filteredConfig.rules.map((r) => r.category).filter(Boolean) as string[])].map(
-            (cat) => ({ category: cat, minScore: t }),
-          ),
+      const scope = resolveCheckScope({
+        rules: config.rules,
+        configuredThresholds: config.thresholds,
+        categoryFilter: Option.getOrUndefined(opts.category),
+        thresholdOverride: Option.getOrUndefined(opts.threshold),
       });
+      const filteredConfig = { ...config, rules: scope.rules };
+      const thresholds = scope.thresholds;
+
+      // Resolves the baseline once per command. `--baseline` demands the file;
+      // otherwise an existing file is used automatically.
+      let baseline: BaselineFile | null = null;
+      if (opts.baseline && opts.noBaseline) {
+        yield* Console.error('--baseline and --no-baseline are mutually exclusive.');
+        yield* Effect.sync(() => {
+          process.exitCode = 1;
+        });
+        return;
+      }
+      if (!opts.noBaseline) {
+        const loaded = yield* loadBaseline(root).pipe(Effect.either);
+        if (loaded._tag === 'Left') {
+          yield* Console.error(loaded.left.message);
+          yield* Effect.sync(() => {
+            process.exitCode = 1;
+          });
+          return;
+        }
+        baseline = loaded.right;
+        if (baseline === null && opts.baseline) {
+          yield* Console.error(
+            `No baseline file at ${baselinePathFor(root)}. A maintainer creates it with \`gesetz baseline\`.`,
+          );
+          yield* Effect.sync(() => {
+            process.exitCode = 1;
+          });
+          return;
+        }
+      }
 
       if (opts.full) {
         yield* Console.error('(--full) cache bypassed — running without persistence.');
@@ -220,28 +272,103 @@ const checkCommand = Command.make(
       const thresholdMap: Record<string, number> = {};
       for (const t of thresholds) thresholdMap[t.category] = t.minScore;
 
-      const runAndRender = Effect.gen(function* () {
-        const storage = yield* Effect.promise(() =>
-          resolveStorage(root, opts.full, filteredConfig.storage),
+      // Several agents in one worktree each running the full check is several
+      // scans and several runs of every external tool for the same tree. One run
+      // answers for all of them when their tree states match.
+      const storage = yield* Effect.promise(() =>
+        resolveStorage(root, opts.full, filteredConfig.storage),
+      );
+      yield* Console.error(
+        `cache: ${storage.kind === 'sqlite' ? storage.path : 'off'} (runtime: ${RUNTIME})`,
+      );
+
+      const { jobs, standalone, waitTimeoutMs } = resolveCoordinationKnobs({
+        flags: {
+          standalone: opts.standalone,
+          full: opts.full,
+          jobs: opts.jobs,
+          waitTimeoutSeconds: Option.getOrUndefined(opts.waitTimeout),
+        },
+        env: process.env,
+      });
+      const baselineBytes =
+        baseline === null ? null : nodeFs.readFileSync(baselinePathFor(root), 'utf8');
+      const requestKey = requestKeyFor({
+        root,
+        configPath,
+        rules: filteredConfig.rules,
+        thresholds,
+        fileFilter: fileRequest,
+        changedSince,
+        baselineBytes,
+        storage,
+      });
+
+      let lastScan: { added: number; changed: number } | null = null;
+
+      const runAndRender: Effect.Effect<CoordinationOutcome<RunResult>> = Effect.gen(function* () {
+        const outcome = yield* Effect.promise(() =>
+          coordinateRun({
+            root,
+            requestKey,
+            jobs,
+            standalone,
+            ...(waitTimeoutMs === undefined ? {} : { waitTimeoutMs }),
+            recheckedFiles: () =>
+              lastScan === null ? 0 : lastScan.added + lastScan.changed,
+            run: () =>
+              Effect.runPromise(
+                runAll(
+                  { ...filteredConfig, thresholds, storage },
+                  {
+                    baseline,
+                    fileFilter: fileRequest,
+                    throwOnRuleError: opts.throwOnError,
+                    onScan: (scan) => {
+                      lastScan = scan;
+                      process.stderr.write(
+                        `scan: ${scan.filesSeen} files — +${scan.added} ~${scan.changed} -${scan.removed} =${scan.reused} reused (${scan.durationMs}ms)\n`,
+                      );
+                    },
+                  },
+                ),
+              ),
+          }),
         );
-        const result = yield* runAll(
-          { ...filteredConfig, thresholds, storage },
-          {
-            fileFilter: Option.getOrUndefined(filesGlobs) ?? null,
-            throwOnRuleError: opts.throwOnError,
-            onScan: (scan) => {
-              process.stderr.write(
-                `scan: ${scan.filesSeen} files — +${scan.added} ~${scan.changed} -${scan.removed} =${scan.reused} reused (${scan.durationMs}ms)\n`,
-              );
-            },
-          },
+
+        const result = outcome.result;
+        const waited = outcome.events.find((event) => event.type === 'waited');
+        yield* Console.error(
+          describeCoordination({
+            mode: outcome.mode,
+            waitedMs: outcome.waitedMs,
+            runAgeMs: outcome.runAgeMs,
+            listeners: outcome.listeners,
+            recheckedFiles: outcome.recheckedFiles,
+            ...(waited !== undefined && waited.type === 'waited'
+              ? { runningPid: waited.runningPid }
+              : {}),
+          }),
         );
 
         // Status banner to stderr — stdout stays a clean data contract.
         yield* Console.error(formatStatusBanner(result).trimEnd());
 
         if (format === 'json') {
-          yield* Console.log(formatEnvelope(result, { all: opts.all, thresholds: thresholdMap }).trimEnd());
+          yield* Console.log(
+            formatEnvelope(result, {
+              all: opts.all,
+              thresholds: thresholdMap,
+              coordination: {
+                mode: outcome.mode,
+                waitedMs: outcome.waitedMs,
+                runAgeMs: outcome.runAgeMs,
+                listeners: outcome.listeners,
+                recheckedFiles: outcome.recheckedFiles,
+                pid: process.pid,
+              },
+            }).trimEnd(),
+          );
         } else if (format === 'ci') {
           yield* Console.log(formatCi(result).trimEnd());
         } else {
@@ -251,11 +378,11 @@ const checkCommand = Command.make(
           }
         }
 
-        return result;
+        return outcome;
       });
 
       const first = yield* runAndRender;
-      if (!first.passing) {
+      if (!first.result.passing) {
         yield* Effect.sync(() => {
           process.exitCode = 1;
         });
@@ -360,7 +487,7 @@ const gesetzCommand = Command.make('gesetz', {}, () =>
   Console.log('Run `gesetz --help` to see available commands.'),
 ).pipe(
   Command.withDescription('Unified code quality gate \u2014 Gesetz v0.1.0'),
-  Command.withSubcommands([checkCommand, listCommand, skillCommand, initCommand]),
+  Command.withSubcommands([checkCommand, baselineCommand, listCommand, skillCommand, initCommand]),
 );
 
 // ─── Entry point ─────────────────────────────────────────────────────────────

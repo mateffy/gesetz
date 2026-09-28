@@ -1,11 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import * as childProcess from 'node:child_process';
 import * as nodeFs from 'node:fs';
-import * as nodeOs from 'node:os';
-import * as nodePath from 'node:path';
+
 import { Effect, Layer } from 'effect';
 import { bunTest } from '../src/adapter';
-import { MemoryFileSystem, ProjectRootLive, FileFilterLive, SyntaxTreeStub, ImportResolverDefault } from '@gesetz/core';
+import {
+  MemoryFileSystem,
+  ProjectRootLive,
+  FileFilterLive,
+  SyntaxTreeStub,
+  ImportResolverDefault,
+} from '@gesetz/core';
 
 const TestLayer = Layer.mergeAll(
   MemoryFileSystem({}),
@@ -51,7 +56,6 @@ describe('bun-test adapter', () => {
 
   it('parses failed tests from JUnit XML', async () => {
     const tmpDir = '/tmp/gesetz-bun-test-1';
-    const tmpFile = nodePath.join(tmpDir, 'junit.xml');
     (nodeFs.mkdtempSync as ReturnType<typeof vi.fn>).mockReturnValue(tmpDir);
     (nodeFs.readFileSync as ReturnType<typeof vi.fn>).mockReturnValue(JUNIT_XML);
     (childProcess.execFileSync as ReturnType<typeof vi.fn>).mockImplementation(() => '');
@@ -94,12 +98,17 @@ describe('bun-test adapter', () => {
 
     expect(spy).toHaveBeenCalledWith(
       'bun',
-      expect.arrayContaining(['test', '--reporter=junit', 'src/utils', expect.stringContaining('--reporter-outfile=')]),
+      expect.arrayContaining([
+        'test',
+        '--reporter=junit',
+        'src/utils',
+        expect.stringContaining('--reporter-outfile='),
+      ]),
       expect.any(Object),
     );
   });
 
-  it('returns empty array when JUnit file is unreadable', async () => {
+  it('reports a violation when the JUnit file is unreadable', async () => {
     const tmpDir = '/tmp/gesetz-bun-test-4';
     (nodeFs.mkdtempSync as ReturnType<typeof vi.fn>).mockReturnValue(tmpDir);
     (nodeFs.readFileSync as ReturnType<typeof vi.fn>).mockImplementation(() => {
@@ -109,7 +118,9 @@ describe('bun-test adapter', () => {
 
     const rule = bunTest({ cwd: '/project' });
     const violations = await Effect.runPromise(Effect.provide(rule.run, TestLayer));
-    expect(violations).toEqual([]);
+    expect(violations).toHaveLength(1);
+    expect(violations[0]?.severity).toBe('error');
+    expect(violations[0]?.message).toContain('nothing was checked');
   });
 
   describe('FileFilter integration', () => {
@@ -123,12 +134,18 @@ describe('bun-test adapter', () => {
       spy.mockImplementation(() => '');
 
       const rule = bunTest({ cwd: '/project' });
-      await Effect.runPromise(Effect.provide(rule.run,
-        Layer.mergeAll(
-          MemoryFileSystem({}), SyntaxTreeStub, ImportResolverDefault,
-          ProjectRootLive('/project'), FileFilterLive(['src/app/**', 'src/lib/**']),
+      await Effect.runPromise(
+        Effect.provide(
+          rule.run,
+          Layer.mergeAll(
+            MemoryFileSystem({}),
+            SyntaxTreeStub,
+            ImportResolverDefault,
+            ProjectRootLive('/project'),
+            FileFilterLive(['src/app/**', 'src/lib/**']),
+          ),
         ),
-      ));
+      );
 
       expect(spy).toHaveBeenCalledWith(
         'bun',
@@ -171,7 +188,7 @@ describe('bun-test adapter', () => {
       // Without patterns, bun test runs its default matching
       const callArgs = spy.mock.calls[spy.mock.calls.length - 1]?.[1] as string[];
       const positionalArgs = callArgs.filter(
-        (a) => !a.startsWith('--') && a !== 'bun' && a !== 'test' && !a.includes('junit.xml')
+        (a) => !a.startsWith('--') && a !== 'bun' && a !== 'test' && !a.includes('junit.xml'),
       );
       expect(positionalArgs.length).toBe(0);
     });
@@ -186,12 +203,18 @@ describe('bun-test adapter', () => {
       spy.mockImplementation(() => '');
 
       const rule = bunTest({ cwd: '/project', pattern: 'src/everything' });
-      await Effect.runPromise(Effect.provide(rule.run,
-        Layer.mergeAll(
-          MemoryFileSystem({}), SyntaxTreeStub, ImportResolverDefault,
-          ProjectRootLive('/project'), FileFilterLive(['src/subset/**']),
+      await Effect.runPromise(
+        Effect.provide(
+          rule.run,
+          Layer.mergeAll(
+            MemoryFileSystem({}),
+            SyntaxTreeStub,
+            ImportResolverDefault,
+            ProjectRootLive('/project'),
+            FileFilterLive(['src/subset/**']),
+          ),
         ),
-      ));
+      );
 
       const callArgs = spy.mock.calls[spy.mock.calls.length - 1]?.[1] as string[];
       expect(callArgs).toContain('src/subset/**');

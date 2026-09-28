@@ -49,8 +49,18 @@ describe('TestRunnerReporter', () => {
 
     const result = makeResult({
       byRule: [
-        { ruleId: 'rule-1', description: 'All components need stories', category: undefined, violations: [] },
-        { ruleId: 'rule-2', description: 'No raw strings in JSX', category: undefined, violations: [] },
+        {
+          ruleId: 'rule-1',
+          description: 'All components need stories',
+          category: undefined,
+          violations: [],
+        },
+        {
+          ruleId: 'rule-2',
+          description: 'No raw strings in JSX',
+          category: undefined,
+          violations: [],
+        },
       ],
     });
 

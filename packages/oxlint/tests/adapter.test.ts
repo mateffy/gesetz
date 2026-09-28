@@ -3,7 +3,13 @@ import * as childProcess from 'node:child_process';
 import * as nodePath from 'node:path';
 import { Effect, Layer } from 'effect';
 import { oxlint } from '../src/adapter';
-import { MemoryFileSystem, ProjectRootLive, FileFilterLive, SyntaxTreeStub, ImportResolverDefault } from '@gesetz/core';
+import {
+  MemoryFileSystem,
+  ProjectRootLive,
+  FileFilterLive,
+  SyntaxTreeStub,
+  ImportResolverDefault,
+} from '@gesetz/core';
 
 const TestLayer = Layer.mergeAll(
   MemoryFileSystem({}),
@@ -25,7 +31,8 @@ vi.mock('node:child_process', async () => {
 const OXLINT_JSON = JSON.stringify({
   diagnostics: [
     {
-      message: "Parameter 'children' is declared but never used. Unused parameters should start with a '_'.",
+      message:
+        "Parameter 'children' is declared but never used. Unused parameters should start with a '_'.",
       code: 'eslint(no-unused-vars)',
       severity: 'warning',
       filename: 'src/components/ui/Button.tsx',
@@ -104,12 +111,16 @@ describe('oxlint', () => {
     );
   });
 
-  it('returns empty array when stdout is not valid JSON', async () => {
-    (childProcess.execFileSync as ReturnType<typeof vi.fn>).mockImplementation(() => 'not json at all');
+  it('reports a violation when stdout is not valid JSON', async () => {
+    (childProcess.execFileSync as ReturnType<typeof vi.fn>).mockImplementation(
+      () => 'not json at all',
+    );
 
     const rule = oxlint({ cwd: '/project' });
     const violations = await Effect.runPromise(Effect.provide(rule.run, TestLayer));
-    expect(violations).toEqual([]);
+    expect(violations).toHaveLength(1);
+    expect(violations[0]?.severity).toBe('error');
+    expect(violations[0]?.message).toContain('nothing was checked');
   });
 
   it('fails loudly when the tool cannot be spawned', async () => {
@@ -170,12 +181,18 @@ describe('oxlint', () => {
       spy.mockImplementation(() => JSON.stringify({ diagnostics: [] }));
 
       const rule = oxlint({ cwd: '/project' });
-      await Effect.runPromise(Effect.provide(rule.run,
-        Layer.mergeAll(
-          MemoryFileSystem({}), SyntaxTreeStub, ImportResolverDefault,
-          ProjectRootLive('/project'), FileFilterLive(['src/app/**', 'src/lib/**']),
+      await Effect.runPromise(
+        Effect.provide(
+          rule.run,
+          Layer.mergeAll(
+            MemoryFileSystem({}),
+            SyntaxTreeStub,
+            ImportResolverDefault,
+            ProjectRootLive('/project'),
+            FileFilterLive(['src/app/**', 'src/lib/**']),
+          ),
         ),
-      ));
+      );
 
       expect(spy).toHaveBeenCalledWith(
         'oxlint',
@@ -198,18 +215,14 @@ describe('oxlint', () => {
       );
     });
 
-    it('defaults to [\".\"] when no pattern and no FileFilter', async () => {
+    it('defaults to ["."] when no pattern and no FileFilter', async () => {
       const spy = childProcess.execFileSync as ReturnType<typeof vi.fn>;
       spy.mockImplementation(() => JSON.stringify({ diagnostics: [] }));
 
       const rule = oxlint({ cwd: '/project' });
       await Effect.runPromise(Effect.provide(rule.run, TestLayer));
 
-      expect(spy).toHaveBeenCalledWith(
-        'oxlint',
-        expect.arrayContaining(['.']),
-        expect.any(Object),
-      );
+      expect(spy).toHaveBeenCalledWith('oxlint', expect.arrayContaining(['.']), expect.any(Object));
     });
 
     it('FileFilter patterns override adapter pattern', async () => {
@@ -217,12 +230,18 @@ describe('oxlint', () => {
       spy.mockImplementation(() => JSON.stringify({ diagnostics: [] }));
 
       const rule = oxlint({ cwd: '/project', pattern: 'src/everything/**' });
-      await Effect.runPromise(Effect.provide(rule.run,
-        Layer.mergeAll(
-          MemoryFileSystem({}), SyntaxTreeStub, ImportResolverDefault,
-          ProjectRootLive('/project'), FileFilterLive(['src/subset/**']),
+      await Effect.runPromise(
+        Effect.provide(
+          rule.run,
+          Layer.mergeAll(
+            MemoryFileSystem({}),
+            SyntaxTreeStub,
+            ImportResolverDefault,
+            ProjectRootLive('/project'),
+            FileFilterLive(['src/subset/**']),
+          ),
         ),
-      ));
+      );
 
       expect(spy).toHaveBeenCalledWith(
         'oxlint',
@@ -232,6 +251,47 @@ describe('oxlint', () => {
       // Should NOT contain the adapter pattern
       const callArgs = spy.mock.calls[spy.mock.calls.length - 1]?.[1] as string[];
       expect(callArgs).not.toContain('src/everything/**');
+    });
+  });
+
+  describe('project runs honour a --files request', () => {
+    const spy = childProcess.execFileSync as ReturnType<typeof vi.fn>;
+    const argsOf = (): string[] =>
+      (childProcess.execFileSync as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[1] as string[];
+
+    it('runs over its own patterns when nothing was requested', async () => {
+      spy.mockImplementation(() => '[]');
+      const rule = oxlint({ pattern: 'src/**/*.ts', cwd: '/project', bin: 'oxlint' });
+      await rule.project!.run({
+        rootDir: '/project',
+        changedFiles: ['src/a.ts'],
+        requestedPaths: null,
+      });
+      expect(argsOf()).toEqual(['--format=json', 'src/**/*.ts']);
+    });
+
+    it('runs over the requested files when there is one', async () => {
+      spy.mockImplementation(() => '[]');
+      const rule = oxlint({ pattern: 'src/**/*.ts', cwd: '/project', bin: 'oxlint' });
+      await rule.project!.run({
+        rootDir: '/project',
+        changedFiles: ['src/a.ts', 'src/b.ts'],
+        requestedPaths: ['src/a.ts', 'src/b.ts'],
+      });
+      expect(argsOf()).toEqual(['--format=json', 'src/a.ts', 'src/b.ts']);
+    });
+
+    it('does not call the tool at all when the request matches none of its files', async () => {
+      spy.mockImplementation(() => '[]');
+      const rule = oxlint({ pattern: 'src/**/*.ts', cwd: '/project', bin: 'oxlint' });
+      await rule.project!.run({
+        rootDir: '/project',
+        changedFiles: ['src/a.ts'],
+        requestedPaths: ['src/a.php'],
+      });
+      // Handing the tool an empty list would make it scan nothing and report
+      // success, so the adapter must skip it instead.
+      expect(childProcess.execFileSync).not.toHaveBeenCalled();
     });
   });
 });

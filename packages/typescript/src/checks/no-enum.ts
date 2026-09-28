@@ -27,8 +27,7 @@ export function noEnum(opts: NoEnumOptions = {}): Check {
         severity: 'warn',
         source: 'core',
         message:
-          opts.message ??
-          'Avoid TypeScript `enum` — use a union type or `as const` object map',
+          opts.message ?? 'Avoid TypeScript `enum` — use a union type or `as const` object map',
         path: file.path,
         line: startLine(node),
       });

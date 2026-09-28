@@ -1,7 +1,7 @@
 import * as nodePath from 'node:path';
 import { Effect } from 'effect';
 import type { Rule, Violation } from '@gesetz/core';
-import { execTool, FileFilter, ProjectRoot, resolveToolBin, resolveToolCwd } from '@gesetz/core';
+import { execTool, FileFilter, ProjectRoot, resolveToolBin, resolveToolCwd, toolScope } from '@gesetz/core';
 
 export interface PhpstanOptions {
   /** Glob pattern(s) to analyse. If omitted, phpstan analyses the configured paths. */
@@ -31,12 +31,21 @@ interface PhpstanJsonOutput {
   errors: string[];
 }
 
-function parsePhpstanOutput(stdout: string, cwd: string): Violation[] {
+function parsePhpstanOutput(stdout: string, cwd: string, ruleId: string): Violation[] {
   let parsed: PhpstanJsonOutput;
   try {
     parsed = JSON.parse(stdout) as PhpstanJsonOutput;
-  } catch {
-    return [];
+  } catch (cause) {
+    // Nothing was analysed. Reporting no violations here would read as "clean".
+    return [
+      {
+        rule: ruleId,
+        message: `phpstan produced output that is not a JSON report, so nothing was checked: ${String(cause)}. Fix the tool, then re-run.`,
+        path: '.',
+        severity: 'error',
+        source: 'custom',
+      },
+    ];
   }
 
   const violations: Violation[] = [];
@@ -96,7 +105,7 @@ async function executePhpstan(
 
   const stdout = await Effect.runPromise(execTool(bin, args, cwd, 'phpstan'));
 
-  const violations = parsePhpstanOutput(stdout, cwd);
+  const violations = parsePhpstanOutput(stdout, cwd, id);
   return violations.map((v) => ({ ...v, rule: id }));
 }
 
@@ -126,16 +135,25 @@ export function phpstan(opts: PhpstanOptions = {}): Rule {
     return yield* Effect.promise(() => executePhpstan(opts, id, bin, cwd, memoryLimit, patterns));
   });
 
+  // PHPStan analyses files or directories; the fallback is the whole project and
+  // its config, so editing phpstan.neon re-runs the analysis.
+  const projectPatterns: string[] =
+    defaultPatterns ?? ['**/*.php', 'phpstan.neon', 'phpstan.neon.*'];
+
   return {
     id,
     description,
     run,
     category: opts.category,
     project: {
-      patterns: defaultPatterns ?? ['**/*.php', 'phpstan.neon', 'phpstan.neon.*'],
+      patterns: projectPatterns,
       run: (ctx) => {
         const { bin, cwd } = locate(ctx.rootDir);
-        return executePhpstan(opts, id, bin, cwd, memoryLimit, defaultPatterns);
+        // A `--files` request narrows what the tool looks at; without one it runs
+        // over its own patterns, which is what its cached result is keyed by.
+        const scope = toolScope(ctx.requestedPaths, projectPatterns);
+        if (scope === null) return Promise.resolve([]);
+        return executePhpstan(opts, id, bin, cwd, memoryLimit, scope);
       },
     },
   };

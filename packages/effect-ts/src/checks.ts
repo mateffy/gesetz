@@ -12,12 +12,7 @@ import type { Check, Violation } from '@gesetz/core';
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
 
-function makeViolation(
-  rule: string,
-  message: string,
-  path: string,
-  line: number,
-): Violation {
+function makeViolation(rule: string, message: string, path: string, line: number): Violation {
   return { rule, message, path, line, severity: 'error', source: 'core' };
 }
 

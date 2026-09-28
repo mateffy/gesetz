@@ -1,5 +1,5 @@
-import type { StructureItem } from '../../services/syntax-tree';
 import type { Check, Violation } from '../../engine/rule';
+import { flattenStructure } from './walk';
 
 export interface RequireDocstringsOptions {
   /** e.g. ['function', 'class']. Default: ['function', 'class', 'method'] */
@@ -24,25 +24,15 @@ export function requireDocstrings(opts: RequireDocstringsOptions = {}): Check {
 
     try {
       const result = await syntax.process(file, { structure: true, docstrings: true });
-      const violations: Violation[] = [];
-
-      function checkItems(items: readonly StructureItem[]): void {
-        for (const item of items) {
-          if (kinds.includes(item.kind) && !item.docstring) {
-            violations.push({
-              severity: opts.severity ?? 'warn',
-              source: 'core',
-              message: opts.message ?? `'${item.name}' is missing a docstring`,
-              path: file.path,
-              line: item.startLine,
-            });
-          }
-          if (item.children.length > 0) checkItems(item.children);
-        }
-      }
-
-      checkItems(result.structure);
-      return violations;
+      return flattenStructure(result.structure)
+        .filter((item) => kinds.includes(item.kind) && !item.docstring)
+        .map((item): Violation => ({
+          severity: opts.severity ?? 'warn',
+          source: 'core',
+          message: opts.message ?? `'${item.name}' is missing a docstring`,
+          path: file.path,
+          line: item.startLine,
+        }));
     } catch {
       return [];
     }

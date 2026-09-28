@@ -1,0 +1,12 @@
+{
+  "singleQuote": true,
+  "printWidth": 100,
+  "semi": true,
+  "trailingComma": "all",
+  "ignorePatterns": [
+    "**/dist/**",
+    "**/node_modules/**",
+    "**/CHANGELOG.md",
+    "**/README.md"
+  ]
+}

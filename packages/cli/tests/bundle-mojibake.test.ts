@@ -38,10 +38,22 @@ const BUN_BIN = nodeFs.existsSync('/usr/local/bin/bun')
 describe('bundle: box-char mojibake regression', () => {
   const runInPty = (
     args: string[],
-    opts: { settleMs?: number; cwd?: string; feed?: string } = {},
+    opts: {
+      settleMs?: number;
+      cwd?: string;
+      feed?: string;
+      childDeadlineSeconds?: number;
+    } = {},
   ): Buffer => {
     const settleMs = opts.settleMs ?? 1500;
     const feed = opts.feed ?? '\r';
+    // How long to keep reading the child before killing it. It doubles as the
+    // stall guard: a child that finishes on its own ends the loop early, and one
+    // that sits at a prompt we never answer is killed at the deadline. Tests that
+    // run a full scan need a longer one — a cold `gesetz check` scans the
+    // repository and shells out to the external-tool adapters, which is much
+    // slower under a loaded suite than on an idle machine.
+    const childDeadlineSeconds = opts.childDeadlineSeconds ?? 10;
     const python = [
       '-c',
       `import pty,os,sys,select,time
@@ -51,7 +63,7 @@ if pid==0:
     os.chdir(${JSON.stringify(opts.cwd ?? REPO_ROOT)})
     os.execvp(${JSON.stringify(BUN_BIN)}, ${JSON.stringify([BUN_BIN, DIST_MAIN, ...args])})
 else:
-    deadline=time.time()+10
+    deadline=time.time()+${childDeadlineSeconds}
     fed=False
     while time.time()<deadline:
         r,_,_=select.select([fd],[],[],0.3)
@@ -79,7 +91,9 @@ sys.stdout.buffer.write(bytes(out))`,
       cwd: REPO_ROOT,
       encoding: 'buffer',
       stdio: ['ignore', 'pipe', 'ignore'],
-      timeout: 30000,
+      // Must exceed the harness's own deadline, so the failure that surfaces is
+      // the harness's rather than a bare ETIMEDOUT.
+      timeout: childDeadlineSeconds * 1000 + 30_000,
     });
   };
 
@@ -96,12 +110,24 @@ sys.stdout.buffer.write(bytes(out))`,
       return;
     }
     // Run against the gesetz repo itself (has a gesetz.config.ts + src/).
-    const out = runInPty(['check', '--category', 'cleanup'], { settleMs: 5000 });
+    //
+    // No --category filter: the pretty score table is only rendered when there
+    // are violations to report. Pinning a single category made this test fail the
+    // moment that category became clean, which is the opposite of a regression.
+    const out = runInPty(['check'], { settleMs: 5000, childDeadlineSeconds: 45 });
     expect(out.includes(DOUBLE_ENCODED_HLINE)).toBe(false);
     expect(out.includes(DOUBLE_ENCODED_EMDASH)).toBe(false);
-    // Correct ─ divider present (the score table uses it).
-    expect(out.includes(Buffer.from([0xe2, 0x94, 0x80]))).toBe(true);
-  }, 40000);
+
+    // Correct ─ divider present (the score table uses it), whenever a table was
+    // rendered at all. A fully clean repository prints a one-line summary.
+    const renderedTable =
+      out.includes(Buffer.from('score')) || out.includes(Buffer.from('category'));
+    if (renderedTable) {
+      expect(out.includes(Buffer.from([0xe2, 0x94, 0x80]))).toBe(true);
+    } else {
+      console.warn('no score table rendered (repository is clean); divider check skipped');
+    }
+  }, 90000);
 
   it('gesetz check: emits ASCII fallback (no box chars) when piped', () => {
     if (!distExists()) {
@@ -111,12 +137,18 @@ sys.stdout.buffer.write(bytes(out))`,
     // Scope to a category the repo passes (organization, score 10) so the
     // command exits 0 and we can assert on the rendered table's encoding.
     // The test verifies mojibake/box-char handling, not the quality gate.
-    const out = execFileSync(BUN_BIN, [DIST_MAIN, 'check', '--category', 'organization', '--format', 'pretty'], {
-      cwd: REPO_ROOT,
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'ignore'],
-      timeout: 30000,
-    });
+    const out = execFileSync(
+      BUN_BIN,
+      [DIST_MAIN, 'check', '--category', 'organization', '--format', 'pretty'],
+      {
+        cwd: REPO_ROOT,
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+        // Over the suite's load a full `check` in this repository can outlast the
+        // default ceiling: this test is about which bytes come out, not how fast.
+        timeout: 120_000,
+      },
+    );
     expect(out).not.toMatch(/\u2500/);
     expect(out).not.toMatch(/\u00c3/);
     expect(out).toMatch(/-{20,}/);

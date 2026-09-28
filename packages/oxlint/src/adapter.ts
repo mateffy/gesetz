@@ -1,7 +1,7 @@
 import * as nodePath from 'node:path';
 import { Effect } from 'effect';
 import type { Rule, Violation } from '@gesetz/core';
-import { execTool, FileFilter, ProjectRoot, resolveToolBin, resolveToolCwd } from '@gesetz/core';
+import { execTool, FileFilter, ProjectRoot, resolveToolBin, resolveToolCwd, toolScope } from '@gesetz/core';
 
 export interface OxlintOptions {
   pattern?: string | string[];
@@ -58,8 +58,18 @@ async function executeOxlint(
   let output: OxlintJsonOutput;
   try {
     output = JSON.parse(stdout) as OxlintJsonOutput;
-  } catch {
-    return [];
+  } catch (cause) {
+    // Nothing was linted. Returning no violations here would read as "clean",
+    // which is the one thing a gate must never do.
+    return [
+      {
+        rule: id,
+        message: `oxlint produced output that is not a JSON report, so nothing was checked: ${String(cause)}. Fix the tool, then re-run.`,
+        path: '.',
+        severity: 'error',
+        source: 'custom',
+      },
+    ];
   }
 
   const diagnostics = output.diagnostics ?? [];
@@ -133,8 +143,12 @@ export function oxlint(opts: OxlintOptions = {}): Rule {
         ? defaultPatterns
         : ['**/*.{js,jsx,ts,tsx,mjs,cjs,mts,cts}', '.oxlintrc*', 'oxlint.config.*'],
       run: (ctx) => {
+        // A `--files` request narrows what the tool looks at; without one it runs
+        // over its own patterns, which is what its cached result is keyed by.
+        const scope = toolScope(ctx.requestedPaths, defaultPatterns);
+        if (scope === null) return Promise.resolve([]);
         const { bin, cwd } = locate(ctx.rootDir);
-        return executeOxlint(opts, id, bin, cwd, defaultPatterns);
+        return executeOxlint(opts, id, bin, cwd, scope);
       },
     },
   };

@@ -1,7 +1,7 @@
 import * as nodePath from 'node:path';
 import { Effect } from 'effect';
 import type { Rule, Violation } from '@gesetz/core';
-import { execTool, FileFilter, ProjectRoot, resolveToolBin, resolveToolCwd } from '@gesetz/core';
+import { execTool, FileFilter, ProjectRoot, resolveToolBin, resolveToolCwd, toolScope } from '@gesetz/core';
 
 export interface PrettierOptions {
   /**
@@ -107,7 +107,11 @@ export function prettier(opts: PrettierOptions = {}): Rule {
         : ['**/*', '.prettierrc', '.prettierrc.*', 'prettier.config.*'],
       run: (ctx) => {
         const { bin, cwd } = locate(ctx.rootDir);
-        return executePrettier(opts, id, bin, cwd, defaultPatterns);
+        // A `--files` request narrows what the tool looks at; without one it runs
+        // over its own patterns, which is what its cached result is keyed by.
+        const scope = toolScope(ctx.requestedPaths, defaultPatterns);
+        if (scope === null) return Promise.resolve([]);
+        return executePrettier(opts, id, bin, cwd, scope);
       },
     },
   };

@@ -89,7 +89,8 @@ const SCHEMA = `
 export function sqliteUnavailableMessage(): string {
   return [
     'SQLite caching is unavailable, so this run will not persist a cache.',
-    'The built-in driver needs Node >= 23.4 (or Node >= 22.5 with --experimental-sqlite).',
+    'The built-in driver needs Node >= 23.4 (or Node >= 22.5 with --experimental-sqlite),',
+    'or Bun, whose `bun:sqlite` module is used automatically.',
     'To enable it on this runtime, install the optional compatibility package',
     `  pnpm add -D ${SQLITE_COMPAT_PACKAGE}`,
     `and import '${SQLITE_COMPAT_PACKAGE}' from gesetz.config.ts.`,
@@ -98,14 +99,45 @@ export function sqliteUnavailableMessage(): string {
 
 let nodeSqliteProbe: Promise<SqliteModule | null> | undefined;
 
+/**
+ * The SQLite module for this runtime.
+ *
+ * `node:sqlite` where it exists, and `bun:sqlite` under Bun, which has no
+ * `node:sqlite` but ships a compatible `Database`/`prepare`/`all`/`run` API. The
+ * difference matters: agents invoke `bun node_modules/.bin/gesetz` in the projects
+ * where gesetz is installed, and without this every one of those runs would report
+ * "SQLite caching is unavailable" and re-check the whole project — the same
+ * silent-cache-off failure this engine was adopted to fix.
+ */
 function loadNodeSqlite(): Promise<SqliteModule | null> {
-  nodeSqliteProbe ??= import('node:sqlite')
-    .then((module) => module as unknown as SqliteModule)
-    .catch(() => null);
+  nodeSqliteProbe ??= (async () => {
+    try {
+      return (await import('node:sqlite')) as unknown as SqliteModule;
+    } catch {
+      // Not Node, or Node too old.
+    }
+    if (typeof (globalThis as { Bun?: unknown }).Bun !== 'undefined') {
+      try {
+        // No static specifier: `bun:sqlite` is unknown to TypeScript here, and a
+        // literal import would also be resolved by Node bundlers at build time.
+        const specifier = 'bun:sqlite';
+        const bunSqlite = (await import(specifier)) as unknown as {
+          Database: SqliteModule['DatabaseSync'];
+        };
+        return { DatabaseSync: bunSqlite.Database } as unknown as SqliteModule;
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  })();
   return nodeSqliteProbe;
 }
 
-/** True when the built-in `node:sqlite` module can be imported on this runtime. */
+/**
+ * True when a built-in SQLite module can be imported on this runtime
+ * (`node:sqlite`, or `bun:sqlite` under Bun).
+ */
 export async function isNodeSqliteAvailable(): Promise<boolean> {
   return (await loadNodeSqlite()) !== null;
 }

@@ -67,10 +67,18 @@ export interface CheckServices {
  * A single-file analysis function. Returns a promise of violations.
  * Errors are absorbed by the runner — never throw (return [] on failure).
  */
-export type Check = (
-  file: File,
-  services: CheckServices,
-) => Promise<Violation[]>;
+export type Check = ((file: File, services: CheckServices) => Promise<Violation[]>) & {
+  /**
+   * True when this check's answer for a file depends on which *other* files
+   * exist — `requireTest` looks for a test file beside the source.
+   *
+   * Such a check cannot be cached against the file's own content: adding the
+   * missing file changes the answer without touching the file. Rules made only of
+   * these checks run in the project pass, which is keyed by the set of files the
+   * rule covers, so an add or a delete recomputes them while an edit does not.
+   */
+  needsFileSet?: boolean;
+};
 
 /**
  * A named rule that runs against the entire project context.
@@ -104,6 +112,14 @@ export interface RuleGuidance {
   readonly dont: string;
 }
 
+/**
+ * How a violation's message is compared when matching it to a baseline entry.
+ * `normalized` (the default) ignores the numbers in a message, so a baseline
+ * survives an assertion message changing from "expected 1 to be 2" to
+ * "expected 5 to be 2"; `exact` compares it verbatim.
+ */
+export type BaselineMessageMode = 'normalized' | 'exact';
+
 export interface Rule {
   /** Stable kebab-case identifier, slugified from the human label */
   readonly id: string;
@@ -119,6 +135,12 @@ export interface Rule {
    * Used by `gesetz list` and the `gesetz skill` command.
    */
   readonly guidance?: RuleGuidance | undefined;
+  /**
+   * How this rule's violation messages are compared against baseline entries.
+   * Default: `normalized`. See `BaselineMessageMode`.
+   */
+  readonly baselineMessage?: BaselineMessageMode | undefined;
+
   /**
    * Optional explicit cache-invalidation string. When set, the runner uses it
    * verbatim as the rule's fingerprint instead of hashing the rule's shape.
@@ -148,16 +170,40 @@ export interface Rule {
    */
   readonly project?: {
     readonly patterns: readonly string[];
-    readonly run: (ctx: ProjectRuleContext) => Promise<Violation[]>;
+    readonly run: (ctx: ProjectRuleContext) => Promise<ProjectRuleOutcome>;
   } | undefined;
 }
 
 /** Context handed to a project-level rule. */
+/**
+ * What a project rule found, and which paths it looked at.
+ *
+ * A rule that examines only some files must say which ones: its result is cached
+ * under a key that includes the examined set, so a run that looked at three files
+ * can never stand in for a run that was supposed to look at all of them.
+ */
+export type ProjectRuleOutcome = readonly Violation[] | ProjectRuleResult;
+
+export interface ProjectRuleResult {
+  readonly violations: readonly Violation[];
+  /** The paths this run examined. Absent means the whole project. */
+  readonly examinedPaths?: readonly string[] | undefined;
+}
+
 export interface ProjectRuleContext {
   /** Absolute project root. */
   readonly rootDir: string;
-  /** Repo-relative paths added or changed in this scan. */
+  /**
+   * Repo-relative paths reprocessed by this scan (added + changed), already
+   * narrowed to the caller's `--files` request when there was one. A rule that
+   * hands paths to an external tool hands it these.
+   */
   readonly changedFiles: readonly string[];
+  /**
+   * Repo-relative paths the caller asked about (`--files`), or null when the run
+   * was not scoped.
+   */
+  readonly requestedPaths?: readonly string[] | null | undefined;
 }
 
 export interface Exemption {

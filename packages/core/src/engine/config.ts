@@ -29,6 +29,15 @@ export interface CategoryThreshold {
   readonly minScore: number;
 }
 
+/** Baseline behaviour a project can pin in its config. */
+export interface BaselineConfig {
+  /**
+   * When true, `gesetz baseline` refuses to write the baseline file. The baseline
+   * is a maintainer decision; an agent batch must never absorb a backlog.
+   */
+  readonly readOnly?: boolean | undefined;
+}
+
 export interface UserConfig {
   /**
    * Root directory for the project. All rule paths are relative to this.
@@ -74,6 +83,11 @@ export interface UserConfig {
    * `{ kind: 'memory' }` to opt out of caching entirely.
    */
   readonly storage?: GesetzStorageConfig | undefined;
+  /**
+   * Violation baseline behaviour. The baseline file itself lives at
+   * `.gesetz-baseline.json` in the project root.
+   */
+  readonly baseline?: BaselineConfig | undefined;
 }
 
 export interface ResolvedConfig {
@@ -81,6 +95,8 @@ export interface ResolvedConfig {
   readonly tsConfigPath: string;
   readonly rules: Rule[];
   readonly exemptions: Exemption[];
+  /** Resolved baseline behaviour; an empty object when the config sets none. */
+  readonly baseline: BaselineConfig;
   readonly changedSince: string | undefined;
   readonly thresholds: CategoryThreshold[];
   readonly adapters: readonly SyntaxBackend[];
@@ -107,6 +123,7 @@ export function defineConfig(config: UserConfig): ResolvedConfig {
     tsConfigPath: nodePath.resolve(projectRoot, config.tsConfigPath ?? 'tsconfig.json'),
     rules: config.rules,
     exemptions: config.exemptions ?? [],
+    baseline: config.baseline ?? {},
     changedSince: config.changedSince,
     thresholds: config.thresholds ?? [],
     adapters: config.adapters ?? [],

@@ -92,14 +92,26 @@ export { select, slugify, group } from './primitives/select';
 export type { Selector, SelectOptions } from './primitives/select';
 
 // ─── Check types ─────────────────────────────────────────────────────────────
-export type { CheckServices } from './engine/rule';
+export type {
+  BaselineMessageMode,
+  ProjectRuleContext,
+  ProjectRuleOutcome,
+  ProjectRuleResult,
+} from './engine/rule';
 
 // ─── Test helpers ─────────────────────────────────────────────────────────────
 export { makeFile, makeCheckServices, runCheck } from './test-helpers';
 export type { MakeCheckServicesOptions } from './test-helpers';
 
 // ─── Primitive checks (language-agnostic) ─────────────────────────────────────
-export { requireSibling, requireChildren, forbidFile } from './primitives/checks/fs';
+export {
+  forbidFile,
+  requireChildren,
+  requireSibling,
+  requireTest,
+  testCandidates,
+} from './primitives/checks/fs';
+export type { RequireTestOptions } from './primitives/checks/fs';
 export { noImportFrom, requireImportFrom } from './primitives/checks/imports';
 export { noPattern, requirePattern } from './primitives/checks/patterns';
 export {
@@ -134,3 +146,60 @@ export { noCycles } from './primitives/graph';
 // ─── Architecture ─────────────────────────────────────────────────────────────
 export { defineArchitecture } from './architecture';
 export type { ArchitectureConfig, ArchitectureLayer, ForbiddenImport } from './architecture';
+
+// ─── Request and test scoping ────────────────────────────────────────────────
+export { expandRequest, rulesForRequest } from './backend/request-scope';
+export { DEFAULT_TEST_SUFFIXES, testFilesForPaths } from './backend/test-scope';
+export type { TestScopeOptions } from './backend/test-scope';
+export { scopedPatterns, toolScope, toolWatchPatterns } from './engine/tool-patterns';
+
+// ─── Multi-agent coordination ────────────────────────────────────────────────
+export {
+  acquireSlot,
+  coordinateRun,
+  coordDirFor,
+  countWaiters,
+  findReusableRecord,
+  readRecords,
+  readSlot,
+  registerWaiter,
+  releaseSlot,
+  takeOverSlot,
+  writeRecord,
+} from './engine/run-lock';
+export type {
+  CoordinateOptions,
+  CoordinationEvent,
+  CoordinationMode,
+  CoordinationOutcome,
+  RunRecord,
+} from './engine/run-lock';
+export { KEEP_STORED, type ComputeResult } from './cache';
+export { BaselineFileError } from './engine/errors';
+export { listFiles, treeStateFor, treeStatesMatch } from './engine/file-set';
+export type { TreeState } from './engine/file-set';
+
+// ─── Violation baseline ──────────────────────────────────────────────────────
+export { partitionByBaseline, planBaselineWrite } from './engine/baseline-apply';
+export type {
+  BaselinePartition,
+  BaselinePartitionOptions,
+  BaselineRuleCounts,
+  BaselineStats,
+  BaselineWritePlan,
+} from './engine/baseline-apply';
+export {
+  BASELINE_FILE_NAME,
+  STALE_RULE_ID,
+  buildBaselineFile,
+  makeBaselineFile,
+  normalizeMessage,
+  normalizePath,
+  violationHash,
+} from './engine/baseline';
+export type {
+  BaselineEntry,
+  BaselineFile,
+  BaselineViolationGroup,
+} from './engine/baseline';
+export { baselinePathFor, readBaselineFile, serializeBaseline, writeBaselineFile } from './engine/baseline-file';

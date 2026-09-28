@@ -37,7 +37,8 @@ export function noTypedAny(opts: NoTypedAnyOptions = {}): Check {
         violations.push({
           severity: 'error',
           source: 'core',
-          message: opts.message ?? 'Unexpected `any` type annotation — use `unknown` or a concrete type',
+          message:
+            opts.message ?? 'Unexpected `any` type annotation — use `unknown` or a concrete type',
           path: file.path,
           line: startLine(node),
         });

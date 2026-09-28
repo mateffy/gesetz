@@ -1,13 +1,13 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import {
-  buildEnvelope,
-  formatEnvelope,
   formatViolations,
   formatCi,
   formatStatusBanner,
+  formatCategoryTable,
   detectFormat,
   MAX_VIOLATIONS,
 } from '../src/format';
+import { buildEnvelope, formatEnvelope } from '../src/envelope';
 import type { RunResult, RuleResult, Violation } from '@gesetz/core';
 
 function v(over: Partial<Violation> = {}): Violation {
@@ -220,9 +220,15 @@ describe('formatCi', () => {
 
 describe('formatStatusBanner', () => {
   it('writes a one-line verdict to stderr format', () => {
-    expect(formatStatusBanner({ ...passingResult(), totalViolations: 0 })).toBe('gesetz: pass (0 violations)\n');
-    expect(formatStatusBanner({ ...failingResult([v()]), totalViolations: 1 })).toBe('gesetz: fail (1 violation)\n');
-    expect(formatStatusBanner({ ...failingResult([v(), v()]), totalViolations: 2 })).toBe('gesetz: fail (2 violations)\n');
+    expect(formatStatusBanner({ ...passingResult(), totalViolations: 0 })).toBe(
+      'gesetz: pass (0 violations)\n',
+    );
+    expect(formatStatusBanner({ ...failingResult([v()]), totalViolations: 1 })).toBe(
+      'gesetz: fail (1 violation)\n',
+    );
+    expect(formatStatusBanner({ ...failingResult([v(), v()]), totalViolations: 2 })).toBe(
+      'gesetz: fail (2 violations)\n',
+    );
   });
 
   it('names rules that could not run', () => {
@@ -267,5 +273,47 @@ describe('detectFormat', () => {
   it('defaults to pretty when a TTY and no agent env', () => {
     Object.defineProperty(process.stdout, 'isTTY', { value: true, configurable: true });
     expect(detectFormat(undefined)).toBe('pretty');
+  });
+});
+
+describe('baseline reporting', () => {
+  function baselinedResult(): RunResult {
+    return {
+      byRule: [ruleResult({ violations: [] })],
+      byCategory: [
+        {
+          category: 'c',
+          score: 10,
+          errors: 0,
+          warnings: 0,
+          infos: 0,
+          totalViolations: 0,
+          ruleIds: ['r'],
+          passing: true,
+        },
+      ],
+      totalViolations: 2,
+      passing: false,
+      baseline: {
+        new: 1,
+        baselined: 412,
+        stale: 1,
+        total: 413,
+        byRule: [{ rule: 'r', new: 1, baselined: 412, stale: 1 }],
+      },
+    };
+  }
+
+  it('states the counts and the maintainer boundary in the failure banner', () => {
+    const banner = formatStatusBanner(baselinedResult());
+    expect(banner).toContain('gesetz: fail (1 new, 412 baselined, 1 stale)');
+    expect(banner).toContain('new violations are not in the baseline and must be fixed.');
+    expect(banner).toContain('Do not run `gesetz baseline`.');
+    expect(banner).toContain('stale baseline entries');
+  });
+
+  it('shows the per-category split in the score table', () => {
+    const table = formatCategoryTable(baselinedResult());
+    expect(table).toContain('(1 new, 412 baselined, 1 stale)');
   });
 });

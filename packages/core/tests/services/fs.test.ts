@@ -9,10 +9,7 @@ describe('FileSystem service — MemoryFileSystem', () => {
       const fs = yield* FileSystem;
       const result = yield* fs.exists('/some/file.ts');
       expect(result).toBe(true);
-    }).pipe(
-      Effect.provide(MemoryFileSystem({ '/some/file.ts': 'hello' })),
-      Effect.runPromise,
-    );
+    }).pipe(Effect.provide(MemoryFileSystem({ '/some/file.ts': 'hello' })), Effect.runPromise);
   });
 
   it('exists returns false for unknown file', async () => {
@@ -20,10 +17,7 @@ describe('FileSystem service — MemoryFileSystem', () => {
       const fs = yield* FileSystem;
       const result = yield* fs.exists('/missing.ts');
       expect(result).toBe(false);
-    }).pipe(
-      Effect.provide(MemoryFileSystem({})),
-      Effect.runPromise,
-    );
+    }).pipe(Effect.provide(MemoryFileSystem({})), Effect.runPromise);
   });
 
   it('readFile returns content for known file', async () => {
@@ -45,10 +39,7 @@ describe('FileSystem service — MemoryFileSystem', () => {
       if (result._tag === 'Left') {
         expect(result.left).toBeInstanceOf(FileReadError);
       }
-    }).pipe(
-      Effect.provide(MemoryFileSystem({})),
-      Effect.runPromise,
-    );
+    }).pipe(Effect.provide(MemoryFileSystem({})), Effect.runPromise);
   });
 });
 
@@ -56,26 +47,16 @@ describe('FileSystem service — FileSystemLive (integration)', () => {
   it('exists returns true for an existing file', async () => {
     await Effect.gen(function* () {
       const fs = yield* FileSystem;
-      const result = yield* fs.exists(
-        new URL('../../package.json', import.meta.url).pathname,
-      );
+      const result = yield* fs.exists(new URL('../../package.json', import.meta.url).pathname);
       expect(result).toBe(true);
-    }).pipe(
-      Effect.provide(FileSystemLive),
-      Effect.runPromise,
-    );
+    }).pipe(Effect.provide(FileSystemLive), Effect.runPromise);
   });
 
   it('readFile reads real files', async () => {
     await Effect.gen(function* () {
       const fs = yield* FileSystem;
-      const content = yield* fs.readFile(
-        new URL('../../package.json', import.meta.url).pathname,
-      );
+      const content = yield* fs.readFile(new URL('../../package.json', import.meta.url).pathname);
       expect(content).toContain('@gesetz/core');
-    }).pipe(
-      Effect.provide(FileSystemLive),
-      Effect.runPromise,
-    );
+    }).pipe(Effect.provide(FileSystemLive), Effect.runPromise);
   });
 });

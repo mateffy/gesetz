@@ -1,7 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Effect, Layer } from 'effect';
 import { eslint } from '../src/adapter';
-import { MemoryFileSystem, ProjectRootLive, FileFilterLive, SyntaxTreeStub, ImportResolverDefault } from '@gesetz/core';
+import {
+  MemoryFileSystem,
+  ProjectRootLive,
+  FileFilterLive,
+  SyntaxTreeStub,
+  ImportResolverDefault,
+} from '@gesetz/core';
 
 const TestLayer = Layer.mergeAll(
   MemoryFileSystem({}),
@@ -28,8 +34,20 @@ vi.mock('eslint', () => {
           {
             filePath: '/project/src/a.ts',
             messages: [
-              { ruleId: 'no-unused-vars', message: "'x' is assigned but never used.", line: 5, column: 7, severity: 2 as const },
-              { ruleId: 'prefer-const', message: "'y' is never reassigned.", line: 10, column: 3, severity: 1 as const },
+              {
+                ruleId: 'no-unused-vars',
+                message: "'x' is assigned but never used.",
+                line: 5,
+                column: 7,
+                severity: 2 as const,
+              },
+              {
+                ruleId: 'prefer-const',
+                message: "'y' is never reassigned.",
+                line: 10,
+                column: 3,
+                severity: 1 as const,
+              },
             ],
           },
           {
@@ -74,10 +92,12 @@ describe('eslint adapter', () => {
     expect(rule.id).toBe('eslint');
   });
 
-  it('returns empty array when ESLint throws', async () => {
+  it('reports a violation when ESLint throws', async () => {
     const rule = eslint({ cwd: '/project', pattern: 'throw' });
     const violations = await Effect.runPromise(Effect.provide(rule.run, TestLayer));
-    expect(violations).toEqual([]);
+    expect(violations).toHaveLength(1);
+    expect(violations[0]?.severity).toBe('error');
+    expect(violations[0]?.message).toContain('nothing was checked');
   });
 
   it('returns empty array when no messages', async () => {
@@ -89,15 +109,57 @@ describe('eslint adapter', () => {
     expect(bViolations).toHaveLength(0);
   });
 
+  describe('project runs honour a --files request', () => {
+    it('runs over its own patterns when nothing was requested', async () => {
+      lastLintFilesPatterns = [];
+      const rule = eslint({ pattern: 'src/**/*.ts', cwd: '/project' });
+      await rule.project!.run({
+        rootDir: '/project',
+        changedFiles: ['src/a.ts'],
+        requestedPaths: null,
+      });
+      expect(lastLintFilesPatterns).toEqual(['src/**/*.ts']);
+    });
+
+    it('runs over the requested files when there is one', async () => {
+      const rule = eslint({ pattern: 'src/**/*.ts', cwd: '/project' });
+      await rule.project!.run({
+        rootDir: '/project',
+        changedFiles: ['src/a.ts', 'src/b.ts'],
+        requestedPaths: ['src/a.ts', 'src/b.ts'],
+      });
+      expect(lastLintFilesPatterns).toEqual(['src/a.ts', 'src/b.ts']);
+    });
+
+    it('does not call the linter at all when the request matches none of its files', async () => {
+      lastLintFilesPatterns = [];
+      const rule = eslint({ pattern: 'src/**/*.ts', cwd: '/project' });
+      await rule.project!.run({
+        rootDir: '/project',
+        changedFiles: ['src/a.ts'],
+        requestedPaths: ['src/a.php'],
+      });
+      // Handing the linter an empty list would make it scan nothing and report
+      // success, so the adapter must skip it instead.
+      expect(lastLintFilesPatterns).toEqual([]);
+    });
+  });
+
   describe('FileFilter integration', () => {
     it('passes FileFilter patterns to lintFiles when --files is active', async () => {
       const rule = eslint({ cwd: '/project' });
-      await Effect.runPromise(Effect.provide(rule.run,
-        Layer.mergeAll(
-          MemoryFileSystem({}), SyntaxTreeStub, ImportResolverDefault,
-          ProjectRootLive('/project'), FileFilterLive(['src/app/**', 'src/lib/**']),
+      await Effect.runPromise(
+        Effect.provide(
+          rule.run,
+          Layer.mergeAll(
+            MemoryFileSystem({}),
+            SyntaxTreeStub,
+            ImportResolverDefault,
+            ProjectRootLive('/project'),
+            FileFilterLive(['src/app/**', 'src/lib/**']),
+          ),
         ),
-      ));
+      );
 
       expect(lastLintFilesPatterns).toEqual(['src/app/**', 'src/lib/**']);
     });
@@ -118,12 +180,18 @@ describe('eslint adapter', () => {
 
     it('FileFilter patterns override adapter pattern', async () => {
       const rule = eslint({ cwd: '/project', pattern: 'src/everything/**' });
-      await Effect.runPromise(Effect.provide(rule.run,
-        Layer.mergeAll(
-          MemoryFileSystem({}), SyntaxTreeStub, ImportResolverDefault,
-          ProjectRootLive('/project'), FileFilterLive(['src/subset/**']),
+      await Effect.runPromise(
+        Effect.provide(
+          rule.run,
+          Layer.mergeAll(
+            MemoryFileSystem({}),
+            SyntaxTreeStub,
+            ImportResolverDefault,
+            ProjectRootLive('/project'),
+            FileFilterLive(['src/subset/**']),
+          ),
         ),
-      ));
+      );
 
       expect(lastLintFilesPatterns).toEqual(['src/subset/**']);
     });

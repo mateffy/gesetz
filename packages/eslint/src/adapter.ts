@@ -1,7 +1,7 @@
 import * as nodePath from 'node:path';
 import { Effect } from 'effect';
 import type { Rule, Violation } from '@gesetz/core';
-import { FileFilter, ProjectRoot, resolveToolCwd } from '@gesetz/core';
+import { FileFilter, ProjectRoot, resolveToolCwd, toolScope } from '@gesetz/core';
 
 export interface EslintOptions {
   pattern?: string | string[];
@@ -72,10 +72,27 @@ async function executeEslint(
     }).pipe(
       Effect.catchAll((cause) =>
         Effect.gen(function* () {
-          yield* Effect.logWarning(
-            `[gesetz] eslint failed (${String(cause)}) — eslint() produced no violations.`,
+          // Nothing was linted. Swallowing this would read as "clean", so it is
+          // reported as a failure instead.
+          yield* Effect.logError(
+            `[gesetz] eslint failed (${String(cause)}) — nothing was checked.`,
           );
-          return [] as EslintResult[];
+          return [
+            {
+              errorCount: 1,
+              warningCount: 0,
+              filePath: '.',
+              messages: [
+                {
+                  ruleId: null,
+                  severity: 2,
+                  message: `eslint failed to run, so nothing was checked: ${String(cause)}. Fix the tool, then re-run.`,
+                  line: 1,
+                  column: 1,
+                },
+              ],
+            },
+          ] as unknown as EslintResult[];
         }),
       ),
     ),
@@ -128,7 +145,13 @@ export function eslint(opts: EslintOptions = {}): Rule {
       patterns: opts.pattern !== undefined
         ? defaultPatterns
         : ['**/*.{js,jsx,ts,tsx,mjs,cjs,mts,cts}', 'eslint.config.*', '.eslintrc', '.eslintrc.*'],
-      run: (ctx) => executeEslint(opts, id, resolveToolCwd(opts.cwd, ctx.rootDir), defaultPatterns),
+      run: (ctx) => {
+        // A `--files` request narrows what the tool looks at; without one it runs
+        // over its own patterns, which is what its cached result is keyed by.
+        const scope = toolScope(ctx.requestedPaths, defaultPatterns);
+        if (scope === null) return Promise.resolve([]);
+        return executeEslint(opts, id, resolveToolCwd(opts.cwd, ctx.rootDir), scope);
+      },
     },
   };
 }

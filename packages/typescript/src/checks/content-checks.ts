@@ -17,9 +17,7 @@ export function noObjectProperty(
     const violations: Violation[] = [];
 
     // Find `const varName = {` and extract the meta object body
-    const metaMatch = file.content.match(
-      new RegExp(`\\bconst\\s+${varName}\\s*=\\s*\\{`),
-    );
+    const metaMatch = file.content.match(new RegExp(`\\bconst\\s+${varName}\\s*=\\s*\\{`));
     if (!metaMatch || metaMatch.index === undefined) return [];
 
     const metaStart = metaMatch.index + metaMatch[0].length - 1;
@@ -39,19 +37,22 @@ export function noObjectProperty(
 
     for (const line of lines) {
       lineNumber++;
+      // A property of the object itself sits at depth 1: the opening line
+      // carries the brace, so counting it first left `insideNested` at 1 for
+      // every property line and the check could only ever fire on an object
+      // written entirely on one line.
+      const atObjectTopLevel = insideNested === 1 || (insideNested === 0 && line.includes('{'));
       const openBraces = (line.match(/\{/g) ?? []).length;
       const closeBraces = (line.match(/\}/g) ?? []).length;
       insideNested += openBraces - closeBraces;
 
-      if (insideNested === 0) {
+      if (atObjectTopLevel) {
         const titleProp = new RegExp(`\\b${propName}\\s*:`).exec(line);
         if (titleProp) {
           violations.push({
             severity: 'error',
             source: 'core',
-            message:
-              opts.message ??
-              `'${varName}' object must not define property '${propName}'`,
+            message: opts.message ?? `'${varName}' object must not define property '${propName}'`,
             path: file.path,
             line: lineNumber,
           });
