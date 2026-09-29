@@ -19,7 +19,7 @@ import type { BaselineMessageMode, Violation } from './rule';
 /** Baseline file name at the project root. */
 export const BASELINE_FILE_NAME = '.gesetz-baseline.json';
 /** Schema version of the baseline file. */
-export const BASELINE_FILE_VERSION = 1;
+export const BASELINE_FILE_VERSION = 2;
 /** Rule id for a baseline entry whose violation no longer occurs. */
 export const STALE_RULE_ID = 'baseline-entry-is-stale';
 /** Hex characters of the sha256 hash kept in the file. */
@@ -121,17 +121,69 @@ export function normalizePath(path: string): string {
  * shifts every line below it, and a line-keyed baseline would report every
  * shifted violation as new.
  */
+/** Whitespace-normalised source line, for identity only. */
+export function normalizeLine(text: string): string {
+  return text.trim().replace(/\s+/g, ' ');
+}
+
+/**
+ * Identity of a baseline entry.
+ *
+ * The line *number* is deliberately absent: inserting an import shifts every line
+ * below it, and a line-keyed identity would report every shifted violation as new.
+ * The line's *text* is deliberately present: without it, identity degrades to a
+ * count per (path, rule, message), which cannot see a swap — 47 occurrences fixed
+ * and one unrelated new occurrence leaves the count unchanged, so the gate passes
+ * blind to it. Text, not position, catches the swap and survives the shift.
+ *
+ * `lineText` is optional so a caller that has not read the source keeps working;
+ * both the write path and the gate must supply it, or entries stop matching.
+ */
 export function violationHash(
   rule: string,
   path: string,
   message: string,
   mode: BaselineMessageMode = 'normalized',
+  lineText?: string | undefined,
 ): string {
   const material = mode === 'exact' ? message : normalizeMessage(message);
   return createHash('sha256')
-    .update(JSON.stringify([rule, normalizePath(path), material]))
+    .update(
+      JSON.stringify([
+        rule,
+        normalizePath(path),
+        material,
+        lineText === undefined ? null : normalizeLine(lineText),
+      ]),
+    )
     .digest('hex')
     .slice(0, HASH_LENGTH);
+}
+
+/**
+ * Attaches each violation's source line, reading every file at most once.
+ *
+ * `readFile` returns null when the file cannot be read; those violations keep the
+ * old identity rather than inventing an empty line, so an unreadable file is a
+ * degraded match and never a false one.
+ */
+export function attachLineTexts(
+  violations: readonly Violation[],
+  readFile: (path: string) => string | null,
+): Violation[] {
+  const cache = new Map<string, string[] | null>();
+  return violations.map((violation) => {
+    if (violation.line === undefined || violation.lineText !== undefined) return violation;
+    let lines = cache.get(violation.path);
+    if (lines === undefined) {
+      const text = readFile(violation.path);
+      lines = text === null ? null : text.split('\n');
+      cache.set(violation.path, lines);
+    }
+    if (lines === null) return violation;
+    const text = lines[violation.line - 1];
+    return text === undefined ? violation : { ...violation, lineText: text };
+  });
 }
 
 // ─── Building a baseline file ────────────────────────────────────────────────
@@ -160,7 +212,13 @@ function collectEntries(
   for (const group of groups) {
     for (const violation of [...group.violations].sort(byLocation)) {
       const path = normalizePath(violation.path);
-      const hash = violationHash(group.rule, path, violation.message, modeOf(group.rule));
+      const hash = violationHash(
+        group.rule,
+        path,
+        violation.message,
+        modeOf(group.rule),
+        violation.lineText,
+      );
       const existing = byHash.get(hash);
       byHash.set(hash, {
         path: existing?.path ?? path,

@@ -1,4 +1,5 @@
 import * as childProcess from 'node:child_process';
+import * as nodeFs from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { Effect } from 'effect';
 import micromatch from 'micromatch';
@@ -25,7 +26,7 @@ import {
   runChecks,
 } from './rule-execution';
 import { partitionByBaseline, type BaselineStats } from './baseline-apply';
-import { STALE_RULE_ID, type BaselineFile } from './baseline';
+import { attachLineTexts, STALE_RULE_ID, type BaselineFile } from './baseline';
 import type { CategoryScore, RuleResult, RunResult } from './result';
 
 // Re-exported so the public entry point keeps a single source of truth.
@@ -313,6 +314,38 @@ export const runAll = (
       }
 
       // ── Aggregation ──────────────────────────────────────────────────────
+      // Baseline identity includes the offending line's text, so an entry covers one
+      // occurrence rather than a count of them. The lines are read here, once per
+      // run and only for files that actually have violations: cached and freshly
+      // computed results then agree, and a file no rule found anything in is never
+      // read at all. An unreadable file keeps the position-free identity, so a
+      // failed read degrades the match instead of inventing one.
+      const needLines = new Set<string>();
+      for (const violations of violationsByRule.values()) {
+        for (const violation of violations) {
+          if (violation.line !== undefined && violation.lineText === undefined) {
+            needLines.add(violation.path);
+          }
+        }
+      }
+      const lineSource = new Map<string, string>();
+      for (const path of needLines) {
+        // A file that cannot be read is skipped: its violations keep the identity they
+        // would have had without a line, so a failed read degrades the match instead of
+        // inventing one.
+        try {
+          lineSource.set(path, nodeFs.readFileSync(`${config.projectRoot}/${path}`, 'utf-8'));
+        } catch {
+          continue;
+        }
+      }
+      for (const [ruleId, violations] of [...violationsByRule]) {
+        violationsByRule.set(
+          ruleId,
+          attachLineTexts(violations, (path) => lineSource.get(path) ?? null),
+        );
+      }
+
       const aggregate = aggregateRun({
         activeRules,
         violationsByRule,

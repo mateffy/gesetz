@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import * as nodePath from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
+  attachLineTexts,
   BASELINE_FILE_VERSION,
   buildBaselineFile,
   normalizeMessage,
@@ -347,5 +348,103 @@ describe('planBaselineWrite', () => {
     expect(plan.removed).toBe(1);
     expect(plan.kept).toBe(1);
     expect(plan.next.total).toBe(1);
+  });
+});
+
+describe('baseline identity is per occurrence, keyed on the line text', () => {
+  const at = (line: number, text: string) => ({ line, lineText: text });
+
+  it('does not care which line the occurrence is on', () => {
+    // An inserted import shifts every line below it. Position-keyed identity would
+    // report all of them as new; text-keyed identity does not.
+    const before = violationHash('r', 'src/a.ts', 'm', 'normalized', 'const x = 1;');
+    const after = violationHash('r', 'src/a.ts', 'm', 'normalized', '  const x = 1;  ');
+    expect(after).toBe(before);
+    expect(at(1, 'const x = 1;').line).not.toBe(at(40, 'const x = 1;').line);
+  });
+
+  it('separates two occurrences of one rule and message in one file', () => {
+    const one = violationHash('r', 'src/a.ts', 'm', 'normalized', 'db.raw("a")');
+    const two = violationHash('r', 'src/a.ts', 'm', 'normalized', 'db.raw("b")');
+    expect(two).not.toBe(one);
+  });
+
+  it('keeps the old identity for a violation with no line text', () => {
+    // Adapters that report a whole project, and any caller that does not read the
+    // source, must keep matching the way they always did.
+    expect(violationHash('r', 'src/a.ts', 'm')).toBe(
+      violationHash('r', 'src/a.ts', 'm', 'normalized', undefined),
+    );
+  });
+});
+
+describe('attachLineTexts', () => {
+  it('attaches the offending line and reads each file once', () => {
+    const reads: string[] = [];
+    const texts = attachLineTexts(
+      [
+        { rule: 'r', message: 'm', path: 'src/a.ts', line: 2, severity: 'error', source: 'core' },
+        { rule: 'r', message: 'm', path: 'src/a.ts', line: 1, severity: 'error', source: 'core' },
+        { rule: 'r', message: 'm', path: 'src/b.ts', severity: 'error', source: 'core' },
+      ],
+      (path) => {
+        reads.push(path);
+        return path === 'src/a.ts' ? 'one\ntwo\nthree' : 'x';
+      },
+    );
+    expect(reads).toEqual(['src/a.ts']);
+    expect(texts[0]?.lineText).toBe('two');
+    expect(texts[1]?.lineText).toBe('one');
+    // No line to read: left alone rather than given an empty text.
+    expect(texts[2]?.lineText).toBeUndefined();
+  });
+
+  it('leaves violations alone when the file cannot be read', () => {
+    const texts = attachLineTexts(
+      [{ rule: 'r', message: 'm', path: 'gone.ts', line: 9, severity: 'error', source: 'core' }],
+      () => null,
+    );
+    expect(texts[0]?.lineText).toBeUndefined();
+  });
+});
+
+describe('baseline identity over a real batch (the hole the count left open)', () => {
+  type Group = Parameters<typeof buildBaselineFile>[0][number];
+  const group = (violations: Violation[]): Group => ({ rule: 'r', violations });
+  const v = (line: number, lineText: string): Violation => ({
+    rule: 'r',
+    message: 'Forbidden pattern',
+    path: 'src/a.ts',
+    line,
+    lineText,
+    severity: 'error',
+    source: 'core',
+  });
+  const partition = (next: Violation[], file: ReturnType<typeof buildBaselineFile>) =>
+    partitionByBaseline([group(next)], file, {
+      modes: new Map(),
+      inScope: () => true,
+      allowStale: () => true,
+    });
+
+  it('sees a swap that leaves the number of violations unchanged', () => {
+    // Two occurrences baselined. A batch fixes one and introduces a genuinely new
+    // one: two in, two out, so a count-based identity reports nothing at all and
+    // the gate passes blind to the new occurrence.
+    const file = buildBaselineFile([group([v(1, 'db.raw("a")'), v(2, 'db.raw("b")')])], {
+      gesetzVersion: '1.0.0',
+    });
+    const after = partition([v(1, 'db.raw("b")'), v(2, 'db.raw("c")')], file);
+    expect(after.stats.new).toBe(1);
+    expect(after.stats.stale).toBe(1);
+    expect(after.newByRule.get('r')).toHaveLength(1);
+    expect(after.stale[0]?.path).toBe('src/a.ts');
+  });
+
+  it('sees nothing to do when the same lines simply moved', () => {
+    // The property the position-free identity was built for, kept.
+    const file = buildBaselineFile([group([v(3, 'db.raw("a")')])], { gesetzVersion: '1.0.0' });
+    const after = partition([v(57, 'db.raw("a")')], file);
+    expect({ new: after.stats.new, stale: after.stats.stale }).toEqual({ new: 0, stale: 0 });
   });
 });

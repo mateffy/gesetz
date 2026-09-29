@@ -145,7 +145,13 @@ export function partitionByBaseline(
     const fresh: Violation[] = [];
     for (const violation of [...group.violations].sort(byLocation)) {
       const path = normalizePath(violation.path);
-      const hash = violationHash(group.rule, path, violation.message, modeOf(group.rule));
+      const hash = violationHash(
+        group.rule,
+        path,
+        violation.message,
+        modeOf(group.rule),
+        violation.lineText,
+      );
       const match = remaining.get(hash);
       if (match !== undefined && match.left > 0) {
         remaining.set(hash, { ...match, left: match.left - 1 });

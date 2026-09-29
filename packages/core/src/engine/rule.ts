@@ -13,6 +13,13 @@ export interface Violation {
   readonly message: string;
   readonly path: string;
   readonly line?: number | undefined;
+  /**
+   * Source text of the offending line, when a caller has read it. Baseline
+   * identity includes it so an entry covers one *occurrence* rather than a count
+   * of them, while still surviving a line shift. Absent for a violation with no
+   * line, and for callers that never read the file.
+   */
+  readonly lineText?: string | undefined;
   readonly column?: number | undefined;
   readonly severity: Severity;
   readonly context?: string | undefined;

@@ -2072,7 +2072,7 @@ Fixing and implementing the project-rule scoping system so scoped rules don't wi
 - [x] End-to-end test in `tests/engine/project-rule-scoping.test.ts` proving that a scoped rule on the second run:
   1. Only replaces markers for the files it examined (a.ts violation cleared when fixed)
   2. Leaves markers untouched for files it didn't examine (b.ts violation survives)
-      Without the fix, the second run would clear ALL markers (=0 violations total, a false negative fail-open).
+    Without the fix, the second run would clear ALL markers (=0 violations total, a false negative fail-open).
 
 **Cache DB placement bug discovered while debugging the probe:**
 
@@ -2658,7 +2658,7 @@ The merge (`origin/netzwerk` → `main`) is committed as `8e9aee6`. The engine i
 01a0d92e-338b-7628-a543-fca767ff4d5f
 ```
 
-## 2026-09-29 11:46:08Z Killing silence on blanket exemptions — 124 path-only exemptions, 222 violations suppressed
+## 2026-09-29 11:46:08Z #15 line-content baseline refactor — implementing and verifying
 
 ```session
 01a0d92e-338b-7628-a543-fca767ff4d5f
@@ -2677,9 +2677,26 @@ Implementing and verifying exemption-suppression warnings — the fix that kills
 - [x] `pnpm format` applied
 - [x] Core tests: **542 passed** ✅
 - [x] CLI tests: **1 failed** (pre-existing `bundle-mojibake` regression — unrelated to my changes), 175 passed
-- [ ] **Baseline refactor NOT started** — budget exhausted. The design is recorded in entry #4 (line-based baseline, `violationHash` format version, move/prune). Handing over for next session.
+- [x] **Bun crash fix** — `bun:sqlite` returns `null` (not `undefined`) for absent rows → crash on `row.hash`. Fixed: guard is now `if (row?.hash == null)`, and `toEntry` total (corrupt/missing hash → miss, not crash). Filed #12.
+- [x] **CLI tests now 176 passing** — the pre-existing failure was *caused by* the Bun crash (spawns built CLI under Bun). Both fixes filed as #12, #13.
+- [x] Issues filed: #12 (Bun null row), #13 (exemption-suppression warnings), #14 (swallowed-check counter), #15 (line-content baseline refactor — spec accepted by user)
 
-Root cause summary for the user:
-1. The `catchAll` does NOT swallow a throw — the selection/check pipeline works correctly, and `noPattern` cannot reject (no empty segment). The catch-all is a safety net but never triggered in practice.
-2. A literal path segment is NOT special anywhere — the rule fires normally, the selection resolves correctly. The real dependency is whether the *file* is in an exemption list.
-3. **Real cause: path-only exemptions are blanket exemptions** — the config's `buildCoverageExemptions()` emits 124 path-only entries that kill all rules for those files. 222 violations made invisible. The report's "0 violations for 137 files" is explained: those 137 files are covered by blanket exemptions.
+**Current: finishing #15 (line-content baseline refactor).**
+
+- [x] **Commit attempt** — was denied (git hooks?), user said "try again after baseline refactor is done"
+- [x] **#15 Line-content baseline refactor** — add `lineText?: string` to `Violation`, `violationHash()` includes normalized line content when present (fallback to today's identity when absent), `loadLineTexts()` helper wired in runner (gate path) and CLI (baseline write path), version bump forces one re-baseline
+  - [x] Violation.lineText field
+  - [x] loadLineTexts helper (injectable reader)
+  - [x] Update violationHash() signature to accept optional lineText
+  - [x] Wire runner.ts to enrich violations before aggregation (gate path)
+    - First attempt: `yield*` inside generator — worked in typecheck but `yield*` is illegal outside `Effect.gen` body. Enrichment code was placed *after* the generator closed.
+    - FIX: replaced `yield* Effect.tryPromise(...)` with sync `node:fs` `readFileSync` — no generator dependency. Imported `node:fs`.
+  - [x] Wire CLI baseline.ts to enrich violations before buildBaselineFile (write path)
+  - [x] Core tests pass — **550 passing** (8 new tests for line-content matching)
+  - [x] CLI typechecks — **0 TS errors**
+  - [x] CLI tests pass — **176 passing**
+  - [x] **Probe verified**: manual `bun` script proves the swap IS caught (hash changes when line content differs, stale detection works with correct `allowStale`)
+    - Test bug discovered: vitest helper passed `allowStale: () => false` meaning "never report stale" — caused the stale assertion to fail. Fixed to `() => true`.
+- [ ] Re-baseline dogfood (self-repo) — no baseline file exists in this repo, so no migration needed
+- [ ] Commit + merge to main + tag v0.7.0
+- [ ] Report to user with summary
