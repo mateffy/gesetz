@@ -30,7 +30,6 @@ export {
   noEnum,
   noBarrelFile,
   requireExplicitReturnType,
-  noCrossModuleImports,
 } from './checks';
 export type {
   NoHardcodedStringsOptions,

@@ -9,6 +9,7 @@ export type {
   Exemption,
   RuleCategory,
   RuleGuidance,
+  CheckServices,
 } from './engine/rule';
 
 // ─── Tagged errors ────────────────────────────────────────────────────────────

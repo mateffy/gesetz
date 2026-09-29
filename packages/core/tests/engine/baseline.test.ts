@@ -305,9 +305,19 @@ describe('planBaselineWrite', () => {
     expect(plan.kept).toBe(1);
   });
 
-  it('still refuses a new violation of an unnamed rule', () => {
+  it('ignores a new violation of an unnamed rule, so it cannot block the write', () => {
+    // `--rule r` asks about `r`. An unnamed rule's new violation is not part of
+    // that question; refusing on it blocked a 380-entry baseline of rule `r`
+    // because of an unrelated false positive.
     const plan = planBaselineWrite(fileOf([violation({ rule: 'other' })]), fileOf([]), {
       rules: ['r'],
+      gesetzVersion: '1.2.3',
+    });
+    expect(plan.refused).toEqual([]);
+  });
+
+  it('still refuses a new violation when no rule was named', () => {
+    const plan = planBaselineWrite(fileOf([violation({ rule: 'other' })]), fileOf([]), {
       gesetzVersion: '1.2.3',
     });
     expect(plan.refused).toHaveLength(1);

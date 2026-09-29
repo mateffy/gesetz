@@ -1,7 +1,7 @@
 import * as nodePath from 'node:path';
 import { Effect } from 'effect';
 import type { Rule, Violation } from '@gesetz/core';
-import { execTool, FileFilter, ProjectRoot, resolveToolBin, resolveToolCwd, toolScope } from '@gesetz/core';
+import { FileFilter, ProjectRoot, execTool, resolveToolBin, resolveToolCwd, toolScope, toolWatchPatterns } from '@gesetz/core';
 
 export interface OxlintOptions {
   pattern?: string | string[];
@@ -139,8 +139,11 @@ export function oxlint(opts: OxlintOptions = {}): Rule {
     run,
     category: opts.category,
     project: {
+      // The engine matches these against file paths, so a directory has to become a
+      // glob: a raw `immoui/src/` matches nothing, and a rule that covers nothing
+      // cannot be cached at all.
       patterns: opts.pattern !== undefined
-        ? defaultPatterns
+        ? toolWatchPatterns(defaultPatterns)
         : ['**/*.{js,jsx,ts,tsx,mjs,cjs,mts,cts}', '.oxlintrc*', 'oxlint.config.*'],
       run: (ctx) => {
         // A `--files` request narrows what the tool looks at; without one it runs

@@ -124,3 +124,68 @@ describe('a project rule result is cached per question', () => {
     expect(runs).toHaveLength(2);
   });
 });
+
+describe('a rule whose patterns match nothing', () => {
+  /**
+   * An adapter configured with a `cwd`-relative pattern matches no file at the
+   * project root. Its key would then be a constant, so its first result would be
+   * served for ever — including after the violation was fixed. `--full` re-ran it
+   * and the violation was gone; the cached run still reported it.
+   */
+  const unmatchedRule = (runs: number[]): Rule => ({
+    id: 'unmatched',
+    description: 'a tool configured with a cwd-relative pattern',
+    run: Effect.succeed([]),
+    project: {
+      patterns: ['immoui/src/**/*'],
+      run: async () => {
+        runs.push(1);
+        return [];
+      },
+    },
+  });
+
+  it('is never cached, so it is re-run every time', async () => {
+    // The project's files are under src/, and the rule looks under immoui/.
+    await write('src/a.ts', 'export const a = 1;\n');
+    const runs: number[] = [];
+    await run([unmatchedRule(runs)]);
+    await run([unmatchedRule(runs)]);
+    expect(runs).toHaveLength(2);
+  });
+
+  it('is not silenced by the notice either: the result still counts', async () => {
+    await write('src/a.ts', 'export const a = 1;\n');
+    const rule: Rule = {
+      ...unmatchedRule([]),
+      project: {
+        patterns: ['immoui/src/**/*'],
+        run: async () => [
+          { rule: 'unmatched', message: 'found', path: 'src/a.ts', severity: 'error', source: 'custom' },
+        ],
+      },
+    };
+    const result = await run([rule]);
+    expect(violationsFor(result, 'unmatched')).toHaveLength(1);
+  });
+
+  it('caches a rule whose patterns do match, as before', async () => {
+    await write('src/a.ts', 'export const a = 1;\n');
+    const runs: number[] = [];
+    const matching: Rule = {
+      id: 'matching',
+      description: 'matches',
+      run: Effect.succeed([]),
+      project: {
+        patterns: ['src/**/*.ts'],
+        run: async () => {
+          runs.push(1);
+          return [];
+        },
+      },
+    };
+    await run([matching]);
+    await run([matching]);
+    expect(runs).toHaveLength(1);
+  });
+});

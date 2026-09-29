@@ -33,6 +33,18 @@ describe('createSqliteStore', () => {
     await second.close();
   });
 
+  it('reads a row with no usable hash as a miss, not as an entry', async () => {
+    // A row can exist without a usable hash: a writer that only claimed the key, a
+    // schema from an older version, a half-written value. Every one of those has to
+    // read as "not cached" so the value is recomputed — never as an entry, and
+    // never as a crash.
+    const store = await createSqliteStore(nodePath.join(dir, 'cache.db'));
+    await store.put('a', 'x.ts', { hash: '', value: { message: 'stale' } });
+    expect(await store.get('a', 'x.ts')).toBeUndefined();
+    expect([...(await store.entries('a')).keys()]).toEqual([]);
+    await store.close();
+  });
+
   it('overwrites an existing entry on put', async () => {
     const store = await createSqliteStore(nodePath.join(dir, 'cache.db'));
     await store.put('a', 'x.ts', { hash: 'h1', value: 1 });

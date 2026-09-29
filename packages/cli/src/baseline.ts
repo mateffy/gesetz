@@ -121,9 +121,15 @@ export const baselineCommand = Command.make(
       Options.withDescription('Show the delta and write nothing'),
       Options.withDefault(false),
     ),
+    prune: Options.boolean('prune').pipe(
+      Options.withDescription(
+        'Remove stale entries and add nothing. Closes the loop after a batch that fixed baselined debt.',
+      ),
+      Options.withDefault(false),
+    ),
     rule: Options.text('rule').pipe(
       Options.withDescription(
-        'Re-baseline only these rules (comma-separated) — the explicit accept for a new rule',
+        'Only consider these rules (comma-separated) — the explicit accept for a new rule, and the scope for --prune',
       ),
       Options.optional,
     ),
@@ -195,6 +201,7 @@ export const baselineCommand = Command.make(
       const existing = loaded.right;
       const plan = planBaselineWrite(current, existing, {
         rules: ruleFilter.ids,
+        prune: opts.prune,
         gesetzVersion: version,
       });
 

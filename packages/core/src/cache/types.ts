@@ -16,6 +16,14 @@ export interface FileRef {
 export interface CacheEntry<Value = unknown> {
   /** Content hash of the file at the time `value` was computed. */
   readonly hash: string;
+  /**
+   * `mtimeMs:size` for the file when `value` was computed.
+   *
+   * This is what lets a run reuse a result without reading the file: if the stamp
+   * is unchanged the content almost certainly is too, and the cache never has to
+   * touch 700 MB to find out. See `sync` for the ceiling that accepts.
+   */
+  readonly stamp?: string | undefined;
   /** The cached payload. Must be JSON-serialisable. */
   readonly value: Value;
   /**

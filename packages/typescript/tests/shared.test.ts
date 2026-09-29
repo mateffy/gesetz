@@ -3,26 +3,12 @@ import {
   findByKind,
   findChildText,
   getCallArgs,
-  getParser,
   parseFile,
   startLine,
   walkDescendants,
 } from '../src/checks/shared';
 
 const parse = (source: string) => parseFile(source, 'src/foo.ts');
-
-describe('getParser', () => {
-  it('routes each supported extension to a parser', () => {
-    for (const ext of ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs']) {
-      expect(getParser(ext), ext).toBeDefined();
-    }
-  });
-
-  it('falls back to the TypeScript parser for an unknown extension', () => {
-    // `.d.ts` and anything unexpected land on the default rather than throwing.
-    expect(getParser('.wat')).toBe(getParser('.ts'));
-  });
-});
 
 describe('parseFile', () => {
   it('parses TypeScript', () => {

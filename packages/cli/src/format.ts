@@ -310,6 +310,23 @@ export function formatCi(result: RunResult): string {
  * One-line status for stderr. Lives on stderr so stdout stays a clean data
  * contract in every mode.
  */
+/**
+ * Notices for exemptions that named no rule.
+ *
+ * A path-only exemption matches every rule, so the file stops being checked at all.
+ * That is a legitimate thing to declare, but it must be visible: otherwise "exempt"
+ * and "clean" look identical, which is how seven such entries silenced every rule
+ * for seven files without anyone noticing.
+ */
+export function formatExemptionNotices(result: RunResult): string[] {
+  return (result.exemptionSuppressions ?? []).map((suppression) => {
+    const rules = suppression.ruleId.split(', ').length;
+    const plural = rules === 1 ? 'rule' : 'rules';
+    const violations = suppression.count === 1 ? 'violation' : 'violations';
+    return `exemption '${suppression.path}' names no rule, so it suppresses every rule — ${rules} ${plural} reported nothing there (${suppression.count} ${violations} suppressed)`;
+  });
+}
+
 export function formatStatusBanner(result: RunResult): string {
   const verdict = result.passing ? 'pass' : 'fail';
   const baseline = result.baseline;

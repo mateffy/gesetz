@@ -56,6 +56,12 @@ export interface RunResult {
    * matching the pass/fail decision.
    */
   readonly baseline?: import('./baseline-apply').BaselineStats | undefined;
+  /**
+   * What exemptions suppressed, one entry per (exemption, rule). Present only when
+   * an exemption named no rule — a rule-scoped exemption says what it covers, a
+   * path-only one silently covers everything, so it is reported instead.
+   */
+  readonly exemptionSuppressions?: readonly ExemptionSuppression[] | undefined;
 }
 
 /** Weight applied to each severity when scoring a category. */
@@ -118,10 +124,43 @@ export function applyExemptions(
   exemptions: Exemption[],
   ruleId: string,
 ): Violation[] {
-  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  return applyExemptionsWithCounts(violations, exemptions, ruleId).kept;
+}
 
-  return violations.filter((violation) => {
-    return !exemptions.some((exemption) => {
+/** One exemption's effect on one rule's violations. */
+export interface ExemptionSuppression {
+  /** The exemption's path glob. */
+  readonly path: string;
+  /** The exemption's rule glob, `'*'` when it named no rule. */
+  readonly rule: string;
+  /** The rule whose violations it suppressed. */
+  readonly ruleId: string;
+  /** How many violations it suppressed. */
+  readonly count: number;
+}
+
+/**
+ * {@link applyExemptions}, plus a count of what it suppressed and why.
+ *
+ * The count exists because an exemption that names no rule matches every rule:
+ * with `{ path }` alone, a file stops being checked at all and nothing says so.
+ * A path-only exemption is legitimate (generated files, fixtures), but it must be
+ * visible, because "this file was exempt" and "this file was clean" are
+ * indistinguishable in the output otherwise.
+ */
+export function applyExemptionsWithCounts(
+  violations: Violation[],
+  exemptions: Exemption[],
+  ruleId: string,
+): { readonly kept: Violation[]; readonly suppressed: readonly ExemptionSuppression[] } {
+  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  const kept: Violation[] = [];
+  const suppressed: ExemptionSuppression[] = [];
+
+  for (const violation of violations) {
+    // First match wins, so a specific exemption listed before a broad one is
+    // credited with the suppression it was written for.
+    const match = exemptions.find((exemption) => {
       if (exemption.until !== undefined && exemption.until < today) {
         return false; // Expired exemption — does not suppress
       }
@@ -131,5 +170,17 @@ export function applyExemptions(
       }
       return micromatch.isMatch(violation.path, exemption.path);
     });
-  });
+    if (match === undefined) {
+      kept.push(violation);
+    } else {
+      suppressed.push({
+        path: match.path,
+        rule: match.rule ?? '*',
+        ruleId,
+        count: 1,
+      });
+    }
+  }
+
+  return { kept, suppressed };
 }

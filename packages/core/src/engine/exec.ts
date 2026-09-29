@@ -157,7 +157,9 @@ export function runWithTempFile<T, R>(
             try {
               nodeFs.rmSync(nodePath.dirname(tmpFile), { recursive: true, force: true });
             } catch {
-              /* ignore */
+              // Already gone, or unwritable — nothing useful to do, and the
+              // caller's own error (if any) is the one that matters.
+              return;
             }
           }),
         ),

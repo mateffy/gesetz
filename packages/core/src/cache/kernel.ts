@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 import { hashBytes } from './hash';
 import type { CacheEntry, CacheStore, FileRef } from './types';
 
@@ -61,12 +61,30 @@ export interface SyncResult<Value> {
 
 const READ_CONCURRENCY = 8;
 
+/**
+ * `mtimeMs:size` for a file, or null when there is nothing to stat.
+ *
+ * Structural cases only, mirroring `readSafely`: `ENOENT` (in the index, deleted
+ * from disk) and a path that is a directory (a symlink to one, which git lists as
+ * a file). Anything else is raised.
+ */
+async function statSafely(file: FileRef): Promise<string | null> {
+  try {
+    const info = await stat(file.absolutePath);
+    if (!info.isFile()) return null;
+    return `${info.mtimeMs}:${info.size}`;
+  } catch (error) {
+    const code = (error as { code?: unknown }).code;
+    if (code === 'ENOENT' || code === 'EISDIR') return null;
+    throw error;
+  }
+}
+
 async function defaultRead(file: FileRef): Promise<FileSource> {
   const bytes = await readFile(file.absolutePath);
   return { content: bytes.toString('utf8'), hash: hashBytes(bytes) };
 }
 
-/** Reads a file, returning null when it vanished since discovery. */
 /**
  * Reads a file, returning null when there is nothing to read.
  *
@@ -115,12 +133,26 @@ async function mapConcurrent<T, R>(
 }
 
 /**
- * Hashes `files`, diffs them against the stored entries for `scope`, recomputes
- * added/changed files via `compute`, prunes entries for vanished files, and
- * returns the full path -> value map.
+ * Diffs `files` against the stored entries for `scope`, recomputes what changed via
+ * `compute`, prunes entries for vanished files, and returns the full path -> value
+ * map.
  *
- * Content hash is the ONLY reuse signal — never mtimes. `fingerprint` and
- * `force` are the two explicit escape hatches for invalidating the scope.
+ * Reuse is decided in two steps, cheapest first:
+ *
+ *   1. **Stamp.** `mtimeMs:size` unchanged from the stored entry means the content
+ *      almost certainly is too, so the file is not read at all. This is what keeps
+ *      a warm run cheap: 13,700 files are ~700 MB, and hashing them every run cost
+ *      32 seconds in the repository this was measured on.
+ *   2. **Content hash.** A stamp that moved means the file *might* have changed, so
+ *      it is read and hashed; a hash that still matches is reused (and the new stamp
+ *      stored, so the next run takes the fast path again).
+ *
+ * `fingerprint` and `force` are the two explicit escape hatches for invalidating the
+ * whole scope.
+ *
+ * ponytail: the stamp is not proof. A file rewritten inside the same millisecond
+ * with the same size is not noticed; `--full` re-checks everything. Anything more
+ * (verifying every file) is the cost this exists to avoid.
  */
 export async function sync<Value>(options: SyncOptions<Value>): Promise<SyncResult<Value>> {
   const startedAt = Date.now();
@@ -133,11 +165,9 @@ export async function sync<Value>(options: SyncOptions<Value>): Promise<SyncResu
     stored.size > 0 &&
     [...stored.values()].some((entry) => entry.meta?.['fingerprint'] !== options.fingerprint);
 
-  // Hash phase. A file that vanished between discovery and this read is skipped
-  // here and pruned below.
-  const sources = await mapConcurrent(files, READ_CONCURRENCY, (file) =>
-    readSafely(read, file),
-  );
+  // Stamp phase: one `stat` per file, in place of reading all of them. A file that
+  // vanished between discovery and here is skipped now and pruned below.
+  const stamps = await mapConcurrent(files, READ_CONCURRENCY, (file) => statSafely(file));
 
   const added: string[] = [];
   const changed: string[] = [];
@@ -149,45 +179,66 @@ export async function sync<Value>(options: SyncOptions<Value>): Promise<SyncResu
 
   for (let index = 0; index < files.length; index += 1) {
     const file = files[index] as FileRef;
-    const source = sources[index] as FileSource | null;
-    if (source === null) continue;
+    const stampNow = stamps[index] as string | null;
+    if (stampNow === null) continue;
     keep.add(file.path);
-    hashes.set(file.path, source.hash);
 
     const previous = stored.get(file.path);
-    if (
-      previous === undefined ||
-      previous.hash !== source.hash ||
-      options.force === true ||
-      fingerprintChanged
-    ) {
-      if (previous === undefined) added.push(file.path);
-      else changed.push(file.path);
-      toCompute.push(index);
-    } else {
+    const invalidated = options.force === true || fingerprintChanged;
+    if (!invalidated && previous !== undefined && previous.stamp === stampNow) {
+      // Unchanged stamp: reuse without touching the file.
       reused.push(file.path);
+      hashes.set(file.path, previous.hash);
       values.set(file.path, previous.value);
+      continue;
     }
+    toCompute.push(index);
   }
 
-  // Compute phase.
+  // Read phase: only the files whose stamp moved (or that have no entry), and only
+  // as they are computed, so a warm run never holds the project's contents in
+  // memory.
   const total = toCompute.length;
   let done = 0;
   for (const index of toCompute) {
     const file = files[index] as FileRef;
-    const source = sources[index] as FileSource;
+    const stampNow = stamps[index] as string | null;
+    const source = await readSafely(read, file);
+    if (source === null) {
+      keep.delete(file.path); // vanished since the stamp; let pruning drop it
+      continue;
+    }
+    hashes.set(file.path, source.hash);
+
+    const previous = stored.get(file.path);
+    if (
+      previous !== undefined &&
+      previous.hash === source.hash &&
+      options.force !== true &&
+      !fingerprintChanged
+    ) {
+      // The stamp moved but the content did not: reuse the value and refresh the
+      // stamp, so the next run takes the fast path again.
+      reused.push(file.path);
+      values.set(file.path, previous.value);
+      if (stampNow !== null) await store.put(scope, file.path, { ...previous, stamp: stampNow });
+      continue;
+    }
+
+    if (previous === undefined) added.push(file.path);
+    else changed.push(file.path);
+
     const value = await compute(file, source);
     if (value === KEEP_STORED) {
-      // Nothing computed for this file this time. Its stored entry stands — it is
-      // still valid, because the content hash has not moved — and `keep` already
-      // holds the path, so pruning leaves it alone too.
-      const previous = stored.get(file.path);
+      // Nothing computed for this file this time. Its stored entry stands, and
+      // `keep` already holds the path, so pruning leaves it alone too.
       if (previous !== undefined) values.set(file.path, previous.value);
       continue;
     }
     values.set(file.path, value);
     const entry: CacheEntry<Value> = {
       hash: source.hash,
+      ...(stampNow === null ? {} : { stamp: stampNow }),
       value,
       ...(options.fingerprint !== undefined
         ? { meta: { fingerprint: options.fingerprint } }

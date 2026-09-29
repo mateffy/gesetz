@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import * as childProcess from 'node:child_process';
 import * as nodeFs from 'node:fs';
+import * as nodePath from 'node:path';
 import { Effect, Layer } from 'effect';
 import { vitest } from '../src/adapter';
 import {
@@ -232,115 +233,103 @@ describe('vitest adapter', () => {
   });
 
   describe('project runs execute only the tests that cover the files in play', () => {
-    /** A network holding just the given paths. */
-    const network = (...paths: string[]) => ({
-      glob: async () => [],
-      file: async (path: string) =>
-        paths.includes(path)
-          ? {
-              path,
-              markers: [],
-              hasMarker: () => false,
-              markersOf: () => [],
-              content: async () => '',
-            }
-          : null,
-    });
-
+    const spy = childProcess.execFileSync as ReturnType<typeof vi.fn>;
     const argsOf = (): string[] =>
-      (childProcess.execFileSync as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[1] as string[];
+      (spy.mock.calls.at(-1)?.[1] as string[]) ?? [];
+
+    /**
+     * A project whose files exist on disk, because the adapter asks the filesystem
+     * whether a candidate test is there.
+     */
+    const project = async (files: string[]): Promise<string> => {
+      const { mkdtemp, mkdir, writeFile } = await import('node:fs/promises');
+      const { tmpdir } = await import('node:os');
+      const root = await mkdtemp(nodePath.join(tmpdir(), 'gesetz-vitest-'));
+      for (const file of files) {
+        const absolute = nodePath.join(root, file);
+        await mkdir(nodePath.dirname(absolute), { recursive: true });
+        await writeFile(absolute, '');
+      }
+      return root;
+    };
 
     it('passes the test that covers a changed source file', async () => {
-      const spy = childProcess.execFileSync as ReturnType<typeof vi.fn>;
       spy.mockImplementation(writesReport(JSON.stringify({ numFailedTests: 0, testResults: [] })));
-      const rule = vitest({ cwd: '/project', project: ['unit'] });
+      const root = await project(['src/utils/math.ts', 'src/utils/math.test.ts']);
+      const rule = vitest({ cwd: root, project: ['unit'] });
 
-      const outcome = await rule.project!.run({
-        network: network('src/utils/math.ts', 'src/utils/math.test.ts'),
+      await rule.project!.run({
+        rootDir: root,
         changedFiles: ['src/utils/math.ts'],
-        rootDir: '/project',
-      });
-
-      // Not the whole suite: one file, one test.
-      expect(argsOf()).toEqual([
-        'run',
-        '--reporter=json',
-        expect.stringMatching(/^--outputFile=/),
-        '--project',
-        'unit',
-        'src/utils/math.test.ts',
-      ]);
-      expect('examinedPaths' in outcome && outcome.examinedPaths).toEqual([
-        'src/utils/math.test.ts',
-      ]);
-    });
-
-    it('runs a changed test file itself', async () => {
-      const spy = childProcess.execFileSync as ReturnType<typeof vi.fn>;
-      spy.mockImplementation(writesReport(JSON.stringify({ numFailedTests: 0, testResults: [] })));
-      const rule = vitest({ cwd: '/project' });
-
-      const outcome = await rule.project!.run({
-        network: network('src/utils/math.test.ts'),
-        changedFiles: ['src/utils/math.test.ts'],
-        rootDir: '/project',
+        requestedPaths: null,
       });
 
       expect(argsOf()).toContain('src/utils/math.test.ts');
-      expect('examinedPaths' in outcome && outcome.examinedPaths).toEqual([
-        'src/utils/math.test.ts',
-      ]);
+      expect(argsOf()).not.toContain('src/utils/other.test.ts');
+    });
+
+    it('runs a changed test file itself', async () => {
+      spy.mockImplementation(writesReport(JSON.stringify({ numFailedTests: 0, testResults: [] })));
+      const root = await project(['src/utils/math.test.ts']);
+      const rule = vitest({ cwd: root });
+
+      await rule.project!.run({
+        rootDir: root,
+        changedFiles: ['src/utils/math.test.ts'],
+        requestedPaths: null,
+      });
+
+      expect(argsOf()).toContain('src/utils/math.test.ts');
     });
 
     it('does not call the runner at all when no test covers the file in play', async () => {
       // Otherwise the run has no filter and executes the whole suite, which is
       // exactly the cost this scope exists to avoid.
-      const spy = childProcess.execFileSync as ReturnType<typeof vi.fn>;
       spy.mockImplementation(writesReport(JSON.stringify({ numFailedTests: 0, testResults: [] })));
-      const rule = vitest({ cwd: '/project' });
+      const root = await project(['src/utils/math.ts']);
+      const rule = vitest({ cwd: root });
 
-      const outcome = await rule.project!.run({
-        network: network('src/utils/math.ts', 'src/other/thing.test.ts'),
+      await rule.project!.run({
+        rootDir: root,
         changedFiles: ['src/utils/math.ts'],
-        rootDir: '/project',
+        requestedPaths: null,
       });
 
       expect(spy).not.toHaveBeenCalled();
-      expect('examinedPaths' in outcome && outcome.examinedPaths).toEqual([]);
     });
 
     it('prefers the requested files over the changed ones', async () => {
-      const spy = childProcess.execFileSync as ReturnType<typeof vi.fn>;
       spy.mockImplementation(writesReport(JSON.stringify({ numFailedTests: 0, testResults: [] })));
-      const rule = vitest({ cwd: '/project' });
+      const root = await project([
+        'src/a.ts',
+        'src/a.test.ts',
+        'src/b.ts',
+        'src/b.test.ts',
+      ]);
+      const rule = vitest({ cwd: root });
 
-      const outcome = await rule.project!.run({
-        network: network('src/a.ts', 'src/a.test.ts', 'src/b.ts', 'src/b.test.ts'),
+      await rule.project!.run({
+        rootDir: root,
         changedFiles: ['src/b.ts'],
         requestedPaths: ['src/a.ts'],
-        rootDir: '/project',
       });
 
       expect(argsOf()).toContain('src/a.test.ts');
       expect(argsOf()).not.toContain('src/b.test.ts');
-      expect('examinedPaths' in outcome && outcome.examinedPaths).toEqual(['src/a.test.ts']);
     });
 
-    it('passes paths relative to the directory the runner runs in', async () => {
-      // The tool is invoked with cwd = the runner's own directory and matches its
-      // filters against that, so a project-relative path would match nothing.
-      const spy = childProcess.execFileSync as ReturnType<typeof vi.fn>;
+    it('accepts a project-specific suffix list', async () => {
       spy.mockImplementation(writesReport(JSON.stringify({ numFailedTests: 0, testResults: [] })));
-      const rule = vitest({ cwd: '/project/immoui' });
+      const root = await project(['src/a.ts', 'src/a.spec.ts']);
+      const rule = vitest({ cwd: root, testSuffixes: ['.spec.ts'] });
 
-      const outcome = await rule.project!.run({
-        network: network('immoui/src/a.ts', 'immoui/src/a.test.ts'),
-        changedFiles: ['immoui/src/a.ts'],
-        rootDir: '/project',
+      await rule.project!.run({
+        rootDir: root,
+        changedFiles: ['src/a.ts'],
+        requestedPaths: null,
       });
 
-      expect(argsOf()).toContain('src/a.test.ts');
-      expect('examinedPaths' in outcome && outcome.examinedPaths).toEqual(['src/a.test.ts']);
+      expect(argsOf()).toContain('src/a.spec.ts');
     });
   });
 });

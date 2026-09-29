@@ -27,6 +27,7 @@ interface SqliteModule {
 interface Row {
   readonly path: string;
   readonly hash: string;
+  readonly stamp: string | null;
   readonly fingerprint: string | null;
   readonly value: string;
 }
@@ -65,7 +66,7 @@ export class SqliteUnavailableError extends Error {
 export const SQLITE_COMPAT_PACKAGE = '@gesetz/sqlite-compat';
 
 /** Bump when the table layout changes. A mismatch discards the cache. */
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 
 /** Default retention for cache entries. */
 export const DEFAULT_CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
@@ -76,6 +77,7 @@ const SCHEMA = `
     scope       TEXT NOT NULL,
     path        TEXT NOT NULL,
     hash        TEXT NOT NULL,
+    stamp       TEXT,
     fingerprint TEXT,
     value       TEXT NOT NULL,
     updated_at  INTEGER NOT NULL,
@@ -111,11 +113,10 @@ let nodeSqliteProbe: Promise<SqliteModule | null> | undefined;
  */
 function loadNodeSqlite(): Promise<SqliteModule | null> {
   nodeSqliteProbe ??= (async () => {
-    try {
-      return (await import('node:sqlite')) as unknown as SqliteModule;
-    } catch {
-      // Not Node, or Node too old.
-    }
+    // Not every runtime has `node:sqlite`; the fallbacks below are the point, so a
+    // failed import is expected rather than exceptional.
+    const nodeSqlite = await import('node:sqlite').catch(() => null);
+    if (nodeSqlite !== null) return nodeSqlite as unknown as SqliteModule;
     if (typeof (globalThis as { Bun?: unknown }).Bun !== 'undefined') {
       try {
         // No static specifier: `bun:sqlite` is unknown to TypeScript here, and a
@@ -142,10 +143,27 @@ export async function isNodeSqliteAvailable(): Promise<boolean> {
   return (await loadNodeSqlite()) !== null;
 }
 
-function toEntry<Value>(row: Row): CacheEntry<Value> {
+/**
+ * A row as an entry, or `undefined` when the row cannot be one.
+ *
+ * A cache is an optimization: a row that cannot be interpreted has to read as a
+ * miss so the value is recomputed. A crash, or worse a half-parsed entry, would
+ * make the cache a correctness hazard instead.
+ */
+function toEntry<Value>(row: Row): CacheEntry<Value> | undefined {
+  if (typeof row.hash !== 'string' || row.hash === '') return undefined;
+  let value: Value;
+  try {
+    value = JSON.parse(row.value) as Value;
+  } catch {
+    // ponytail: corrupt row → miss → recomputed. If this ever bites, write the
+    // raw text to stderr instead of dropping it silently.
+    return undefined;
+  }
   return {
     hash: row.hash,
-    value: JSON.parse(row.value) as Value,
+    value,
+    ...(row.stamp === null || row.stamp === undefined ? {} : { stamp: row.stamp as string }),
     ...(row.fingerprint !== null ? { meta: { fingerprint: row.fingerprint } } : {}),
   };
 }
@@ -193,16 +211,17 @@ export function createSqliteStoreFromDatabase(
   sweepExpired(db, ttlMs);
 
   const selectOne = db.prepare(
-    'SELECT path, hash, fingerprint, value FROM cache_entries WHERE workdir = ? AND scope = ? AND path = ?',
+    'SELECT path, hash, stamp, fingerprint, value FROM cache_entries WHERE workdir = ? AND scope = ? AND path = ?',
   );
   const selectScope = db.prepare(
-    'SELECT path, hash, fingerprint, value FROM cache_entries WHERE workdir = ? AND scope = ?',
+    'SELECT path, hash, stamp, fingerprint, value FROM cache_entries WHERE workdir = ? AND scope = ?',
   );
   const upsert = db.prepare(
-    `INSERT INTO cache_entries (workdir, scope, path, hash, fingerprint, value, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO cache_entries (workdir, scope, path, hash, stamp, fingerprint, value, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT (workdir, scope, path) DO UPDATE SET
        hash = excluded.hash,
+       stamp = excluded.stamp,
        fingerprint = excluded.fingerprint,
        value = excluded.value,
        updated_at = excluded.updated_at`,
@@ -213,8 +232,10 @@ export function createSqliteStoreFromDatabase(
 
   return {
     async get<Value>(scope: string, entryPath: string): Promise<CacheEntry<Value> | undefined> {
-      const row = selectOne.get(namespace, scope, entryPath) as Row | undefined;
-      return row === undefined ? undefined : toEntry<Value>(row);
+      // A missing row is `undefined` under node:sqlite and `null` under bun:sqlite.
+      // Both mean "not cached", and a miss must be a miss, not a crash.
+      const row = selectOne.get(namespace, scope, entryPath) as Row | null | undefined;
+      return row === null || row === undefined ? undefined : toEntry<Value>(row);
     },
 
     async put<Value>(scope: string, entryPath: string, entry: CacheEntry<Value>): Promise<void> {
@@ -223,6 +244,7 @@ export function createSqliteStoreFromDatabase(
         scope,
         entryPath,
         entry.hash,
+        entry.stamp ?? null,
         entry.meta?.['fingerprint'] ?? null,
         JSON.stringify(entry.value),
         Date.now(),
@@ -235,7 +257,12 @@ export function createSqliteStoreFromDatabase(
 
     async entries<Value>(scope: string): Promise<ReadonlyMap<string, CacheEntry<Value>>> {
       const rows = selectScope.all(namespace, scope) as Row[];
-      return new Map(rows.map((row) => [row.path, toEntry<Value>(row)]));
+      const found = new Map<string, CacheEntry<Value>>();
+      for (const row of rows) {
+        const entry = toEntry<Value>(row);
+        if (entry !== undefined) found.set(row.path, entry);
+      }
+      return found;
     },
 
     async prune(scope: string, keep: ReadonlySet<string>): Promise<readonly string[]> {

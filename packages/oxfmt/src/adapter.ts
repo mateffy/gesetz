@@ -1,7 +1,7 @@
 import * as nodePath from 'node:path';
 import { Effect } from 'effect';
 import type { Rule, Violation } from '@gesetz/core';
-import { execTool, FileFilter, ProjectRoot, resolveToolBin, resolveToolCwd, toolScope } from '@gesetz/core';
+import { FileFilter, ProjectRoot, execTool, resolveToolBin, resolveToolCwd, toolScope, toolWatchPatterns } from '@gesetz/core';
 
 export interface OxfmtOptions {
   /**
@@ -99,7 +99,10 @@ export function oxfmt(opts: OxfmtOptions = {}): Rule {
     run,
     category: opts.category,
     project: {
-      patterns: opts.pattern !== undefined ? defaultPatterns : ['**/*'],
+      // The engine matches these against file paths, so a directory has to become a
+      // glob: `immoui/src/` matches nothing, and a rule that covers nothing cannot
+      // be cached at all.
+      patterns: opts.pattern !== undefined ? toolWatchPatterns(defaultPatterns) : ['**/*'],
       run: (ctx) => {
         // A `--files` request narrows what the tool looks at; without one it runs
         // over its own patterns, which is what its cached result is keyed by.

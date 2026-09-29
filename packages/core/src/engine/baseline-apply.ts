@@ -213,6 +213,12 @@ export function planBaselineWrite(
   existing: BaselineFile | null,
   options: {
     readonly rules?: readonly string[] | null | undefined;
+    /**
+     * Remove stale entries and add nothing, instead of absorbing the current
+     * inventory. The refusal rule still applies: a violation the baseline does not
+     * cover is an addition, and adding needs a maintainer.
+     */
+    readonly prune?: boolean | undefined;
     readonly gesetzVersion: string;
   },
 ): BaselineWritePlan {
@@ -227,9 +233,17 @@ export function planBaselineWrite(
 
   if (existing !== null) {
     for (const [hash, { located, count }] of currentEntries) {
+      // `--rule` names what this write is about. A rule outside that list is not
+      // part of the question, so its new violations must not block the bookkeeping
+      // for the rules that were named — one bad rule in a rule nobody asked about
+      // used to block baselining 380 entries of a different one.
+      if (explicit !== null) {
+        // Inside the list, the violation is what the caller asked to absorb:
+        // naming a rule is how a new rule's backlog is accepted on purpose.
+        continue;
+      }
       const known = existingEntries.get(hash)?.count ?? 0;
       if (count <= known) continue;
-      if (explicit !== null && explicit.has(located.entry.rule)) continue;
       refused.push({
         rule: located.entry.rule,
         path: located.path,
@@ -241,6 +255,35 @@ export function planBaselineWrite(
   }
 
   const next = new Map<string, LocatedEntry>();
+  if (options.prune === true) {
+    // A prune subtracts: it keeps the entries that still describe a violation and
+    // drops the ones that do not. Nothing is added, so it can never absorb a
+    // backlog — an agent that fixes baselined debt can run it and close the loop
+    // without a maintainer, which is the whole point of the mode.
+    for (const [hash, { located }] of existingEntries) {
+      if (explicit !== null && !explicit.has(located.entry.rule)) {
+        next.set(hash, located);
+        continue;
+      }
+      const seen = currentEntries.get(hash);
+      if (seen !== undefined) {
+        // Keep the entry, but at the count actually observed. A prune that left the
+        // old count behind would say "48 of these exist" when one does — and the
+        // gate would accept 47 new occurrences it should refuse.
+        next.set(hash, { path: located.path, entry: { ...located.entry, count: seen.count } });
+      }
+    }
+    const deltas = compareRules(existingEntries, next);
+    return {
+      refused,
+      next: makeBaselineFile([...next.values()], options.gesetzVersion),
+      deltas,
+      added: 0,
+      removed: deltas.reduce((sum, delta) => sum + delta.removed, 0),
+      kept: deltas.reduce((sum, delta) => sum + delta.kept, 0),
+    };
+  }
+
   if (existing !== null && explicit !== null) {
     for (const [hash, { located }] of existingEntries) {
       if (explicit.has(located.entry.rule)) continue;

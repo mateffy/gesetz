@@ -82,6 +82,11 @@ interface Envelope {
   /** Absent when the run was not coordinated. Additive. */
   coordination?: EnvelopeCoordination | undefined;
   /**
+   * Exemptions that named no rule, with how much they suppressed. Present so a
+   * path-only exemption is never invisible to a machine reader either.
+   */
+  suppressed?: ReadonlyArray<{ path: string; rules: number; violations: number }> | undefined;
+  /**
    * Rules that could not run at all (a tool adapter that failed). Their failure is
    * reported as a critical violation and the run never passes; this names them so
    * an agent does not have to parse the violation messages.
@@ -160,6 +165,15 @@ export function buildEnvelope(
               stale: rule.stale,
             })),
           },
+    ...((result.exemptionSuppressions ?? []).length === 0
+      ? {}
+      : {
+          suppressed: (result.exemptionSuppressions ?? []).map((suppression) => ({
+            path: suppression.path,
+            rules: suppression.ruleId.split(', ').length,
+            violations: suppression.count,
+          })),
+        }),
     ...(opts.coordination === undefined ? {} : { coordination: opts.coordination }),
     ...((result.failedRules ?? []).length === 0 ? {} : { failedRules: [...(result.failedRules ?? [])] }),
   };

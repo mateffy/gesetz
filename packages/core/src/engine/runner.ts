@@ -14,12 +14,22 @@ import { createCheckServices } from '../services/check-services';
 import { servicesLayer } from './services-layer';
 import { applyExemptions, computeCategoryScores } from './result';
 import { expandRequest, rulesForRequest } from '../backend/request-scope';
+import { aggregateRun } from './aggregate';
+import {
+  executeFileSystemRule,
+  executeProjectRule,
+  fileFromRef,
+  matchesPerFile,
+  resolveChangedFiles,
+  ruleReadsFileSystem,
+  runChecks,
+} from './rule-execution';
 import { partitionByBaseline, type BaselineStats } from './baseline-apply';
 import { STALE_RULE_ID, type BaselineFile } from './baseline';
 import type { CategoryScore, RuleResult, RunResult } from './result';
 
 // Re-exported so the public entry point keeps a single source of truth.
-export { applyExemptions } from './result';
+export { applyExemptions, applyExemptionsWithCounts } from './result';
 export type { CategoryScore, RuleResult, RunResult } from './result';
 
 
@@ -71,172 +81,6 @@ type FileRuleResults = Readonly<Record<string, Violation[]>>;
  * Resolves the git-changed file set for `changedSince`.
  * Returns `null` when not filtering (all files included).
  */
-function resolveChangedFiles(
-  changedSince: string | undefined,
-  projectRoot: string,
-): Set<string> | null {
-  if (!changedSince) return null;
-  try {
-    const output = childProcess
-      .execFileSync('git', ['diff', '--name-only', changedSince], {
-        cwd: projectRoot,
-        encoding: 'utf-8',
-      })
-      .trim();
-    if (!output) return new Set();
-    return new Set(output.split('\n').map((p) => p.trim()).filter(Boolean));
-  } catch {
-    // git not available or ref invalid — fall through to no filter
-    return null;
-  }
-}
-
-function matchesPerFile(path: string, perFile: NonNullable<Rule['perFile']>): boolean {
-  if (!micromatch.isMatch(path, [...perFile.patterns], { dot: true })) return false;
-  if (
-    perFile.exclusions.length > 0 &&
-    micromatch.isMatch(path, [...perFile.exclusions], { dot: true })
-  ) {
-    return false;
-  }
-  return true;
-}
-
-function fileFromRef(reference: FileRef, content: string): File {
-  const slash = reference.path.lastIndexOf('/');
-  const name = slash === -1 ? reference.path : reference.path.slice(slash + 1);
-  const dot = name.lastIndexOf('.');
-  const ext = dot === -1 ? '' : name.slice(dot);
-  const stem = dot === -1 ? name : name.slice(0, dot);
-  return {
-    path: reference.path,
-    absolutePath: reference.absolutePath,
-    name,
-    stem,
-    ext,
-    dir: slash === -1 ? '' : reference.path.slice(0, slash),
-    content,
-    size: content.length,
-    mtimeMs: 0,
-  };
-}
-
-/** Runs every check of a per-file rule against an already-built `File`. */
-async function runChecks(
-  rule: Rule,
-  file: File,
-  services: CheckServices,
-): Promise<Violation[]> {
-  const perFile = rule.perFile;
-  if (perFile === undefined) return [];
-  if (!perFile.predicates.every((predicate) => predicate(file))) return [];
-
-  const violations: Violation[] = [];
-  for (const check of perFile.checks) {
-    // Checks never throw — same contract as the v2 runner.
-    violations.push(...(await check(file, services).catch((): Violation[] => [])));
-  }
-  return violations.map((violation) => ({ ...violation, rule: violation.rule ?? rule.id }));
-}
-
-/**
- * True when any of a rule's checks asks the file system rather than being a
- * function of its own file.
- *
- * Such a rule cannot be cached against file content: `requireTest` asks whether a
- * test file *exists*, so adding it changes the answer without touching the source.
- */
-function ruleReadsFileSystem(rule: Rule): boolean {
-  const checks = rule.perFile?.checks;
-  if (checks === undefined || checks.length === 0) return false;
-  return checks.some((check) => check.needsFileSet === true);
-}
-
-/**
- * Runs a file-system rule over the files it covers.
- *
- * This is the per-file check loop, run over a whole rule's file set instead of one
- * file at a time, in the project pass — because the answer depends on more than
- * one file. It reads each covered file and runs the checks; they ask `fs.exists`
- * against the run's file list, so nothing is parsed and recomputing is cheap.
- */
-async function executeFileSystemRule(
-  rule: Rule,
-  relevant: readonly FileRef[],
-  services: CheckServices,
-): Promise<{ violations: Violation[]; failed: boolean; examinedPaths: string[] }> {
-  const violations: Violation[] = [];
-  const examinedPaths: string[] = [];
-  for (const reference of relevant) {
-    let content: string;
-    try {
-      content = await readFile(reference.absolutePath, 'utf-8');
-    } catch {
-      continue; // vanished since discovery
-    }
-    examinedPaths.push(reference.path);
-    violations.push(...(await runChecks(rule, fileFromRef(reference, content), services)));
-  }
-  return { violations, failed: false, examinedPaths };
-}
-
-/** Human-readable detail for a rule failure, preferring the error message. */
-function describeCause(cause: unknown): string {
-  if (cause instanceof Error && cause.message !== '') return cause.message;
-  return String(cause);
-}
-
-/**
- * Executes a project-level rule (tool adapter, architecture rule, or cycle
- * check). Failures become a critical violation unless `throwOnError` is set.
- */
-async function executeProjectRule(
-  rule: Rule,
-  context: {
-    readonly rootDir: string;
-    readonly changedFiles: readonly string[];
-    readonly requestedPaths: readonly string[] | null;
-  },
-  services: CheckServices,
-  fileFilter: readonly string[] | null,
-  throwOnError: boolean,
-): Promise<{ violations: Violation[]; failed: boolean; examinedPaths?: readonly string[] }> {
-  try {
-    if (rule.project === undefined) {
-      const violations = await Effect.runPromise(
-        Effect.provide(rule.run, servicesLayer(services, fileFilter)),
-      );
-      return { violations, failed: false };
-    }
-    const outcome: ProjectRuleOutcome = await rule.project.run(context);
-    if ('violations' in outcome) {
-      return {
-        violations: [...outcome.violations],
-        failed: false,
-        ...(outcome.examinedPaths === undefined
-          ? {}
-          : { examinedPaths: outcome.examinedPaths }),
-      };
-    }
-    return { violations: [...outcome], failed: false };
-  } catch (cause) {
-    if (throwOnError) throw cause;
-    return {
-      failed: true,
-      violations: [
-        {
-          rule: rule.id,
-          message: `Rule '${rule.id}' threw an unexpected error: ${describeCause(cause)}`,
-          path: context.rootDir,
-          severity: 'error',
-          source: 'core',
-          fix: 'Fix the underlying tool or rule so it can run. Pass --throw to surface the full error instead of a violation.',
-        },
-      ],
-    };
-  }
-}
-
 /**
  * Runs all rules in the config and returns a RunResult.
  *
@@ -287,6 +131,8 @@ export const runAll = (
       const changed = new Set<string>();
       const violationsByRule = new Map<string, Violation[]>();
       const failedRules: string[] = [];
+      /** Rules already reported as uncacheable, so the notice prints once. */
+      const warnedUncacheable = new Set<string>();
 
       // ── Per-file rules ───────────────────────────────────────────────────
       // One cache scope, one entry per file.
@@ -307,10 +153,25 @@ export const runAll = (
         rules: contentRules.map((rule) => [rule.id, ruleFingerprint(rule)]),
       });
 
+      // A scoped run's rule set is a subset, so its results belong in a scope of
+      // their own. Sharing the unscoped scope would mean the fingerprint (which
+      // covers the rules that ran) differs between the two, and every scoped run
+      // would recompute every file — the opposite of what `--files` is for.
+      const scope =
+        requestedPaths === null
+          ? RULES_SCOPE
+          : `${RULES_SCOPE}:${hashValue([...requestedPaths].sort()).slice(0, 12)}`;
+
       const synced = await sync<FileRuleResults>({
-        scope: RULES_SCOPE,
+        scope,
         store,
-        files: candidates,
+        // A scoped run has its own scope, so it only ever holds the requested
+        // files: handing `sync` the whole candidate list would read every file and
+        // store nothing for the ones it skipped.
+        files:
+          requestedPaths === null
+            ? candidates
+            : candidates.filter((file) => requestedPaths.includes(file.path)),
         fingerprint: scopeFingerprint,
         compute: async (reference, source) => {
           if (requestedPaths !== null && !requestedPaths.includes(reference.path)) {
@@ -375,6 +236,22 @@ export const runAll = (
         // key. Core's three (`requireTest`, `requireSibling`, `requireChildren`) only
         // ask existence. A custom rule that reads further should widen its patterns
         // or set an explicit `Rule.fingerprint`.
+        // A rule that declares patterns but covers no file in a project that has
+        // files cannot be cached. Its key would be a constant, so whatever it found
+        // once would be served for ever — including after the violation was fixed.
+        // That is not hypothetical: an adapter configured with a `cwd`-relative
+        // pattern (`cwd: 'immoui'`, `pattern: 'src/'`) matches nothing at the project
+        // root, and it silently kept a stale result until `--full` re-ran it.
+        //
+        // It is re-run every scan instead, and named, so the pattern gets fixed.
+        const uncacheable = patterns !== null && patterns.length > 0 && relevant.length === 0;
+        if (uncacheable && !warnedUncacheable.has(rule.id)) {
+          warnedUncacheable.add(rule.id);
+          process.stderr.write(
+            `rule '${rule.id}' declares patterns that match no file in this project (${patterns.join(', ')}), so its result cannot be cached and is re-checked every run. Patterns are relative to the project root, not to the tool's cwd.\n`,
+          );
+        }
+
         const projectHash = hashValue([
           ['covered', relevant.map((file) => [file.path, synced.hashes.get(file.path) ?? ''])],
           ...(perFile === undefined ? [] : [['paths', allPaths] as const]),
@@ -396,6 +273,7 @@ export const runAll = (
         ]);
 
         if (
+          !uncacheable &&
           cached !== undefined &&
           cached.hash === cacheHash &&
           cached.meta?.['fingerprint'] === fingerprint
@@ -424,7 +302,7 @@ export const runAll = (
           // Never cache a failed run: the tool may be transiently broken and the
           // next invocation must retry rather than serve a stale error.
           await store.delete(rule.id, PROJECT_KEY);
-        } else {
+        } else if (!uncacheable) {
           await store.put(rule.id, PROJECT_KEY, {
             hash: cacheHash,
             value: execution.violations,
@@ -435,88 +313,16 @@ export const runAll = (
       }
 
       // ── Aggregation ──────────────────────────────────────────────────────
-      const buildResult = (
-        ruleId: string,
-        description: string,
-        category: string | undefined,
-      ): RuleResult => {
-        let violations = violationsByRule.get(ruleId) ?? [];
-        if (fileFilterActive && fileFilter !== null) {
-          violations = violations.filter((violation) =>
-            micromatch.isMatch(violation.path, [...fileFilter]),
-          );
-        }
-        if (changedSinceFiles !== null) {
-          violations = violations.filter((violation) => changedSinceFiles.has(violation.path));
-        }
-        violations = applyExemptions(violations, config.exemptions, ruleId);
-        return { ruleId, description, category, violations };
-      };
-
-      const changedSinceFiles = resolveChangedFiles(config.changedSince, config.projectRoot);
-      /**
-       * Whether a path is inside what this run examined. A `--since` or `--files`
-       * run cannot see files outside its scope, so a baseline entry for such a file
-       * is not stale — it was simply not looked at.
-       */
-      const inScope = (path: string): boolean => {
-        if (fileFilterActive && fileFilter !== null && !micromatch.isMatch(path, [...fileFilter])) {
-          return false;
-        }
-        if (changedSinceFiles !== null && !changedSinceFiles.has(path)) return false;
-        return true;
-      };
-
-      let results: RuleResult[] = activeRules.map((rule) =>
-        buildResult(rule.id, rule.description, rule.category),
-      );
-
-      let baselineStats: BaselineStats | undefined;
-      if (options.baseline !== undefined && options.baseline !== null) {
-        const modes = new Map(
-          config.rules.map((rule) => [rule.id, rule.baselineMessage ?? 'normalized'] as const),
-        );
-        const partition = partitionByBaseline(
-          results.map((result) => ({ rule: result.ruleId, violations: result.violations })),
-          options.baseline,
-          {
-            modes,
-            inScope,
-            allowStale: (path) =>
-              applyExemptions(
-                [{ message: '', path, severity: 'error', source: 'core' }],
-                config.exemptions,
-                STALE_RULE_ID,
-              ).length > 0,
-          },
-        );
-        results = results.map((result) => ({
-          ...result,
-          violations: partition.newByRule.get(result.ruleId) ?? [],
-        }));
-        if (partition.stale.length > 0) {
-          results.push({
-            ruleId: STALE_RULE_ID,
-            description: 'A baseline entry no longer matches a violation',
-            category: undefined,
-            violations: [...partition.stale],
-          });
-        }
-        baselineStats = partition.stats;
-      }
-
-      const totalViolations = results.reduce((sum, result) => sum + result.violations.length, 0);
-      const byCategory = computeCategoryScores(results, config.thresholds);
-      // A rule that could not run makes the run incomplete: never report a pass.
-      const categoriesPass =
-        failedRules.length === 0 &&
-        (byCategory.length === 0 || byCategory.every((category) => category.passing));
-      // With a baseline in play, the baseline is the gate: a category score can be
-      // high enough while a new violation or a stale entry still needs attention.
-      const passing =
-        baselineStats === undefined
-          ? categoriesPass
-          : categoriesPass && baselineStats.new === 0 && baselineStats.stale === 0;
+      const aggregate = aggregateRun({
+        activeRules,
+        violationsByRule,
+        config,
+        baseline: options.baseline,
+        fileFilter,
+        fileFilterActive,
+        requestedPaths,
+        failedRules,
+      });
 
       options.onScan?.({
         filesSeen: allPaths.length,
@@ -524,16 +330,21 @@ export const runAll = (
         changed: synced.changed.length,
         removed: synced.removed.length,
         reused: synced.reused.length,
-        durationMs: Date.now() - startedAt,
+        // The scan's own duration, not how long the run has been going: this line
+        // is how a user tells a slow scan from slow rules.
+        durationMs: synced.durationMs,
       });
 
       return {
-        byRule: results,
-        byCategory,
-        totalViolations,
-        passing,
-        ...(failedRules.length > 0 ? { failedRules } : {}),
-        ...(baselineStats === undefined ? {} : { baseline: baselineStats }),
+        byRule: aggregate.results,
+        byCategory: aggregate.byCategory,
+        totalViolations: aggregate.totalViolations,
+        passing: aggregate.passing,
+        ...(failedRules.length > 0 ? { failedRules: [...failedRules] } : {}),
+        ...(aggregate.baselineStats === undefined ? {} : { baseline: aggregate.baselineStats }),
+        ...(aggregate.exemptionSuppressions.length === 0
+          ? {}
+          : { exemptionSuppressions: aggregate.exemptionSuppressions }),
       };
     } finally {
       await store.close();

@@ -1,7 +1,7 @@
 import * as nodePath from 'node:path';
 import { Effect } from 'effect';
 import type { Rule, Violation } from '@gesetz/core';
-import { execTool, FileFilter, ProjectRoot, resolveToolBin, resolveToolCwd, toolScope } from '@gesetz/core';
+import { FileFilter, ProjectRoot, execTool, resolveToolBin, resolveToolCwd, toolScope, toolWatchPatterns } from '@gesetz/core';
 
 export interface PhpstanOptions {
   /** Glob pattern(s) to analyse. If omitted, phpstan analyses the configured paths. */
@@ -146,7 +146,7 @@ export function phpstan(opts: PhpstanOptions = {}): Rule {
     run,
     category: opts.category,
     project: {
-      patterns: projectPatterns,
+      patterns: toolWatchPatterns(projectPatterns),
       run: (ctx) => {
         const { bin, cwd } = locate(ctx.rootDir);
         // A `--files` request narrows what the tool looks at; without one it runs

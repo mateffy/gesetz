@@ -5,6 +5,57 @@ All notable changes to **Gesetz** and the `@gesetz/*` packages are documented he
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.0-rc.6] — 2026-09-28
+
+> The engine of `3.0.0-rc.5` (no `netzwerk`) with everything learned since put back
+> on top of it. `rc.5` had the cache but none of the orchestration: no request
+> scoping, no adapter or test scoping, no baseline, no coordination between
+> agents. This candidate restores all of it, and fixes the defects the merge
+> surfaced in a real 13,711-file repository.
+
+### Added
+
+- **Several `gesetz check` processes in one worktree now share one run.** A second
+  caller waits for the run in flight and reuses its result when that result covers
+  the tree state it was about to check — keyed on observed state, never on
+  recency. `--standalone` (and `--full`, and `GESETZ_LOCK=off`) opt out; `--jobs N`
+  lets N run at once; `--wait-timeout S` bounds the wait. Every run reports what it
+  did on stderr, and `--format=json` carries an additive `coordination` block.
+- **`--files` reduces work, not just the report.** Rules that cannot match the
+  request are not run, files outside it keep their cached results, and adapters
+  hand their tool only the requested paths. Accepts globs, commas, and repetition.
+- **Test scoping.** The vitest adapter runs the tests that cover the files in play
+  instead of the whole suite: 56.2 s → 10.8 s for one test file, measured.
+- **`bun:sqlite`** is used under Bun, which has no `node:sqlite`. Without it every
+  `bun node_modules/.bin/gesetz` run reported "SQLite caching is unavailable" and
+  re-checked the project.
+
+### Changed
+
+- **`Rule.patterns` are resolved against the project root**, even when the adapter
+  runs its tool in a `cwd`. A rule that declares patterns matching no file in a
+  project that has files is **no longer cached** — its key would be a constant, so
+  its first result would be served for ever — and it is named on stderr.
+- A warm run decides reuse by `mtimeMs:size` first and only reads a file whose
+  stamp moved. In the repository this was measured on: warm scan 31.8 s → **289 ms**
+  over 13,711 files; a repeat `--files` run 14.6 s → **3 ms**.
+- File contents are read lazily, as files are computed, instead of all at once.
+
+### Fixed
+
+- `EISDIR` aborted a whole run: git lists symlinks *to directories* as files
+  (Laravel's `public/storage`), and reading one threw. Skipped now, like `ENOENT`.
+  Anything else still throws — an unreadable file must not look checked.
+- A stale adapter result could be served indefinitely when its patterns matched
+  nothing (see above). `cached` and `--full` now agree.
+- `oxlint`, `phpstan` and `eslint` no longer report a tool failure as "no
+  violations": an unusable report is an error, not a pass.
+- `scan:` reported the run's elapsed time rather than the scan's, which made a slow
+  scan and a slow run indistinguishable.
+- The baseline feature (`raised in rc.5`'s engine) is applied again, with the
+  documented pass/fail rule: a run with a baseline passes only when nothing is new
+  and nothing is stale.
+
 ## [3.0.0-rc.5] — 2026-09-15
 
 > Supersedes `3.0.0-rc.0` … `3.0.0-rc.4`, which shipped the `netzwerk`-backed

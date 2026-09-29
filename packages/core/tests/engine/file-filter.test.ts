@@ -103,8 +103,9 @@ describe('--files reduces the work, not just the report', () => {
       select('src/**/*.ts').label('Flag bad').category('cleanup').check(recording(seen)),
     ], ['src/a.ts']);
 
-    // Nothing was recomputed for the scoped run: both files were already current.
-    expect(seen).toEqual([]);
+    // A scoped run touches only the files it was asked about, and it has its own
+    // cache scope, so the unscoped results are neither recomputed nor disturbed.
+    expect(seen).toEqual(['src/a.ts']);
     expect(violationsFor(scoped, 'flag-bad').map((v) => v.path)).toEqual(['src/a.ts']);
 
     // And the other file is still known, not forgotten.
@@ -141,7 +142,9 @@ describe('--files reduces the work, not just the report', () => {
     // this engine `changedFiles` stays what the scan reprocessed; the request is
     // what narrows the tool.
     expect(contexts.at(-1)?.requested).toEqual(['src/a.ts']);
-    expect(contexts.at(-1)?.changed).toEqual(['src/a.ts', 'src/b.ts']);
+    // A scoped run reads and reprocesses only what was requested, so `changedFiles`
+    // is that same subset — the rule is told both, and narrows its tool with them.
+    expect(contexts.at(-1)?.changed).toEqual(['src/a.ts']);
   });
 
   it('tells an unscoped rule that nothing was requested', async () => {

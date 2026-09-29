@@ -113,6 +113,34 @@ describe('runAll', () => {
     expect(result.totalViolations).toBe(0);
   });
 
+  it('reports an exemption that names no rule, because it silences every rule', async () => {
+    // `{ path }` alone matches every rule id. The file stops being checked at all
+    // and, before this, nothing in the output said so: an exemption and a clean
+    // file looked identical. Seven such entries in one real config silenced every
+    // rule for seven files.
+    const config = defineConfig({
+      rules: [
+        makeRule('rule-a', [violation('src/a.ts', 'rule-a')]),
+        makeRule('rule-b', [violation('src/a.ts', 'rule-b')]),
+      ],
+      exemptions: [{ path: 'src/a.ts', reason: 'test files need no co-located test' }],
+    });
+    const result = await Effect.runPromise(Effect.provide(runAll(config), TestLayer));
+    expect(result.totalViolations).toBe(0);
+    expect(result.exemptionSuppressions).toEqual([
+      { path: 'src/a.ts', rule: '*', ruleId: 'rule-a, rule-b', count: 2 },
+    ]);
+  });
+
+  it('does not report a rule-scoped exemption, which already says what it covers', async () => {
+    const config = defineConfig({
+      rules: [makeRule('rule-a', [violation('src/a.ts', 'rule-a')])],
+      exemptions: [{ path: 'src/**', reason: 'test', rule: 'rule-a' }],
+    });
+    const result = await Effect.runPromise(Effect.provide(runAll(config), TestLayer));
+    expect(result.exemptionSuppressions).toBeUndefined();
+  });
+
   it('catches rule defects and reports without stopping other rules', async () => {
     const config = defineConfig({
       rules: [makeThrowingRule('broken-rule'), makeRule('good-rule', [])],

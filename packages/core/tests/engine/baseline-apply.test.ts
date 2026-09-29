@@ -268,3 +268,62 @@ describe('planBaselineWrite', () => {
     expect(plan.kept).toBe(1);
   });
 });
+
+describe('planBaselineWrite --prune', () => {
+  const options = { gesetzVersion: '1.0.0', prune: true } as const;
+
+  it('drops entries that no longer describe a violation', () => {
+    // `current` is what the run reports: a.ts still fires, gone.ts is fixed.
+    const plan = planBaselineWrite(
+      baseline({ 'src/a.ts': [entry()] }, 1),
+      baseline({
+        'src/gone.ts': [entry('fixed it', 'src/gone.ts')],
+        'src/a.ts': [entry()],
+      }),
+      options,
+    );
+    expect(plan.removed).toBe(1);
+    expect(plan.added).toBe(0);
+    expect(Object.keys(plan.next.entries)).toEqual(['src/a.ts']);
+  });
+
+  it('adds nothing, so it cannot absorb a backlog', () => {
+    // The refusal rule still applies: a violation the baseline does not cover is an
+    // addition, and adding needs a maintainer.
+    const plan = planBaselineWrite(
+      baseline({ 'src/a.ts': [entry()], 'src/b.ts': [entry('new problem', 'src/b.ts')] }, 1),
+      baseline({ 'src/a.ts': [entry()] }),
+      options,
+    );
+    expect(plan.added).toBe(0);
+    expect(plan.refused.map((r) => r.path)).toEqual(['src/b.ts']);
+    expect(Object.keys(plan.next.entries)).toEqual(['src/a.ts']);
+  });
+
+  it('keeps a partially fixed entry, because the occurrence still exists', () => {
+    const plan = planBaselineWrite(
+      baseline({ 'src/a.ts': [entry('no console.log', 'src/a.ts', 1)] }, 1),
+      baseline({ 'src/a.ts': [entry('no console.log', 'src/a.ts', 48)] }),
+      options,
+    );
+    expect(plan.kept).toBe(1);
+    expect(plan.removed).toBe(47);
+    expect(plan.next.total).toBe(1);
+  });
+
+  it('scopes to the named rules and leaves the others untouched', () => {
+    const other = {
+      rule: 'other-rule',
+      hash: violationHash('other-rule', 'src/other.ts', 'm'),
+      message: 'm',
+      count: 1,
+    };
+    const plan = planBaselineWrite(
+      baseline({ 'src/a.ts': [entry()] }, 1),
+      baseline({ 'src/a.ts': [entry()], 'src/other.ts': [other] }),
+      { ...options, rules: [RULE] },
+    );
+    expect(plan.removed).toBe(0);
+    expect(Object.keys(plan.next.entries).sort()).toEqual(['src/a.ts', 'src/other.ts']);
+  });
+});
