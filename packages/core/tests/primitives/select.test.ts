@@ -333,3 +333,48 @@ describe('select', () => {
     });
   });
 });
+
+describe('a check that throws', () => {
+  const run = (rule: ReturnType<typeof select> extends never ? never : { run: Effect.Effect<unknown, unknown, unknown> }) =>
+    rule.run.pipe(
+      Effect.provide(MemoryFileSystem({ 'src/foo.ts': 'export {}' })),
+      Effect.provide(SyntaxTreeStub),
+      Effect.provide(ImportResolverDefault),
+      Effect.provide(ProjectRootLive(process.cwd())),
+      Effect.provide(FileFilterLive(null)),
+      Effect.runPromise,
+    ) as unknown as Promise<Violation[]>;
+
+  it('reports the failure as a violation instead of reporting nothing', async () => {
+    // Silence here reads as "the rule examined this file and found nothing", which is
+    // how a rule that threw on every file kept a gate green.
+    const boom = async (): Promise<Violation[]> => {
+      throw new Error('boom');
+    };
+    const rule = select('src/**/*.ts').label('Throwing check').check(boom);
+    const violations = await run(rule);
+    expect(violations).toHaveLength(1);
+    expect(violations[0]).toMatchObject({
+      path: 'src/foo.ts',
+      rule: 'throwing-check',
+      severity: 'error',
+      source: 'core',
+    });
+    expect(violations[0]?.message).toContain('boom');
+  });
+
+  it('still reports the other checks of the same rule', async () => {
+    const boom = async (): Promise<Violation[]> => {
+      throw new Error('boom');
+    };
+    const quiet = async (file: File): Promise<Violation[]> => [
+      { message: 'real finding', path: file.path, severity: 'error', source: 'core' },
+    ];
+    const rule = select('src/**/*.ts').label('Two checks').check(boom, quiet);
+    const violations = await run(rule);
+    expect(violations.map((v: Violation) => v.message).sort()).toEqual([
+      'Check could not run for this file: boom',
+      'real finding',
+    ]);
+  });
+});

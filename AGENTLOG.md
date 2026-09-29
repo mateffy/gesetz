@@ -2072,7 +2072,7 @@ Fixing and implementing the project-rule scoping system so scoped rules don't wi
 - [x] End-to-end test in `tests/engine/project-rule-scoping.test.ts` proving that a scoped rule on the second run:
   1. Only replaces markers for the files it examined (a.ts violation cleared when fixed)
   2. Leaves markers untouched for files it didn't examine (b.ts violation survives)
-    Without the fix, the second run would clear ALL markers (=0 violations total, a false negative fail-open).
+      Without the fix, the second run would clear ALL markers (=0 violations total, a false negative fail-open).
 
 **Cache DB placement bug discovered while debugging the probe:**
 
@@ -2664,6 +2664,10 @@ The merge (`origin/netzwerk` → `main`) is committed as `8e9aee6`. The engine i
 01a0d92e-338b-7628-a543-fca767ff4d5f
 ```
 
+```read
+/tmp/gesetz-bug-report.md
+```
+
 Implementing and verifying exemption-suppression warnings — the fix that kills silence on blanket exemptions.
 
 - [x] Core: `formatExemptionNotices()` in `format.ts` — produces human-readable notices for path-only exemptions that suppress every rule
@@ -2700,3 +2704,28 @@ Implementing and verifying exemption-suppression warnings — the fix that kills
 - [ ] Re-baseline dogfood (self-repo) — no baseline file exists in this repo, so no migration needed
 - [ ] Commit + merge to main + tag v0.7.0
 - [ ] Report to user with summary
+
+## 2026-09-29 13:01:52Z Closing out rc.6 — committed, tagged, reported
+
+```session
+01a0d92e-338b-7628-a543-fca767ff4d5f
+```
+
+Final wrap-up after the line-content baseline refactor (#15). Everything committed and tagged.
+
+- [x] **Reverted `skill.ts` edit** — my fence-escaping broke the build (`TS1005` at line 83). Restored from HEAD. The two-loop/vitest briefs text is preserved in issue #11.
+- [x] **Working tree clean** — `git status --short` shows 0 modified files
+- [x] **Build verified** — `pnpm --filter @gesetz/cli build` succeeds
+- [x] **CLI tests 176 passing** — `vitest run` clean
+- [x] **`gesetz skill` renders** — `name: gesetz` output confirmed
+- [x] **`main` = `eff5e20`** — tagged `v3.0.0-rc.6`
+- [x] **Issues updated**: #15 → done (with full spec of what was built and migration), #4 → done (superseded by #15's decision)
+- [x] **Final report delivered** — to user, covering:
+  - Root cause found (path-only exemptions suppressing all rules, not `select()`)
+  - Bun null-row crash fixed (guard checks both `null` and `undefined`)
+  - Baseline identity refactor (#15) — per-occurrence hash with line content
+  - Migration: one `gesetz baseline` run needed for immocore
+  - Open items listed: #5 (baseline move), #6, #7, #8, #9, #10, #14
+  - Publish step left to user (`pnpm -r publish --access public`)
+
+**Hand-off**: agent work on this session is complete. User has the full summary and knows what remains.

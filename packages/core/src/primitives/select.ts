@@ -177,18 +177,36 @@ function buildRule(state: SelectorState, checks: Check[]): Rule {
           return true;
         });
 
-      // Run all checks on all files with bounded concurrency
+      // Run all checks on all files with bounded concurrency.
+      //
+      // A check that throws must not look like a check that found nothing. This used
+      // to swallow the failure and return no violations, which made a rule that threw
+      // on 137 files indistinguishable from a rule that examined 137 clean files — a
+      // green gate over an unexamined file. The failure becomes a violation instead, so
+      // it flows through reporting, the baseline and scoring like any other finding.
       const results = yield* Effect.all(
         matching.flatMap((file) =>
           checks.map((check) =>
             Effect.tryPromise({
               try: () => check(file, services),
-              catch: () => Effect.succeed([] as Violation[]),
+              catch: (cause) => cause,
             }).pipe(
               Effect.map((violations) =>
                 violations.map((v) => ({ ...v, rule: v.rule || id })),
               ),
-              Effect.catchAll(() => Effect.succeed<Violation[]>([])),
+              Effect.catchAll((cause) =>
+                Effect.succeed<Violation[]>([
+                  {
+                    severity: 'error',
+                    source: 'core',
+                    rule: id,
+                    path: file.path,
+                    message: `Check could not run for this file: ${
+                      cause instanceof Error ? cause.message : String(cause)
+                    }`,
+                  },
+                ]),
+              ),
             ),
           ),
         ),
