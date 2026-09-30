@@ -5,6 +5,79 @@ All notable changes to **Gesetz** and the `@gesetz/*` packages are documented he
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.0-rc.7] — 2026-09-30
+
+> `rc.6` taught several agents to share one worktree; this candidate teaches them
+> to share one *run*. Until now a scoped check computed results only for the paths
+> it was asked about, so no two agents could ever share work: every distinct
+> `--files` scope was a different request, and coordination serialised. Twenty
+> agents meant twenty scans and twenty runs of every tool for one tree.
+>
+> This entry also documents the fixes that landed in the `rc.6` candidate after its
+> notes were written, so nothing ships silently.
+
+### Added
+
+- **A scoped check reuses a whole-tree run.** The request identity is now split
+  into an *instance* (root, config, rules, thresholds, baseline, storage), a
+  *scope* (the requested paths and the `--since` cut), and the scope a whole-tree
+  run of that instance would have. A record from a whole-tree run answers any scope
+  of the same instance, narrowed to what was asked. A record from another *narrow*
+  scope is never reused, however recent — it examined other files, and reusing it
+  would report this caller's files as clean without having looked at them.
+  Verified: one full run, then three scoped requests at three scopes, each reused
+  and each narrowed to its own scope.
+- `runMs` and `reusedScope` in the envelope's `coordination` block and in the
+  stderr notice: `reused a run from 2.5s ago — narrowed from a whole-tree run to
+  your scope`. Coordination records are version 2; a version 1 record cannot say
+  what it examined, so it is ignored.
+
+### Changed
+
+- **Baseline entries are identified per occurrence, by the offending line's
+  content** — `hash(rule, path, message, line text)`. The count-based identity could
+  not see a swap: with 48 occurrences baselined, fixing 47 and introducing one
+  unrelated new occurrence left the count unchanged, so the gate passed blind to
+  it. The line *number* stays out of the identity on purpose — inserting an import
+  belongs to every file below it — and surrounding whitespace is normalised.
+  `BASELINE_FILE_VERSION` is now 2, so an existing baseline reports as new and
+  stale until it is written again: one `gesetz baseline` run per project.
+- `baseline --prune` removes stale entries and adds nothing, and rewrites a kept
+  entry's count to what was observed, which also tightens the gate. `--rule X`
+  scopes the refusal as well as the write: an unrelated rule's new violation no
+  longer blocks bookkeeping for the rule that was named.
+- A record at the *same* scope is preferred over a more recent whole-tree one,
+  since it needs no narrowing.
+
+### Fixed
+
+- **`waitedMs` reported the run's duration on the `ran` path.** It was measured from
+  when the caller entered coordination, so the number that says "how long this
+  waited" was really "how long this took". `waitedMs` is now only the wait, `runMs`
+  is the work, and the notice prints both so they cannot be added together.
+- **`takeOverIfStale` examined slot 0 only**, on reasoning that held while `jobs`
+  could not exceed 1. A fleet holds slots 0..N, and a dead holder of any of them
+  stranded its waiters for the whole wait timeout.
+- **A scope vitest could not read ran the entire suite.** A `--files` scope of PHP
+  paths is a positional pattern matching no test file, and vitest does not then run
+  nothing: it falls back to its default include. Measured at 25 minutes and still
+  going, twenty agents at a time — 2,528 s for a single scoped check. Patterns
+  resolving outside vitest's own cwd are dropped, and when none survive the rule
+  reports nothing examined instead of widening: `null` would mean "no pattern",
+  which is the whole suite again.
+- **A check that throws is a violation, not silence.** `select()` caught a rejected
+  check and returned no findings, so a rule that threw on 137 files looked exactly
+  like a rule that examined 137 clean files.
+- **An exemption that names no rule silences every rule.** `{ path }` alone matches
+  every rule id, so the file stops being checked by all of them and nothing said
+  so. Suppressions are counted and reported now: in one real configuration this was
+  124 files and 222 violations, about a third of what the run reported.
+- **A cache miss under Bun crashed the run.** `bun:sqlite` returns `null` for an
+  absent row where `node:sqlite` returns `undefined`, and the guard checked only
+  `undefined`. `bun node_modules/.bin/gesetz` is how agents invoke it. A row with
+  no usable hash, or a value that is not valid JSON, now reads as a miss so the
+  value is recomputed.
+
 ## [3.0.0-rc.6] — 2026-09-28
 
 > The engine of `3.0.0-rc.5` (no `netzwerk`) with everything learned since put back
