@@ -140,6 +140,42 @@ async function testsToRun(
  * @example
  * vitest({ pattern: 'src', project: 'unit', label: 'Vitest' })
  */
+/**
+ * Keep only the patterns vitest can actually match, and drop the rest.
+ *
+ * A scope made of PHP paths — `../app/Domains/API/Immoui/Communication/`, which
+ * is what a gesetz `--files` list produces for a PHP batch — matches no test
+ * file. Vitest does not then run nothing: with a positional pattern that matches
+ * nothing it falls back to its default include and runs **the whole suite**. A
+ * scoped check that was meant to take seconds took 25 minutes, twenty agents at
+ * a time, because one rule in the run could not read the scope as a scope.
+ *
+ * A pattern is usable when it resolves inside vitest's own cwd or is a bare
+ * glob. Anything outside — another package, a PHP tree, an absolute path
+ * elsewhere — is not something this rule can run tests for.
+ */
+function usablePatterns(
+  patterns: readonly string[] | null,
+  cwd: string,
+): string[] | null | 'skip' {
+  // No scope at all means an unscoped run, and running everything is correct.
+  if (!patterns || patterns.length === 0) return null;
+
+  const kept = patterns.filter((p) => {
+    if (p.startsWith('!')) return false;
+    if (!p.startsWith('.') && !nodePath.isAbsolute(p)) return true;
+    const resolved = nodePath.resolve(cwd, p);
+    const rel = nodePath.relative(cwd, resolved);
+    return rel !== '' && !rel.startsWith('..') && !nodePath.isAbsolute(rel);
+  });
+
+  // A scope was given and none of it is testable from here. Returning null here
+  // would run the whole suite — the exact failure this guards against — so the
+  // rule reports nothing examined instead. A scope that cannot be read as a
+  // scope must not be widened into "everything".
+  return kept.length > 0 ? kept : 'skip';
+}
+
 async function executeVitest(
   opts: VitestOptions,
   id: string,
@@ -147,6 +183,9 @@ async function executeVitest(
   cwd: string,
   patterns: readonly string[] | null,
 ): Promise<Violation[]> {
+  const usable = usablePatterns(patterns, cwd);
+  if (usable === 'skip') return [];
+  patterns = usable;
   return Effect.runPromise(
     runWithTempFile('gesetz-vitest-', 'report.json', (tmpFile) =>
       Effect.gen(function* () {
