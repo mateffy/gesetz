@@ -13,14 +13,16 @@ import { NodeContext, NodeRuntime } from '@effect/platform-node';
 import { Console, Effect, Option } from 'effect';
 import * as nodePath from 'node:path';
 import {
+  baselinePathFor,
+  coordinateRun,
   defaultCachePath,
   getCacheDriver,
   isNodeSqliteAvailable,
+  narrowRunResult,
+  resolveChangedFiles,
   runAll,
   sqliteUnavailableMessage,
-  baselinePathFor,
   type BaselineFile,
-  coordinateRun,
   type CoordinationOutcome,
   type RunResult,
 } from '@gesetz/core';
@@ -205,7 +207,7 @@ const checkCommand = Command.make(
       });
       const baselineBytes =
         baseline === null ? null : nodeFs.readFileSync(baselinePathFor(root), 'utf8');
-      const requestKey = requestKeyFor({
+      const requestKeys = requestKeyFor({
         root,
         configPath,
         rules: filteredConfig.rules,
@@ -222,7 +224,9 @@ const checkCommand = Command.make(
         const outcome = yield* Effect.promise(() =>
           coordinateRun({
             root,
-            requestKey,
+            requestKey: requestKeys.instanceKey,
+            scopeKey: requestKeys.scopeKey,
+            fullScopeKey: requestKeys.fullScopeKey,
             jobs,
             standalone,
             ...(waitTimeoutMs === undefined ? {} : { waitTimeoutMs }),
@@ -248,12 +252,25 @@ const checkCommand = Command.make(
           }),
         );
 
-        const result = outcome.result;
+        // A record from a whole-tree run examined everything, so it can answer this
+        // scoped request — narrowed to what was asked. A record from another narrow
+        // scope is never reused: it looked at other files.
+        const result =
+          outcome.reusedScope === 'full'
+            ? narrowRunResult(outcome.result, {
+                fileFilter: fileRequest,
+                changedPaths:
+                  changedSince === undefined ? null : resolveChangedFiles(changedSince, root),
+                thresholds,
+              })
+            : outcome.result;
         const waited = outcome.events.find((event) => event.type === 'waited');
         yield* Console.error(
           describeCoordination({
             mode: outcome.mode,
             waitedMs: outcome.waitedMs,
+            runMs: outcome.runMs,
+            ...(outcome.reusedScope === undefined ? {} : { reusedScope: outcome.reusedScope }),
             runAgeMs: outcome.runAgeMs,
             listeners: outcome.listeners,
             recheckedFiles: outcome.recheckedFiles,
@@ -277,10 +294,14 @@ const checkCommand = Command.make(
               coordination: {
                 mode: outcome.mode,
                 waitedMs: outcome.waitedMs,
+                runMs: outcome.runMs,
                 runAgeMs: outcome.runAgeMs,
                 listeners: outcome.listeners,
                 recheckedFiles: outcome.recheckedFiles,
                 pid: process.pid,
+                ...(outcome.reusedScope === undefined
+                  ? {}
+                  : { reusedScope: outcome.reusedScope }),
               },
             }).trimEnd(),
           );

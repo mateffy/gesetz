@@ -23,9 +23,13 @@ afterEach(async () => {
 });
 
 describe('coordinateRun', () => {
+  const FULL = 'scope-full';
+
   const options = (overrides: Record<string, unknown> = {}) => ({
     root,
     requestKey: 'k1',
+    scopeKey: FULL,
+    fullScopeKey: FULL,
     jobs: 1,
     waitTimeoutMs: 5_000,
     staleMs: 100,
@@ -119,7 +123,7 @@ describe('coordinateRun', () => {
 
   it('does not publish a record when standalone, so nobody reuses it', async () => {
     await coordinateRun({ ...options(), standalone: true, run: async () => 'first' });
-    expect(findReusableRecord(root, 'k1', treeStateFor(root))).toBeNull();
+    expect(findReusableRecord(root, 'k1', FULL, FULL, treeStateFor(root))).toBeNull();
   });
 
   it('reports the number of listeners the run had', async () => {
@@ -216,6 +220,71 @@ describe('coordinateRun', () => {
       recheckedFiles: () => 4,
       run: async () => 'done',
     });
-    expect(findReusableRecord(root, 'k1', treeStateFor(root))?.recheckedFiles).toBe(4);
+    expect(findReusableRecord(root, 'k1', FULL, FULL, treeStateFor(root))?.record.recheckedFiles).toBe(4);
+  });
+});
+
+describe('one whole-tree run answers every scope', () => {
+  const FULL = 'scope-full';
+
+  const options = (overrides: Record<string, unknown> = {}) => ({
+    root,
+    requestKey: 'k1',
+    scopeKey: FULL,
+    fullScopeKey: FULL,
+    jobs: 1,
+    waitTimeoutMs: 5_000,
+    staleMs: 100,
+    pollMs: 20,
+    ...overrides,
+  });
+
+  it('answers a narrow scope from a record of the whole tree', async () => {
+    // The fleet's win: the full run is paid for once, and a scoped request after it
+    // is answered from the record instead of scanning and checking the tree again.
+    await coordinateRun({ ...options(), run: async () => 'full-result' });
+    let ran = false;
+    const outcome = await coordinateRun({
+      ...options({ scopeKey: 'scope-mine' }),
+      run: async () => {
+        ran = true;
+        return 'scoped-result';
+      },
+    });
+    expect(ran).toBe(false);
+    expect(outcome.mode).toBe('reused');
+    expect(outcome.reusedScope).toBe('full');
+    expect(outcome.result).toBe('full-result');
+  });
+
+  it('reports an identical scope as the same scope', async () => {
+    await coordinateRun({ ...options({ scopeKey: 'scope-mine' }), run: async () => 'mine' });
+    const outcome = await coordinateRun({
+      ...options({ scopeKey: 'scope-mine' }),
+      run: async () => 'never',
+    });
+    expect(outcome.reusedScope).toBe('same');
+  });
+
+  it('never answers one narrow scope from another narrow scope', async () => {
+    // The safety property. A run at `scope-other` examined other files: reusing it
+    // here would report this caller's files as clean without having looked at them.
+    await coordinateRun({ ...options({ scopeKey: 'scope-other' }), run: async () => 'other' });
+    const outcome = await coordinateRun({
+      ...options({ scopeKey: 'scope-mine' }),
+      run: async () => 'mine',
+    });
+    expect(outcome.mode).toBe('ran');
+    expect(outcome.reusedScope).toBeUndefined();
+    expect(outcome.result).toBe('mine');
+  });
+
+  it('keeps two instances apart even when their scopes coincide', async () => {
+    await coordinateRun({ ...options({ requestKey: 'other-instance' }), run: async () => 'x' });
+    const outcome = await coordinateRun({
+      ...options({ scopeKey: 'scope-mine' }),
+      run: async () => 'mine',
+    });
+    expect(outcome.mode).toBe('ran');
   });
 });

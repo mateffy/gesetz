@@ -58,7 +58,12 @@ export type CoordinationEvent =
 
 export interface CoordinateOptions<R> {
   readonly root: string;
+  /** Identity of the question, excluding the scope. */
   readonly requestKey: string;
+  /** The requested paths and `--since` cut. */
+  readonly scopeKey: string;
+  /** The scope key a whole-tree run of this instance would have. */
+  readonly fullScopeKey: string;
   /** How many runs may proceed at once. Default 1. */
   readonly jobs?: number | undefined;
   /** Run now, with no lock, no waiting and no reuse. `--standalone`. */
@@ -78,13 +83,29 @@ export interface CoordinateOptions<R> {
 export interface CoordinationOutcome<R> {
   readonly result: R;
   readonly mode: CoordinationMode;
+  /**
+   * Time spent in the wait loop before this outcome. Zero for a run that started
+   * immediately, and for a result that came from a record.
+   */
   readonly waitedMs: number;
+  /**
+   * Time the work itself took. Separate from `waitedMs` because they answer
+   * different questions: one says whether the fleet is queueing, the other says
+   * whether the check is slow.
+   */
+  readonly runMs: number;
   readonly runAgeMs: number;
   readonly listeners: number;
   /** How many files the run that produced this result re-checked. */
   readonly recheckedFiles: number;
   /** Which process produced a reused result. */
   readonly reusedFromPid?: number | undefined;
+  /**
+   * For a reused result: whether it came from a run at this exact scope, or from a
+   * whole-tree run that has to be narrowed to this caller's scope before it is
+   * reported. Absent for a run this caller performed.
+   */
+  readonly reusedScope?: 'same' | 'full' | undefined;
   readonly events: readonly CoordinationEvent[];
 }
 
@@ -96,20 +117,25 @@ interface StaleTakeover {
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
- * Takes over slot 0 when its holder is gone, and says what it displaced.
+ * Takes over the first slot whose holder is gone, and says what it displaced.
  *
- * Only slot 0 is examined: a dead holder of slot 0 is the case that strands every
- * other caller, and a holder of slot 1 has not been there long enough to matter.
+ * Every slot is examined, not just the first: with `jobs` above 1 a fleet holds
+ * slots 0..N, and a dead holder of slot 3 strands its waiters exactly as long as a
+ * dead holder of slot 0 does. Examining only slot 0 was correct while `jobs` could
+ * not exceed 1, which is no longer true.
  */
-function takeOverIfStale(root: string, staleMs: number): StaleTakeover | null {
-  const stale = readSlot(slotPathFor(root, 0));
-  if (stale === null) return null;
-  const now = Date.now();
-  const age = now - stale.heartbeatAt;
-  if (age <= staleMs) return null;
-  if (isAlivePid(stale.pid)) return null;
-  if (!takeOverSlot(root, 0, now)) return null;
-  return { staleMs: age, deadPid: stale.pid };
+function takeOverIfStale(root: string, staleMs: number, jobs: number): StaleTakeover | null {
+  for (let index = 0; index < jobs; index += 1) {
+    const stale = readSlot(slotPathFor(root, index));
+    if (stale === null) continue;
+    const now = Date.now();
+    const age = now - stale.heartbeatAt;
+    if (age <= staleMs) continue;
+    if (isAlivePid(stale.pid)) continue;
+    if (!takeOverSlot(root, index, now)) continue;
+    return { staleMs: age, deadPid: stale.pid };
+  }
+  return null;
 }
 
 /**
@@ -124,12 +150,10 @@ function acquireAnySlot(
   for (let index = 0; index < jobs; index += 1) {
     const slot = acquireSlot(root, index);
     if (slot !== null) return { slot, tookOver: null };
-    if (index === 0) {
-      const tookOver = takeOverIfStale(root, staleMs);
-      if (tookOver !== null) return { slot: null, tookOver };
-    }
   }
-  return { slot: null, tookOver: null };
+  // Every slot is held. One of them may be a dead holder, and clearing it lets the
+  // caller retry immediately instead of sleeping out the wait timeout.
+  return { slot: null, tookOver: takeOverIfStale(root, staleMs, jobs) };
 }
 
 /**
@@ -155,12 +179,15 @@ export async function coordinateRun<R>(
   };
 
   if (options.standalone === true) {
+    const runStartedAt = Date.now();
     const result = await options.run();
+    const runMs = Date.now() - runStartedAt;
     emit({ type: 'ran' });
     return {
       result,
       mode: 'standalone',
       waitedMs: 0,
+      runMs,
       runAgeMs: 0,
       listeners: 0,
       recheckedFiles: options.recheckedFiles?.() ?? 0,
@@ -168,27 +195,43 @@ export async function coordinateRun<R>(
     };
   }
 
-  const reuseNow = (): RunRecord<R> | null =>
-    findReusableRecord<R>(options.root, options.requestKey, treeStateFor(options.root));
+  const reuseNow = (): { record: RunRecord<R>; reusedScope: 'same' | 'full' } | null =>
+    findReusableRecord<R>(
+      options.root,
+      options.requestKey,
+      options.scopeKey,
+      options.fullScopeKey,
+      treeStateFor(options.root),
+    );
 
-  const reused = (record: RunRecord<R>, waitedMs: number): CoordinationOutcome<R> => {
+  const reused = (
+    hit: { record: RunRecord<R>; reusedScope: 'same' | 'full' },
+    waitedMs: number,
+  ): CoordinationOutcome<R> => {
+    const { record, reusedScope } = hit;
     const runAgeMs = Date.now() - record.finishedAt;
     emit({ type: 'reused', waitedMs, runAgeMs, listeners: record.listeners });
     return {
       result: record.result,
       mode: 'reused',
       waitedMs,
+      runMs: 0,
       runAgeMs,
       listeners: record.listeners,
       recheckedFiles: record.recheckedFiles,
       reusedFromPid: record.pid,
+      reusedScope,
       events,
     };
   };
 
   /** The work, with a slot held. Publishes the record before releasing it. */
-  const runHolding = async (slot: Slot, didWait: boolean): Promise<CoordinationOutcome<R>> => {
+  const runHolding = async (slot: Slot, waitedMs: number): Promise<CoordinationOutcome<R>> => {
     const before = treeStateFor(options.root);
+    // The caller's wait, not the caller's clock: `waitedMs` used to be measured from
+    // when the caller entered, so on the `ran` path it reported the *duration of the
+    // run* under a name that says "how long this waited". They are different numbers.
+    const runStartedAt = Date.now();
     try {
       const result = await options.run();
       const after = treeStateFor(options.root);
@@ -199,8 +242,10 @@ export async function coordinateRun<R>(
       // of repeating the work.
       if (slot.beat()) {
         writeRecord(options.root, {
-          version: 1,
+          version: 2,
           requestKey: options.requestKey,
+          scopeKey: options.scopeKey,
+          fullScopeKey: options.fullScopeKey,
           treeState: after,
           startedAt,
           finishedAt: Date.now(),
@@ -214,12 +259,13 @@ export async function coordinateRun<R>(
           result,
         });
       }
-      const waitedMs = Date.now() - startedAt;
+      const runMs = Date.now() - runStartedAt;
       emit({ type: 'ran' });
       return {
         result,
-        mode: didWait ? 'ran-after-wait' : 'ran',
+        mode: waitedMs > 0 ? 'ran-after-wait' : 'ran',
         waitedMs,
+        runMs,
         runAgeMs: 0,
         listeners,
         recheckedFiles: options.recheckedFiles?.() ?? 0,
@@ -254,7 +300,7 @@ export async function coordinateRun<R>(
       }
     }
     stopWaiting();
-    return await runHolding(slot, didWait);
+    return await runHolding(slot, didWait ? Date.now() - startedAt : 0);
   };
 
   try {
@@ -279,12 +325,15 @@ export async function coordinateRun<R>(
         stopWaiting();
         const holder = readSlot(slotPathFor(options.root, 0));
         emit({ type: 'waited', waitedMs, runningPid: holder?.pid ?? 0 });
+        const runStartedAt = Date.now();
         const result = await options.run();
+        const runMs = Date.now() - runStartedAt;
         emit({ type: 'ran' });
         return {
           result,
           mode: 'ran-after-wait',
           waitedMs,
+          runMs,
           runAgeMs: 0,
           listeners: 0,
           recheckedFiles: options.recheckedFiles?.() ?? 0,

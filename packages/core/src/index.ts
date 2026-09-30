@@ -29,6 +29,8 @@ export type { UserConfig, ResolvedConfig, CategoryThreshold, GesetzStorageConfig
 // ─── Runner ───────────────────────────────────────────────────────────────────
 export { runAll, applyExemptions } from './engine/runner';
 export type { RunResult, RuleResult, CategoryScore, RunAllOptions, ScanStats } from './engine/runner';
+export { narrowRunResult } from './engine/aggregate';
+export { resolveChangedFiles } from './engine/rule-execution';
 
 // ─── Exec helpers ─────────────────────────────────────────────────────────────
 export {

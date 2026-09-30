@@ -8,7 +8,7 @@ import micromatch from 'micromatch';
 import type { ResolvedConfig } from './config';
 import type { Rule, Violation } from './rule';
 import { applyExemptions, applyExemptionsWithCounts, computeCategoryScores } from './result';
-import type { ExemptionSuppression, RuleResult } from './result';
+import type { ExemptionSuppression, RuleResult, RunResult } from './result';
 import { partitionByBaseline, type BaselineStats } from './baseline-apply';
 import { STALE_RULE_ID, type BaselineFile } from './baseline';
 import { resolveChangedFiles } from './rule-execution';
@@ -140,4 +140,91 @@ const passing =
     .sort((a, b) => a.path.localeCompare(b.path));
 
   return { results, byCategory, totalViolations, passing, baselineStats, exemptionSuppressions };
+}
+
+/**
+ * Narrows a whole-tree result to one caller's scope.
+ *
+ * This is what makes a fleet share work: one agent pays for the whole-tree run, and
+ * every scoped request afterwards is answered from its record instead of scanning
+ * and checking the tree again. Narrowing is a filter, never a re-check, so it is
+ * only sound for a record that examined everything.
+ *
+ * Recomputed for the caller's scope: the violations, the category scores, and both
+ * numbers that decide the verdict — `new` and `stale`. Carrying the whole tree's
+ * stale count through would fail a scoped caller for entries outside its scope, and
+ * stale entries are derivable: they are the violations the run filed under
+ * `STALE_RULE_ID`. `baselined` is not derivable (a baselined violation is dropped
+ * from the result rather than reported), so it stays the whole-tree number for the
+ * rules that appear here, and `coordination.reusedScope` in the envelope says where
+ * the numbers came from.
+ */
+export function narrowRunResult(
+  result: RunResult,
+  options: {
+    readonly fileFilter: readonly string[] | null;
+    readonly changedPaths: ReadonlySet<string> | null;
+    readonly thresholds: ResolvedConfig['thresholds'];
+  },
+): RunResult {
+  const inScope = (path: string): boolean => {
+    if (
+      options.fileFilter !== null &&
+      options.fileFilter.length > 0 &&
+      !micromatch.isMatch(path, [...options.fileFilter])
+    ) {
+      return false;
+    }
+    if (options.changedPaths !== null && !options.changedPaths.has(path)) return false;
+    return true;
+  };
+
+  const byRule = result.byRule.map((entry) => ({
+    ...entry,
+    violations: entry.violations.filter((violation) => inScope(violation.path)),
+  }));
+  const staleCount = byRule
+    .filter((entry) => entry.ruleId === STALE_RULE_ID)
+    .reduce((sum, entry) => sum + entry.violations.length, 0);
+  const newCount = byRule
+    .filter((entry) => entry.ruleId !== STALE_RULE_ID)
+    .reduce((sum, entry) => sum + entry.violations.length, 0);
+  const totalViolations = byRule.reduce((sum, entry) => sum + entry.violations.length, 0);
+  const byCategory = computeCategoryScores(byRule, options.thresholds);
+  const categoriesPass =
+    (result.failedRules ?? []).length === 0 &&
+    (byCategory.length === 0 || byCategory.every((category) => category.passing));
+
+  const baseline =
+    result.baseline === undefined
+      ? undefined
+      : {
+          ...result.baseline,
+          new: newCount,
+          stale: staleCount,
+          byRule: byRule
+            .filter((entry) => entry.violations.length > 0)
+            .map((entry) => {
+              const recorded = result.baseline?.byRule.find((r) => r.rule === entry.ruleId);
+              return {
+                rule: entry.ruleId,
+                new: entry.ruleId === STALE_RULE_ID ? 0 : entry.violations.length,
+                baselined: recorded?.baselined ?? 0,
+                stale: entry.ruleId === STALE_RULE_ID ? entry.violations.length : 0,
+              };
+            }),
+        };
+
+  return {
+    ...result,
+    byRule,
+    byCategory,
+    totalViolations,
+    ...(baseline === undefined ? {} : { baseline }),
+    // A whole-tree run's exemption notices are about the whole tree; printing them
+    // for a scoped caller would be noise about files it did not ask about.
+    ...(result.exemptionSuppressions === undefined ? {} : { exemptionSuppressions: [] }),
+    passing:
+      categoriesPass && (baseline === undefined || (baseline.new === 0 && baseline.stale === 0)),
+  };
 }

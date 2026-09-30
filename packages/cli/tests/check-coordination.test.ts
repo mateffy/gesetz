@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   describeCoordination,
+  fullScopeKey,
   requestKeyFor,
   resolveCoordinationKnobs,
 } from '../src/check-coordination';
@@ -18,43 +19,58 @@ const baseRequest = {
 
 describe('requestKeyFor', () => {
   it('is stable for the same request', () => {
-    expect(requestKeyFor(baseRequest)).toBe(requestKeyFor(baseRequest));
+    expect(requestKeyFor(baseRequest).instanceKey).toBe(requestKeyFor(baseRequest).instanceKey);
   });
 
   it('does not depend on the order rules were declared in', () => {
     const reordered = { ...baseRequest, rules: [{ id: 'a' }, { id: 'b' }] };
-    expect(requestKeyFor(reordered)).toBe(requestKeyFor(baseRequest));
+    expect(requestKeyFor(reordered).instanceKey).toBe(requestKeyFor(baseRequest).instanceKey);
+  });
+
+  it('changes when a rule changes, because the answer would differ', () => {
+    const other = { ...baseRequest, rules: [{ id: 'a' }] };
+    expect(requestKeyFor(other).instanceKey).not.toBe(requestKeyFor(baseRequest).instanceKey);
+  });
+
+  it('changes when a threshold changes', () => {
+    const other = { ...baseRequest, thresholds: [{ category: 'cleanup', minScore: 3 }] };
+    expect(requestKeyFor(other).instanceKey).not.toBe(requestKeyFor(baseRequest).instanceKey);
+  });
+
+  it('keeps one instance across file filters, and separates the scopes', () => {
+    // This is what lets a fleet share work: agents asking the same question about
+    // different paths are one instance, so a whole-tree run answers all of them.
+    const scoped = requestKeyFor({ ...baseRequest, fileFilter: ['src/**'] });
+    expect(scoped.instanceKey).toBe(requestKeyFor(baseRequest).instanceKey);
+    expect(scoped.scopeKey).not.toBe(requestKeyFor(baseRequest).scopeKey);
+  });
+
+  it('keeps one instance across --since cuts, and separates the scopes', () => {
+    const since = requestKeyFor({ ...baseRequest, changedSince: 'main' });
+    expect(since.instanceKey).toBe(requestKeyFor(baseRequest).instanceKey);
+    expect(since.scopeKey).not.toBe(requestKeyFor(baseRequest).scopeKey);
   });
 
   it('does not depend on the order of the file filter', () => {
     const a = requestKeyFor({ ...baseRequest, fileFilter: ['x/**', 'y/**'] });
     const b = requestKeyFor({ ...baseRequest, fileFilter: ['y/**', 'x/**'] });
-    expect(a).toBe(b);
+    expect(a.scopeKey).toBe(b.scopeKey);
   });
 
-  it('changes when a rule changes, because the answer would differ', () => {
-    const other = { ...baseRequest, rules: [{ id: 'a' }] };
-    expect(requestKeyFor(other)).not.toBe(requestKeyFor(baseRequest));
-  });
-
-  it('changes when a threshold changes', () => {
-    const other = { ...baseRequest, thresholds: [{ category: 'cleanup', minScore: 3 }] };
-    expect(requestKeyFor(other)).not.toBe(requestKeyFor(baseRequest));
-  });
-
-  it('changes when the file filter changes', () => {
-    const other = { ...baseRequest, fileFilter: ['src/**'] };
-    expect(requestKeyFor(other)).not.toBe(requestKeyFor(baseRequest));
-  });
-
-  it('changes when --since changes', () => {
-    const other = { ...baseRequest, changedSince: 'main' };
-    expect(requestKeyFor(other)).not.toBe(requestKeyFor(baseRequest));
+  it('reports the whole-tree scope key as a constant, so any caller can spot one', () => {
+    // Reuse depends on this: a record whose scopeKey equals fullScopeKey examined
+    // everything, whichever request it was produced for.
+    const unfiltered = requestKeyFor(baseRequest);
+    expect(unfiltered.scopeKey).toBe(unfiltered.fullScopeKey);
+    expect(unfiltered.fullScopeKey).toBe(
+      requestKeyFor({ ...baseRequest, fileFilter: ['src/**'] }).fullScopeKey,
+    );
+    expect(fullScopeKey).toBe(unfiltered.fullScopeKey);
   });
 
   it('changes when the baseline contents change', () => {
     const other = { ...baseRequest, baselineBytes: '{"version":1}' };
-    expect(requestKeyFor(other)).not.toBe(requestKeyFor(baseRequest));
+    expect(requestKeyFor(other).instanceKey).not.toBe(requestKeyFor(baseRequest).instanceKey);
   });
 
   it('changes when the cache is bypassed, because a full run answers differently', () => {
@@ -67,8 +83,11 @@ describe('requestKeyFor', () => {
     expect(requestKeyFor(other)).not.toBe(requestKeyFor(baseRequest));
   });
 
-  it('is a short hex id', () => {
-    expect(requestKeyFor(baseRequest)).toMatch(/^[0-9a-f]{16}$/);
+  it('is a short hex id, for the instance and for the scope', () => {
+    const keys = requestKeyFor(baseRequest);
+    expect(keys.instanceKey).toMatch(/^[0-9a-f]{16}$/);
+    expect(keys.scopeKey).toMatch(/^[0-9a-f]{16}$/);
+    expect(keys.fullScopeKey).toMatch(/^[0-9a-f]{16}$/);
   });
 });
 
@@ -181,10 +200,24 @@ describe('describeCoordination', () => {
     expect(notice({ recheckedFiles: 0 })).not.toContain('shared');
   });
 
-  it('reports how old the run it reused was', () => {
-    const line = notice({ mode: 'reused', runAgeMs: 2_100 });
+  it('reports how old the run it reused was, and that the scope matched', () => {
+    const line = notice({ mode: 'reused', runAgeMs: 2_100, reusedScope: 'same' });
     expect(line).toContain('reused a run from 2.1s ago');
-    expect(line).toContain('already checked');
+    expect(line).toContain('same scope as yours');
+  });
+
+  it('says so when a whole-tree run was narrowed to this scope', () => {
+    // The case a fleet sees: the run that answered this request examined
+    // everything, and these results are a slice of it.
+    const line = notice({ mode: 'reused', runAgeMs: 2_100, reusedScope: 'full' });
+    expect(line).toContain('narrowed from a whole-tree run to your scope');
+  });
+
+  it('separates the wait from the work on a run that waited', () => {
+    const line = notice({ mode: 'ran-after-wait', waitedMs: 4_000, runMs: 65_000 });
+    expect(line).toContain('waited 4.0s');
+    expect(line).toContain('then ran 65.0s');
+    expect(line).not.toContain('waited 69.0s');
   });
 
   it('reports how long it waited before running', () => {

@@ -65,6 +65,13 @@ export interface EnvelopeCoordination {
   listeners: number;
   recheckedFiles: number;
   pid: number;
+  /** Time the work took, absent for a reused result. */
+  readonly runMs?: number | undefined;
+  /**
+   * For a reused result: `same` for this exact scope, `full` when a whole-tree run
+   * was narrowed to this caller's scope.
+   */
+  readonly reusedScope?: 'same' | 'full' | undefined;
 }
 
 interface Envelope {

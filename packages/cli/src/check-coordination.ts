@@ -22,6 +22,36 @@ import type { GesetzStorageConfig } from '@gesetz/core';
  * agrees: the rules that will run, the thresholds they are scored against, the
  * aggregation filters, the baseline, and whether the cache is in play at all.
  */
+export interface RequestKeys {
+  /**
+   * What was asked, excluding the scope: root, config, rules, thresholds, the
+   * baseline, the storage. Two callers with the same instance key are asking the
+   * same question, so one run can answer both.
+   */
+  readonly instanceKey: string;
+  /** The scope: the requested paths and the `--since` cut. */
+  readonly scopeKey: string;
+  /**
+   * The scope key a whole-tree run of this instance would have. A record produced
+   * under it examined the whole tree, so it can be narrowed to any scope instead
+   * of the tree being scanned and checked again.
+   */
+  readonly fullScopeKey: string;
+}
+
+const scopeKeyFor = (
+  fileFilter: readonly string[] | null,
+  changedSince: string | undefined,
+): string =>
+  createHash('sha256')
+    .update('gesetz-coordination-scope-v1')
+    .update(JSON.stringify([fileFilter === null ? null : fileFilter.slice().sort(), changedSince ?? null]))
+    .digest('hex')
+    .slice(0, REQUEST_KEY_LENGTH);
+
+/** The scope key of a run that examined everything. A constant, by construction. */
+export const fullScopeKey = scopeKeyFor(null, undefined);
+
 export const requestKeyFor = (input: {
   root: string;
   configPath: string | undefined;
@@ -31,17 +61,15 @@ export const requestKeyFor = (input: {
   changedSince: string | undefined;
   baselineBytes: string | null;
   storage: GesetzStorageConfig;
-}): string =>
-  createHash('sha256')
+}): RequestKeys => ({
+  instanceKey: createHash('sha256')
     .update(
       JSON.stringify([
-        'gesetz-coordination-v1',
+        'gesetz-coordination-v2',
         input.root,
         input.configPath ?? '<default>',
         input.rules.map((rule) => rule.id).sort(),
         input.thresholds.map((threshold) => `${threshold.category}=${threshold.minScore}`).sort(),
-        input.fileFilter === null ? null : input.fileFilter.slice().sort(),
-        input.changedSince ?? null,
         input.baselineBytes === null
           ? null
           : createHash('sha256').update(input.baselineBytes).digest('hex'),
@@ -49,7 +77,10 @@ export const requestKeyFor = (input: {
       ]),
     )
     .digest('hex')
-    .slice(0, REQUEST_KEY_LENGTH);
+    .slice(0, REQUEST_KEY_LENGTH),
+  scopeKey: scopeKeyFor(input.fileFilter, input.changedSince),
+  fullScopeKey,
+});
 
 export interface CoordinationKnobs {
   /** How many runs may proceed at once. */
@@ -97,10 +128,17 @@ export const resolveCoordinationKnobs = (input: {
 export const describeCoordination = (input: {
   mode: 'ran' | 'reused' | 'ran-after-wait' | 'standalone';
   waitedMs: number;
+  /** The work itself. Absent for a reused result, which did no work here. */
+  runMs?: number | undefined;
   runAgeMs: number;
   listeners: number;
   recheckedFiles: number;
   runningPid?: number | undefined;
+  /**
+   * For a reused result: whether it came from this exact scope, or from a
+   * whole-tree run that has to be narrowed to this caller's scope.
+   */
+  reusedScope?: 'same' | 'full' | undefined;
 }): string => {
   const seconds = (ms: number): string => `${(ms / 1000).toFixed(1)}s`;
   const shared =
@@ -109,14 +147,20 @@ export const describeCoordination = (input: {
       : '';
   if (input.mode === 'standalone') return 'coord: standalone — not waiting, not reusing';
   if (input.mode === 'reused') {
-    return `coord: reused a run from ${seconds(input.runAgeMs)} ago — this tree state was already checked${shared}`;
+    const scope =
+      input.reusedScope === 'full'
+        ? ' — narrowed from a whole-tree run to your scope'
+        : ' — same scope as yours';
+    return `coord: reused a run from ${seconds(input.runAgeMs)} ago${scope}${shared}`;
   }
   if (input.mode === 'ran-after-wait') {
-    return `coord: waited ${seconds(input.waitedMs)}${input.runningPid === undefined ? '' : ` for pid ${input.runningPid}`}, then ran${shared}`;
+    const worked = input.runMs === undefined ? '' : ` ${seconds(input.runMs)}`;
+    return `coord: waited ${seconds(input.waitedMs)}${input.runningPid === undefined ? '' : ` for pid ${input.runningPid}`}, then ran${worked}${shared}`;
   }
   const listeners =
     input.listeners > 0
       ? ` — ${input.listeners} other process${input.listeners === 1 ? '' : 'es'} waited on this run`
       : '';
-  return `coord: ran — no other gesetz check active${listeners}${shared}`;
+  const took = input.runMs === undefined ? '' : ` (ran ${seconds(input.runMs)})`;
+  return `coord: ran — no other gesetz check active${listeners}${took}${shared}`;
 };

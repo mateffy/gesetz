@@ -4,7 +4,7 @@ import { select, slugify, group } from '../../src/primitives/select';
 import { MemoryFileSystem, ProjectRootLive, FileFilterLive } from '../../src/services/fs';
 import { SyntaxTreeStub } from '../../src/services/syntax-tree';
 import { ImportResolverDefault } from '../../src/services/import-resolver';
-import type { File, CheckServices, Violation } from '../../src/engine/rule';
+import type { File, CheckServices, Rule, Violation } from '../../src/engine/rule';
 
 const TestLayer = Layer.mergeAll(
   MemoryFileSystem({}),
@@ -335,7 +335,7 @@ describe('select', () => {
 });
 
 describe('a check that throws', () => {
-  const run = (rule: ReturnType<typeof select> extends never ? never : { run: Effect.Effect<unknown, unknown, unknown> }) =>
+  const run = (rule: Rule) =>
     rule.run.pipe(
       Effect.provide(MemoryFileSystem({ 'src/foo.ts': 'export {}' })),
       Effect.provide(SyntaxTreeStub),
@@ -343,7 +343,7 @@ describe('a check that throws', () => {
       Effect.provide(ProjectRootLive(process.cwd())),
       Effect.provide(FileFilterLive(null)),
       Effect.runPromise,
-    ) as unknown as Promise<Violation[]>;
+    );
 
   it('reports the failure as a violation instead of reporting nothing', async () => {
     // Silence here reads as "the rule examined this file and found nothing", which is

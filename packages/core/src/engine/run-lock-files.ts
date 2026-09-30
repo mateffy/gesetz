@@ -40,8 +40,24 @@ export interface SlotFile {
 }
 
 export interface RunRecord<R = unknown> {
-  readonly version: 1;
+  /**
+   * Bumped to 2 when `scopeKey` and `fullScopeKey` arrived. A record without them
+   * says nothing about what it examined, so it is ignored rather than trusted.
+   */
+  readonly version: 2;
+  /** Identity of the question, excluding the scope: rules, thresholds, baseline. */
   readonly requestKey: string;
+  /**
+   * Which scope this record was produced under: the requested paths and the
+   * `--since` cut. A record may serve a caller whose scope it covers.
+   */
+  readonly scopeKey: string;
+  /**
+   * The scope key a whole-tree run of this same instance would have. A record
+   * produced under *that* key examined everything, so it can serve any scope —
+   * this is what lets a fleet share one full run between scoped requests.
+   */
+  readonly fullScopeKey: string;
   readonly treeState: TreeState;
   readonly startedAt: number;
   readonly finishedAt: number;
@@ -279,20 +295,42 @@ function pruneDeadWaiters(root: string): void {
  * state. A dirty record is never reusable: the tree changed while it ran, so it
  * describes a mixture of two states.
  */
+/**
+ * A record that answers this request, and whether it answered a narrower one.
+ *
+ * The coverage rule: a record is reusable when it was produced for *this* scope, or
+ * when it was produced for the whole tree. A record from a different narrow scope is
+ * never reusable, however recent it is — it examined other files, and reusing it
+ * would report this caller's files as clean without having looked at them.
+ *
+ * The returned `scopeKey` is the record's, so the caller can tell a whole-tree hit
+ * from its own and narrow the result before reporting it.
+ */
 export function findReusableRecord<R>(
   root: string,
   requestKey: string,
+  scopeKey: string,
+  fullScopeKey: string,
   treeState: TreeState,
-): RunRecord<R> | null {
+): { record: RunRecord<R>; reusedScope: 'same' | 'full' } | null {
   const candidates = readRecords(root)
     .filter(
       (record) =>
+        record.version === 2 &&
         record.requestKey === requestKey &&
         record.dirty === false &&
-        treeStatesMatch(record.treeState, treeState),
+        treeStatesMatch(record.treeState, treeState) &&
+        (record.scopeKey === scopeKey || record.scopeKey === fullScopeKey),
     )
-    .sort((a, b) => b.finishedAt - a.finishedAt);
-  return (candidates[0] as RunRecord<R> | undefined) ?? null;
+    // A record at this exact scope needs no narrowing, so it wins over a whole-tree
+    // one however recent that is; among equals, the newest.
+    .sort((a, b) => {
+      const sameFirst = (a.scopeKey === scopeKey ? 0 : 1) - (b.scopeKey === scopeKey ? 0 : 1);
+      return sameFirst !== 0 ? sameFirst : b.finishedAt - a.finishedAt;
+    });
+  const record = candidates[0] as RunRecord<R> | undefined;
+  if (record === undefined) return null;
+  return { record, reusedScope: record.scopeKey === fullScopeKey ? 'full' : 'same' };
 }
 
 export interface Waiter {
