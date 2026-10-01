@@ -69,6 +69,47 @@ node_modules/.bin/gesetz\` also works (the violation cache is enabled under Bun
 too), but reach for the plain form: a check that cannot use its cache re-checks
 every file on every run, and that is the slowest thing this tool can do.
 
+### Reading the output
+
+The data goes to stdout, and everything human — the \`cache:\`, \`scan:\` and \`coord:\`
+lines and the status banner — goes to stderr. So a pipe stays clean:
+
+\`\`\`bash
+gesetz check --format=json | jq '{status, total, summary}'
+\`\`\`
+
+\`--format=json\` shows a **preview** of the violations and says so: the envelope's
+\`truncated\` field is how many were left out. Pass \`--all\` when you intend to read
+every one, or you are looking at the first fifty and nothing tells you.
+
+Grouping and filtering:
+
+\`\`\`bash
+# one entry per file, with the rules that fired there
+gesetz check --format=json --all |
+  jq '[.violations[]] | group_by(.path) | map({path: .[0].path, rules: map(.rule) | unique})'
+
+# only what is under one directory
+gesetz check --format=json --all |
+  jq '[.violations[] | select(.path | startswith("src/"))]'
+
+# how many per rule
+gesetz check --format=json --all |
+  jq '[.violations[]] | group_by(.rule) | map({rule: .[0].rule, n: length})'
+\`\`\`
+
+Without jq:
+
+\`\`\`bash
+gesetz check --format=json --all | python3 -c "import json,sys,collections
+d = json.load(sys.stdin)
+print(collections.Counter(v['rule'] for v in d['violations']).most_common())"
+\`\`\`
+
+\`--files <glob>\` is the scope to reach for while you work, and it is what makes a
+check cheap: only the rules that can match the request run, and the external tools
+are given only those files. \`--category <name>\` narrows to one category.
+
 ### Several agents, one working tree
 
 \`gesetz check\` coordinates with other checks running in the same worktree. A
