@@ -17,6 +17,56 @@ const THRESHOLDS: CategoryThreshold[] = [
   { category: 'strictness', minScore: 10 },
 ];
 
+describe('resolveCheckScope: --rule composes with --category', () => {
+  const rule = (id: string, category: string) =>
+    ({ id, description: id, category, run: null }) as never;
+
+  const rules = [
+    rule('no-god-files', 'cleanup'),
+    rule('no-empty-catch-blocks', 'cleanup'),
+    rule('tsc', 'correctness'),
+  ];
+
+  const resolve = (ruleFilter: readonly string[] | null) =>
+    resolveCheckScope({
+      rules,
+      configuredThresholds: [],
+      categoryFilter: undefined,
+      ruleFilter,
+      thresholdOverride: undefined,
+    });
+
+  it('narrows to one rule', () => {
+    expect(resolve(['tsc']).rules.map((r) => r.id)).toEqual(['tsc']);
+  });
+
+  it('is an intersection, not a union, when both filters are given', () => {
+    // `--category cleanup --rule tsc` asks for the type checker *within* the cleanup
+    // category, which is nothing. Answering with `tsc` would silently ignore one of
+    // the two filters, and answering with all of cleanup would ignore the other.
+    const scoped = () =>
+      resolveCheckScope({
+        rules,
+        configuredThresholds: [],
+        categoryFilter: 'cleanup',
+        ruleFilter: ['tsc'],
+        thresholdOverride: undefined,
+      });
+    expect(scoped).toThrowError(/no rule matches 'tsc'/);
+  });
+
+  it('keeps both filters when they do intersect', () => {
+    const scoped = resolveCheckScope({
+      rules,
+      configuredThresholds: [],
+      categoryFilter: 'cleanup',
+      ruleFilter: ['no-*'],
+      thresholdOverride: undefined,
+    });
+    expect(scoped.rules.map((r) => r.id)).toEqual(['no-god-files', 'no-empty-catch-blocks']);
+  });
+});
+
 describe('resolveCheckScope', () => {
   it('keeps every rule and the configured thresholds when nothing is narrowed', () => {
     const scope = resolveCheckScope({

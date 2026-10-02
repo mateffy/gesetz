@@ -55,6 +55,7 @@ gesetz check --files src/a.ts         # only this file
 gesetz check --files "src/a.ts,src/b.ts"       # comma-separated
 gesetz check --files src/a.ts --files src/b.ts # repeated
 gesetz check --files "src/components/**"       # a glob
+gesetz check --rule 'no-*'             # only these rules (globs allowed, repeatable)
 \`\`\`
 
 \`--files\` reduces the work, not just the report: a rule that cannot match the
@@ -62,6 +63,12 @@ request never runs at all, and the external tools are given only the requested
 files. Anything nothing changed in comes from the cache, so re-running it is
 free. The one cost it does not remove is the scan itself, which walks the project
 to notice what changed.
+
+\`--rule\` is a scope, like \`--files\`: the rules it leaves out do not run at all, so a
+filtered run has decided nothing about them. Ask for the smallest scope that answers
+your question, and never read a filtered run's \`pass\` as "the project is clean". A
+filter that matches no rule is refused, naming the rules that exist, because a run
+that checks nothing must not look like a run that found nothing.
 
 Invoke it as \`gesetz\`, \`pnpm exec gesetz\`, or \`npx gesetz\` — those run it under
 node, which is the runtime it is built and tested against. \`bun

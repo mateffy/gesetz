@@ -355,7 +355,7 @@ returns `{ rules, thresholds }`: the flag is one more input, not a new code path
 That means the existing request key already distinguishes it (rules are part of the
 instance key), the cache scopes already separate it, and no runner change is needed.
 
-- [ ] **Step 1 (failing test first):**
+- [x] **Step 1 (failing test first):**
 
       ```ts
       // packages/core/tests/backend/rule-filter.test.ts
@@ -395,13 +395,13 @@ instance key), the cache scopes already separate it, and no runner change is nee
       near-duplicate.
       ```
 
-- [ ] **Step 2:** Run it and confirm it fails for the right reason.
+- [x] **Step 2:** Run it and confirm it fails for the right reason.
       ```bash
       cd packages/core && npx vitest run tests/backend/rule-filter.test.ts
       ```
       Expected: FAIL — `Failed to resolve import "../../src/backend/rule-filter"`.
 
-- [ ] **Step 3 (implement):**
+- [x] **Step 3 (implement):**
 
       ```ts
       // packages/core/src/backend/rule-filter.ts
@@ -429,13 +429,13 @@ instance key), the cache scopes already separate it, and no runner change is nee
       }
       ```
 
-- [ ] **Step 4:** Run the test again.
+- [x] **Step 4:** Run the test again.
       ```bash
       cd packages/core && npx vitest run tests/backend/rule-filter.test.ts
       ```
       Expected: PASS (6 tests).
 
-- [ ] **Step 5:** Wire the flag, mirroring `--files` exactly (`packages/cli/src/main.ts:~76`
+- [x] **Step 5:** Wire the flag, mirroring `--files` exactly (`packages/cli/src/main.ts:~76`
       uses `Options.text(...).pipe(Options.repeated)`). Add to the check options after
       `category`:
 
@@ -461,16 +461,16 @@ instance key), the cache scopes already separate it, and no runner change is nee
       and passes `ruleFilter` into `resolveCheckScope`. `filterRules` is exported from
       `@gesetz/core` (`packages/core/src/index.ts`).
 
-- [ ] **Step 6 (end-to-end test):** in `packages/cli/tests/rule-filter.test.ts`, run
+- [x] **Step 6 (end-to-end test):** in `packages/cli/tests/rule-filter.test.ts`, run
       the built CLI in a temp project with two rules and assert that `--rule <one>`
       reports only that rule's violations, that `--rule nomatch` exits non-zero with
       the message above, and that no `--rule` still reports both.
 
-- [ ] **Step 7:** Update the brief in `packages/cli/src/skill.ts`: one sentence under
+- [x] **Step 7:** Update the brief in `packages/cli/src/skill.ts`: one sentence under
       "Run checks" naming `--rule` and giving the pattern
       `gesetz check --rule tsc` as "only the type checker".
 
-- [ ] **Step 8:** Document it under `README.md`'s `### 3. Run checks` heading (line 63)
+- [x] **Step 8:** Document it under `README.md`'s `### 3. Run checks` heading (line 63)
       and in the `check --help` description, in plain language — and, in the same
       breath, that `--rule` is a *scope*: a rule the filter excluded has **not** been
       checked, and no output may imply it was. The envelope's `checksNotRun` (Phase 4)
@@ -952,7 +952,7 @@ node packages/cli/dist/main.js check --files 'packages/core/**' & \
 ### Phase completion
 
 - [ ] Phase 0: capability audit
-- [ ] Phase 1: rule filters (`--rule`)
+- [x] Phase 1: rule filters (`--rule`)
 - [ ] Phase 2: a type-check rule (`@gesetz/tsc`)
 - [ ] Phase 3: adapters declare what they replace
 - [ ] Phase 4: the daemon core
@@ -971,4 +971,43 @@ decisions made (with rationale). This log is the handoff document — a new agen
 reading only this file must be able to continue without asking.*
 
 ---
-*(no entries yet)*
+
+**2026-09-30 — Phase 1 complete (`--rule`).**
+
+What landed, all on the `daemon-mode` branch:
+
+- `packages/core/src/backend/rule-filter.ts` — `filterRules(rules, filter)`: globbed, and
+  an error naming the rules that exist when nothing matches. Exported from `@gesetz/core`.
+- `packages/cli/src/check.ts` — `resolveCheckScope` gained `ruleFilter`, so `--rule` and
+  `--category` intersect rather than one silently winning. A filter matching no rule
+  throws; `main.ts` catches it, prints one line and exits 1, instead of a stack trace.
+- `packages/cli/src/main.ts` — the flag (`Options.repeated`, parsed exactly like
+  `--files`). No new pipeline was needed: rules are part of the coordination instance
+  key, so cache scopes already separate filtered runs.
+- Tests: 6 unit (`packages/core/tests/backend/rule-filter.test.ts`), 3 unit for the
+  interaction (`packages/cli/tests/check.test.ts`), 4 end-to-end
+  (`packages/cli/tests/rule-filter.test.ts`). The end-to-end ones prove *from outside the
+  process* that an excluded rule does not run at all, via a rule that appends to
+  `ran.log` — filtering findings out of the report would look identical and save nothing.
+- Docs: the flag in `check --help`, `README.md`'s `### 3. Run checks`, and the skill —
+  with the honest framing that `--rule` is a **scope**: a filtered run has decided
+  nothing about the rules it left out.
+
+Decisions made in this phase:
+
+- **`--rule` and `--category` intersect.** Both are scopes; a union would let one filter
+  silently override the other, which is the class of quiet wrong answer this project
+  spends its effort preventing.
+- **A no-match filter is an error, not an empty run**, and it names every rule in the
+  config so the mistake costs one line to fix.
+- **The `tsc` example was deliberately not documented yet.** `--rule tsc` means nothing
+  until Phase 2 lands, and documenting a flag before it exists is the same lie as a check
+  that cannot run reporting success. The skill shows `--rule 'no-*'` instead.
+
+Noted, not fixed: two tests in this repository fail when the host is busy — the `init`
+PTY test (11,512 ms timeout at load average 245, passes on retry) and this phase's
+`--since` baseline test, which spawns `git` five times inside a temp repo (failed once,
+passed twice). Same class: a test must not fail because the machine is loaded. Reported,
+not filed — the issue tool was unavailable in this session.
+
+Next: Phase 2 (`@gesetz/tsc`), then Phase 3 (adapter replacements), then Phase 4.

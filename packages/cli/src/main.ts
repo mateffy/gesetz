@@ -49,6 +49,12 @@ const checkCommand = Command.make(
       Options.withDescription('Only report violations in files changed since this git ref (e.g. HEAD~5, main)'),
       Options.optional,
     ),
+    rule: Options.text('rule').pipe(
+      Options.withDescription(
+        'Only run these rules (comma-separated, globs allowed, repeatable) — e.g. --rule tsc for the type checker alone',
+      ),
+      Options.repeated,
+    ),
     category: Options.text('category').pipe(
       Options.withDescription('Only run rules in this category (comma-separated)'),
       Options.optional,
@@ -139,12 +145,25 @@ const checkCommand = Command.make(
         ),
       );
 
-      const scope = resolveCheckScope({
-        rules: config.rules,
-        configuredThresholds: config.thresholds,
-        categoryFilter: Option.getOrUndefined(opts.category),
-        thresholdOverride: Option.getOrUndefined(opts.threshold),
-      });
+      const ruleFilter = parseFileRequest(opts.rule);
+      let scope: ReturnType<typeof resolveCheckScope>;
+      try {
+        scope = resolveCheckScope({
+          rules: config.rules,
+          configuredThresholds: config.thresholds,
+          categoryFilter: Option.getOrUndefined(opts.category),
+          ruleFilter,
+          thresholdOverride: Option.getOrUndefined(opts.threshold),
+        });
+      } catch (error) {
+        // A filter matching no rule is a mistake worth one clean line, not a stack
+        // trace: `filterRules` already names the rules that exist.
+        yield* Console.error(error instanceof Error ? error.message : String(error));
+        yield* Effect.sync(() => {
+          process.exitCode = 1;
+        });
+        return;
+      }
       const filteredConfig = { ...config, rules: scope.rules };
       const thresholds = scope.thresholds;
 

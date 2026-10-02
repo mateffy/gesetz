@@ -63,8 +63,17 @@ This creates a `gesetz.config.ts` at your project root. In a TTY it runs an inte
 ### 3. Run checks
 
 ```bash
-gesetz check
+gesetz check                          # everything
+gesetz check --files "src/**"         # only these paths: less work, not just less output
+gesetz check --rule tsc               # only these rules (globs allowed, repeatable)
+gesetz check --category strictness    # only this category
 ```
+
+`--files` and `--rule` are **scopes**. A rule that cannot match the request does not
+run, and the external tools are given only those paths — so a scoped check is cheap,
+and a scoped result says nothing about what it left out. A `--rule` that matches no
+rule at all is refused with the list of rules that do exist, rather than reporting a
+silent pass.
 
 Output (TTY):
 

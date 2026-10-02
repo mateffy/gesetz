@@ -30,6 +30,7 @@ export type { UserConfig, ResolvedConfig, CategoryThreshold, GesetzStorageConfig
 export { runAll, applyExemptions } from './engine/runner';
 export type { RunResult, RuleResult, CategoryScore, RunAllOptions, ScanStats } from './engine/runner';
 export { narrowRunResult } from './engine/aggregate';
+export { filterRules } from './backend/rule-filter';
 export { resolveChangedFiles } from './engine/rule-execution';
 
 // ─── Exec helpers ─────────────────────────────────────────────────────────────

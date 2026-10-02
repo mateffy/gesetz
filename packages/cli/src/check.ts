@@ -6,6 +6,7 @@
  * resolution; these two are kept here because they are the parts worth testing on
  * their own.
  */
+import { filterRules } from '@gesetz/core';
 import type { CategoryThreshold, Rule } from '@gesetz/core';
 
 /**
@@ -28,6 +29,11 @@ export const resolveCheckScope = (input: {
   rules: readonly Rule[];
   configuredThresholds: readonly CategoryThreshold[];
   categoryFilter: string | undefined;
+  /**
+   * `--rule`: ids and globs. A filter that matches no rule throws, which the caller
+   * reports as one line rather than a run that quietly checked nothing.
+   */
+  ruleFilter?: readonly string[] | null | undefined;
   thresholdOverride: number | undefined;
 }): { rules: Rule[]; thresholds: CategoryThreshold[] } => {
   const wanted =
@@ -39,10 +45,11 @@ export const resolveCheckScope = (input: {
             .map((entry) => entry.trim())
             .filter((entry) => entry.length > 0),
         );
-  const rules =
+  const inCategory =
     wanted === null
       ? [...input.rules]
       : input.rules.filter((rule) => rule.category !== undefined && wanted.has(rule.category));
+  const rules = filterRules(inCategory, input.ruleFilter ?? null);
   const thresholds =
     input.thresholdOverride === undefined
       ? [...input.configuredThresholds]
