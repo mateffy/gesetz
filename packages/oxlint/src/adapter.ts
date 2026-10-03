@@ -1,6 +1,6 @@
 import * as nodePath from 'node:path';
 import { Effect } from 'effect';
-import type { Rule, Violation } from '@gesetz/core';
+import type { Rule, ToolReplacement, Violation } from '@gesetz/core';
 import { FileFilter, ProjectRoot, execTool, resolveToolBin, resolveToolCwd, toolScope, toolWatchPatterns } from '@gesetz/core';
 
 export interface OxlintOptions {
@@ -100,6 +100,14 @@ async function executeOxlint(
 
 export function oxlint(opts: OxlintOptions = {}): Rule {
   const id = opts.id ?? 'oxlint';
+
+  /**
+   * What an agent would otherwise run. `gesetz skill` prints this, generated from
+   * the project's configuration so nothing has to be maintained by hand.
+   */
+  const replaces: ToolReplacement[] = [
+    { instead: 'oxlint', use: 'gesetz check --rule oxlint' },
+  ];
   const description = opts.label ?? 'oxlint';
   const defaultPatterns: string[] = opts.pattern
     ? Array.isArray(opts.pattern)
@@ -135,6 +143,7 @@ export function oxlint(opts: OxlintOptions = {}): Rule {
 
   return {
     id,
+    replaces,
     description,
     run,
     category: opts.category,

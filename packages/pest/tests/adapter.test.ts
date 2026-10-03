@@ -229,3 +229,13 @@ describe('pest adapter', () => {
     });
   });
 });
+
+describe('replaces', () => {
+  it('names the command it makes unnecessary, so the recipe is generated, not guessed', () => {
+    // `gesetz skill` prints this. A declaration that drifts from what the adapter
+    // really runs is a small lie told to every agent that reads the skill.
+    const entries = pest({}).replaces ?? [];
+    expect(entries.map((entry) => entry.use)).toEqual(['gesetz check --rule pest']);
+    expect(entries.every((entry) => entry.instead.length > 0)).toBe(true);
+  });
+});

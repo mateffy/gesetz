@@ -1,6 +1,6 @@
 import * as nodePath from 'node:path';
 import * as nodeFs from 'node:fs';
-import { Effect } from 'effect';
+import { Effect, Either } from 'effect';
 import type { Rule, Violation } from '@gesetz/core';
 import { execTool, runWithTempFile, FileFilter, ProjectRoot, resolveToolBin, resolveToolCwd } from '@gesetz/core';
 import { parseJUnitXml, junitToViolations } from '@gesetz/junit';
@@ -49,14 +49,37 @@ async function executeBunTest(
       Effect.gen(function* () {
         const args = [...baseArgs, `--reporter-outfile=${tmpFile}`];
 
-        yield* execTool(bin, args, cwd, 'bun-test').pipe(Effect.ignore);
+        // A tool that could not run and a report that could not be read mean the same
+        // thing: nothing was checked. The tool's failure used to be ignored and an
+        // unreadable file became an empty string, so a missing `bun` produced a clean
+        // run — the one answer we know to be wrong.
+        const unchecked = (detail: string): Violation[] => [
+          {
+            rule: id,
+            message:
+              `bun did not produce a usable JUnit report (${detail}), so nothing was ` +
+              'checked. Fix the tool, then re-run.',
+            path: '.',
+            severity: 'error',
+            source: 'custom',
+          },
+        ];
 
-        const xml = yield* Effect.try({
-          try: () => nodeFs.readFileSync(tmpFile, 'utf-8'),
-          catch: (cause) => cause,
-        }).pipe(Effect.catchAll(() => Effect.succeed('')));
+        const ran = yield* Effect.either(execTool(bin, args, cwd, 'bun-test'));
+        if (Either.isLeft(ran)) return unchecked(String(ran.left));
 
-        if (!xml) return [];
+        const report = yield* Effect.either(
+          Effect.try({
+            try: () => nodeFs.readFileSync(tmpFile, 'utf-8'),
+            catch: (cause) => cause,
+          }),
+        );
+        if (Either.isLeft(report)) return unchecked(String(report.left));
+
+        const xml = report.right;
+        // An existing report with nothing in it means the runner wrote nothing, which
+        // is not the same as writing "no failures".
+        if (xml.trim() === '') return unchecked('the report file was empty');
 
         const cases = parseJUnitXml(xml, cwd);
         return junitToViolations(cases, id);

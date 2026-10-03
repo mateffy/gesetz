@@ -1,6 +1,6 @@
 import * as nodePath from 'node:path';
 import { Effect } from 'effect';
-import type { Rule, Violation } from '@gesetz/core';
+import type { Rule, ToolReplacement, Violation } from '@gesetz/core';
 import { FileFilter, ProjectRoot, execTool, resolveToolBin, resolveToolCwd, toolScope, toolWatchPatterns } from '@gesetz/core';
 
 export interface PrettierOptions {
@@ -65,6 +65,14 @@ async function executePrettier(
 
 export function prettier(opts: PrettierOptions = {}): Rule {
   const id = opts.id ?? 'prettier';
+
+  /**
+   * What an agent would otherwise run. `gesetz skill` prints this, generated from
+   * the project's configuration so nothing has to be maintained by hand.
+   */
+  const replaces: ToolReplacement[] = [
+    { instead: 'prettier --list-different .', use: 'gesetz check --rule prettier' },
+  ];
   const description = opts.label ?? 'Prettier formatting';
   const defaultPatterns: string[] = opts.pattern
     ? Array.isArray(opts.pattern)
@@ -98,6 +106,7 @@ export function prettier(opts: PrettierOptions = {}): Rule {
 
   return {
     id,
+    replaces,
     description,
     run,
     category: opts.category,

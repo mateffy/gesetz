@@ -1,7 +1,7 @@
 import * as nodePath from 'node:path';
 import * as nodeFs from 'node:fs';
 import { Effect } from 'effect';
-import type { ProjectRuleContext, Rule, Violation } from '@gesetz/core';
+import type { ProjectRuleContext, Rule, ToolReplacement, Violation } from '@gesetz/core';
 import {
   FileFilter,
   execTool,
@@ -231,6 +231,18 @@ async function executeVitest(
 
 export function vitest(opts: VitestOptions = {}): Rule {
   const id = opts.id ?? 'vitest';
+
+  /**
+   * What an agent would otherwise run. `gesetz skill` prints this, generated from
+   * the project's configuration so nothing has to be maintained by hand.
+   */
+  const replaces: ToolReplacement[] = [
+    {
+      instead: 'vitest run',
+      use: 'gesetz check --rule vitest',
+      note: 'runs only the tests covering the files in play',
+    },
+  ];
   const description = opts.label ?? 'Vitest test suite';
   const cwd = nodePath.resolve(opts.cwd ?? process.cwd());
   const bin = opts.bin ?? nodePath.join('node_modules', '.bin', 'vitest');
@@ -252,6 +264,7 @@ export function vitest(opts: VitestOptions = {}): Rule {
 
   return {
     id,
+    replaces,
     description,
     run,
     category: opts.category,

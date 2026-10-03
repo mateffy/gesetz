@@ -7,6 +7,7 @@ import * as nodePath from 'node:path';
 import { Effect } from 'effect';
 import {
   execTool,
+  execToolResult,
   runWithTempFile,
   extractLocation,
   resolveToolCwd,
@@ -29,6 +30,71 @@ vi.mock('node:fs', async () => {
     readFileSync: vi.fn(),
     rmSync: vi.fn(),
   };
+});
+
+describe('execToolResult: output and how the run ended', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    vi.clearAllMocks();
+  });
+
+  const spy = () => childProcess.execFileSync as ReturnType<typeof vi.fn>;
+
+  it('reports status 0 for a clean run', async () => {
+    spy().mockReturnValue('all good');
+    const run = await Effect.runPromise(execToolResult('cmd', [], '/cwd', 'tool'));
+    expect(run).toEqual({ stdout: 'all good', stderr: '', status: 0 });
+  });
+
+  it('separates "found nothing" from "did not run"', async () => {
+    // Both end as empty output. The status is the only thing that tells them apart,
+    // and an adapter without it reports a crashed tool as a clean project.
+    spy().mockImplementation(() => {
+      throw Object.assign(new Error('exit 2'), { stdout: '', stderr: 'error TS5058: bad', status: 2 });
+    });
+    const run = await Effect.runPromise(execToolResult('cmd', [], '/cwd', 'tsc'));
+    expect(run.status).toBe(2);
+    expect(run.stdout).toBe('');
+    expect(run.stderr).toContain('TS5058');
+  });
+
+  it('keeps a tool that exits non-zero because it found something', async () => {
+    spy().mockImplementation(() => {
+      throw Object.assign(new Error('exit 1'), {
+        stdout: 'src/a.ts(1,1): error TS1000: boom',
+        status: 1,
+      });
+    });
+    const run = await Effect.runPromise(execToolResult('cmd', [], '/cwd', 'tsc'));
+    expect(run.status).toBe(1);
+    expect(run.stdout).toContain('TS1000');
+  });
+
+  it('still throws when the tool could not be started', async () => {
+    spy().mockImplementation(() => {
+      throw Object.assign(new Error('spawn missing ENOENT'), { code: 'ENOENT' });
+    });
+    await expect(
+      Effect.runPromise(execToolResult('missing', [], '/cwd', 'tsc')),
+    ).rejects.toThrow(/tsc could not run/);
+  });
+
+  it('throws for a process killed by a signal, rather than reporting half an answer', async () => {
+    // Partial output from a killed tool would be parsed as a complete report: for a
+    // type checker that is a truncated list of errors, and for a linter that found
+    // nothing before it died it is a clean bill of health. Failing the rule is the
+    // only honest answer.
+    spy().mockImplementation(() => {
+      throw Object.assign(new Error('killed'), {
+        stdout: 'partial',
+        status: null,
+        signal: 'SIGKILL',
+      });
+    });
+    await expect(Effect.runPromise(execToolResult('cmd', [], '/cwd', 'tool'))).rejects.toThrow(
+      /tool could not run/,
+    );
+  });
 });
 
 describe('execTool', () => {

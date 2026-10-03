@@ -1,7 +1,7 @@
 import * as nodePath from 'node:path';
 import * as nodeFs from 'node:fs';
 import { Effect } from 'effect';
-import type { Rule, Violation } from '@gesetz/core';
+import type { Rule, ToolReplacement, Violation } from '@gesetz/core';
 import { execTool, runWithTempFile, FileFilter, ProjectRoot, resolveToolBin, resolveToolCwd } from '@gesetz/core';
 import { parseJUnitXml, junitToViolations } from '@gesetz/junit';
 
@@ -81,6 +81,14 @@ async function executePhpunit(
 
 export function phpunit(opts: PhpunitOptions = {}): Rule {
   const id = opts.id ?? 'phpunit';
+
+  /**
+   * What an agent would otherwise run. `gesetz skill` prints this, generated from
+   * the project's configuration so nothing has to be maintained by hand.
+   */
+  const replaces: ToolReplacement[] = [
+    { instead: 'vendor/bin/phpunit', use: 'gesetz check --rule phpunit' },
+  ];
   const description = opts.label ?? 'PHPUnit test suite';
   const defaultPatterns: string[] | null = opts.pattern
     ? Array.isArray(opts.pattern)
@@ -105,6 +113,7 @@ export function phpunit(opts: PhpunitOptions = {}): Rule {
 
   return {
     id,
+    replaces,
     description,
     run,
     category: opts.category,

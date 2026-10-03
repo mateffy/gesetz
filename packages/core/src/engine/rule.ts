@@ -5,7 +5,7 @@ import type { SyntaxBackendProcessResult } from '../services/syntax-tree';
 import type { ImportResolver } from '../services/import-resolver';
 
 export type Severity = 'error' | 'warn' | 'info';
-export type ViolationSource = 'core' | 'eslint' | 'phpstan' | 'oxlint' | 'custom';
+export type ViolationSource = 'core' | 'eslint' | 'phpstan' | 'oxlint' | 'tsc' | 'custom';
 
 export interface Violation {
   /** Rule ID — injected by the builder when absent. */
@@ -127,6 +127,22 @@ export interface RuleGuidance {
  */
 export type BaselineMessageMode = 'normalized' | 'exact';
 
+/**
+ * A command this rule makes unnecessary.
+ *
+ * Declared by the adapter that runs the tool, so the agent-facing recipe is generated
+ * from what a project actually configured rather than hand-maintained. `gesetz skill`
+ * prints it; nothing here changes what a run does.
+ */
+export interface ToolReplacement {
+  /** What an agent would otherwise run. Shown verbatim. */
+  readonly instead: string;
+  /** What to run so gesetz does it instead. */
+  readonly use: string;
+  /** A one-line caveat, when the equivalence is not exact. */
+  readonly note?: string | undefined;
+}
+
 export interface Rule {
   /** Stable kebab-case identifier, slugified from the human label */
   readonly id: string;
@@ -137,6 +153,11 @@ export interface Rule {
    * When set, violations roll up into a named category score (0–10).
    */
   readonly category?: RuleCategory | undefined;
+  /**
+   * Commands this rule replaces, for the agent-facing recipe. Additive: a rule that
+   * declares nothing keeps working, and a third-party adapter can opt in.
+   */
+  readonly replaces?: readonly ToolReplacement[] | undefined;
   /**
    * Agent-facing guidance for fixing violations.
    * Used by `gesetz list` and the `gesetz skill` command.

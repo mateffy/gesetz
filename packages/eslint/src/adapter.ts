@@ -1,6 +1,6 @@
 import * as nodePath from 'node:path';
 import { Effect } from 'effect';
-import type { Rule, Violation } from '@gesetz/core';
+import type { Rule, ToolReplacement, Violation } from '@gesetz/core';
 import { FileFilter, ProjectRoot, resolveToolCwd, toolScope, toolWatchPatterns } from '@gesetz/core';
 
 export interface EslintOptions {
@@ -118,6 +118,14 @@ async function executeEslint(
 
 export function eslint(opts: EslintOptions = {}): Rule {
   const id = opts.id ?? 'eslint';
+
+  /**
+   * What an agent would otherwise run. `gesetz skill` prints this, generated from
+   * the project's configuration so nothing has to be maintained by hand.
+   */
+  const replaces: ToolReplacement[] = [
+    { instead: 'eslint', use: 'gesetz check --rule eslint' },
+  ];
   const description = opts.label ?? 'ESLint';
   const defaultPatterns: string[] = opts.pattern
     ? Array.isArray(opts.pattern)
@@ -138,6 +146,7 @@ export function eslint(opts: EslintOptions = {}): Rule {
 
   return {
     id,
+    replaces,
     description,
     run,
     category: opts.category,

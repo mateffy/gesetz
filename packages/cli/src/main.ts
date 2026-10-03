@@ -31,6 +31,7 @@ import { RUNTIME, resolveStorage } from './storage';
 import { baselineCommand, loadBaseline } from './baseline';
 import { describeCoordination, requestKeyFor, resolveCoordinationKnobs } from './check-coordination';
 import { parseFileRequest, resolveCheckScope } from './check';
+import { renderReplacements } from './replacements';
 import { watchForChanges } from './watch';
 import { detectFormat, formatCategoryTable, formatCi, formatExemptionNotices, formatList, formatStatusBanner, formatViolations, type OutputFormat } from './format';
 import { formatEnvelope } from './envelope';
@@ -433,8 +434,30 @@ const listCommand = Command.make(
 const skillCommand = Command.make(
   'skill',
   {},
-  () => Console.log(SKILL_MARKDOWN),
-).pipe(Command.withDescription('Print agent skill markdown to stdout'));
+  () =>
+    Effect.gen(function* () {
+      yield* Console.log(SKILL_MARKDOWN.trimEnd());
+      // The recipe is generated from what this project actually configured, so an
+      // adapter that declares what it replaces shows up here and nothing has to be
+      // maintained by hand. Without a config there is nothing to generate from, and
+      // saying so beats printing a list that silently covers nothing.
+      const config = yield* loadConfig(process.cwd(), {
+        changedSince: undefined,
+        configPath: undefined,
+        projectRootOverride: false,
+      }).pipe(Effect.catchAll(() => Effect.succeed(null)));
+      yield* Console.log('');
+      yield* Console.log(
+        config === null
+          ? 'No gesetz config found here, so there is no list of configured tools below.'
+          : renderReplacements(config.rules),
+      );
+    }),
+).pipe(
+  Command.withDescription(
+    'Print agent skill markdown to stdout, including what the configured adapters replace',
+  ),
+);
 
 // ─── Root command ─────────────────────────────────────────────────────────────
 

@@ -497,21 +497,21 @@ repository can point it at its own script), parses `file(line,col): error TSxxxx
 message` into violations with `path` and `line`, and is **scoped by
 `toolWatchPatterns`** like every other adapter.
 
-- [ ] **Step 1 (failing test first):** a test that feeds a captured tsc output
+- [x] **Step 1 (failing test first):** a test that feeds a captured tsc output
       fixture through the parser and asserts one violation per diagnostic with path,
       line and message; plus a test that an *unparseable* report is an error
       violation, not silence.
-- [ ] **Step 2:** Confirm both fail (no module yet).
-- [ ] **Step 3:** Implement the parser as a pure exported function
+- [x] **Step 2:** Confirm both fail (no module yet).
+- [x] **Step 3:** Implement the parser as a pure exported function
       (`parseTscOutput(output, cwd)`) so it is testable without spawning anything,
       then the adapter around it, modelled on `packages/oxlint/src/adapter.ts`
       (same shape: `toolWatchPatterns`, `execTool`, an unreadable report is an error).
-- [ ] **Step 4:** Confirm the tests pass.
-- [ ] **Step 5:** No workspace edit is needed — `pnpm-workspace.yaml` declares
+- [x] **Step 4:** Confirm the tests pass.
+- [x] **Step 5:** No workspace edit is needed — `pnpm-workspace.yaml` declares
       `packages/*`, so a new directory is picked up automatically. Bump the package's
       version to match the others (currently `3.0.0-rc.7`) and add it to the root
       `package.json`'s publish list if one exists.
-- [ ] **Step 6 (manual acceptance):** in a scratch project with one type error,
+- [x] **Step 6 (manual acceptance):** in a scratch project with one type error,
       `check --rule tsc` reports exactly that error with its line, and `check`
       includes it alongside the other rules. **This adapter is a confirmed
       requirement, not a nice-to-have**: without it, the tool agents spawn most sits
@@ -577,7 +577,7 @@ tsc({ pattern: 'packages' })
 ]
 ```
 
-- [ ] **Step 1 (failing test first):** a pure renderer, tested without a CLI:
+- [x] **Step 1 (failing test first):** a pure renderer, tested without a CLI:
 
       ```ts
       // packages/cli/src/replacements.ts
@@ -612,23 +612,23 @@ tsc({ pattern: 'packages' })
       with two replacements renders both with their notes; and the last line about
       uncovered tools is always present.
 
-- [ ] **Step 2:** run it, confirm it fails to import.
+- [x] **Step 2:** run it, confirm it fails to import.
       ```bash
       cd packages/cli && npx vitest run tests/replacements.test.ts
       ```
       Expected: FAIL — cannot resolve `../src/replacements`.
-- [ ] **Step 3:** implement the renderer, then the `Rule.replaces` field, then the
+- [x] **Step 3:** implement the renderer, then the `Rule.replaces` field, then the
       declarations in the adapters, each with a test asserting the *ids and commands*
       (not the prose).
-- [ ] **Step 4:** generate it in `gesetz skill`. The `skill` command currently prints
+- [x] **Step 4:** generate it in `gesetz skill`. The `skill` command currently prints
       a constant; make it load the project config and append
       `renderReplacements(config.rules)`. A project with no config keeps working and
       prints only the static part plus the "nothing configured" sentence.
-- [ ] **Step 5 (manual acceptance):** in the pilot repo, run
+- [x] **Step 5 (manual acceptance):** in the pilot repo, run
       `bun x gesetz skill` and confirm the *configured* tools appear, in plain
       language, with the exact command to run — and that a tool with no adapter is
       absent, and the closing caveat about uncovered tools is there.
-- [ ] **Step 6:** update `packages/cli/src/skill.ts`'s prose so the generated section
+- [x] **Step 6:** update `packages/cli/src/skill.ts`'s prose so the generated section
       is introduced rather than duplicated: one sentence saying the list below is
       generated from this project's configuration.
 
@@ -953,8 +953,8 @@ node packages/cli/dist/main.js check --files 'packages/core/**' & \
 
 - [ ] Phase 0: capability audit
 - [x] Phase 1: rule filters (`--rule`)
-- [ ] Phase 2: a type-check rule (`@gesetz/tsc`)
-- [ ] Phase 3: adapters declare what they replace
+- [x] Phase 2: a type-check rule (`@gesetz/tsc`)
+- [x] Phase 3: adapters declare what they replace
 - [ ] Phase 4: the daemon core
 - [ ] Phase 5: change → work, incrementally
 - [ ] Phase 6: native tool modes
@@ -1010,4 +1010,69 @@ PTY test (11,512 ms timeout at load average 245, passes on retry) and this phase
 passed twice). Same class: a test must not fail because the machine is loaded. Reported,
 not filed — the issue tool was unavailable in this session.
 
-Next: Phase 2 (`@gesetz/tsc`), then Phase 3 (adapter replacements), then Phase 4.
+**2026-09-30 — Phase 2 complete (`@gesetz/tsc`).**
+
+- `packages/tsc/` — a new workspace package: `parseTscOutput` (pure), `tscArgs`
+  (pure), and `tsc(opts)` as a **project** rule scoped by `toolWatchPatterns`
+  (which includes `tsconfig*.json`, because editing the compiler's config changes
+  every answer the rule has). Registered in the workspace and the lockfile.
+- `ViolationSource` gained `'tsc'`, following the `'phpstan'`/`'oxlint'` convention.
+- `execToolResult` was added to `packages/core/src/engine/exec.ts`, with `execTool`
+  as a thin wrapper: it reports the exit **status** as well as the output. This was
+  not optional. `execTool` returns stdout for a non-zero exit — which is right, most
+  of these tools exit non-zero *because* they found something — but it meant a
+  checker that ran and found nothing and one that died before it looked were both
+  empty output. That is a fail-open in a shared seam, and only the status closes it.
+  A process killed by a signal still throws: partial output would be parsed as a
+  complete report.
+
+**Two bugs the acceptance runs caught, both worth recording:**
+
+1. **Globs passed to a tool that does not expand them.** The first run of
+   `--rule tsc` reported `error TS6054: File '**/*.{ts,tsx}' has an unsupported
+   extension`. The adapter was handing tsc its own *scope patterns* as file
+   arguments. Files, never patterns; and with no `--files` request, no file
+   arguments at all, so the project's tsconfig decides. `tscArgs` was extracted so
+   this decision has a test.
+2. **A JSDoc comment containing a literal glob closed itself.** `**/*.ts` inside a
+   block comment ends the comment at `*/`. Same trap as the backtick fences inside
+   the skill's string constant.
+
+Verified end to end in a scratch project with a real compiler: a type error is
+reported with its file and line (`src/a.ts:1`, `TS2322`); `--files src/clean.ts`
+reports nothing because that file is clean and only it was checked; and a
+`--project nope.json` run — where tsc produces no diagnostics at all and exits
+non-zero — is reported as "nothing was checked", never as a clean project.
+
+Noted: with the scoring model, one error in a category that has many rules can still
+show `status: pass`. The README now says to set a `minScore: 10` threshold for the
+category if type errors must block.
+
+**2026-09-30 — Phase 3 complete (adapters declare what they replace).**
+
+- `Rule.replaces?: readonly ToolReplacement[]` — one additive optional field, so an
+  adapter that declares nothing keeps working and a third-party adapter can opt in.
+- `packages/cli/src/replacements.ts` — `renderReplacements`, pure, with the closing
+  line that names what is **not** covered. A list of replacements otherwise reads as
+  "everything is covered", and an agent that assumes coverage stops looking.
+- `gesetz skill` now loads the project's config and appends the generated list. In a
+  project with no adapters it says so plainly rather than printing nothing.
+- Nine adapters declare: oxlint, vitest, tsc, phpstan, eslint, oxfmt, prettier,
+  phpunit, pest. Each declaration is pinned by a test asserting the ids and commands
+  — not the prose — because a declaration that drifts from what the adapter really
+  runs is a small lie told to every agent that reads the skill.
+- `skill.ts` gained a short leading section introducing the generated list.
+
+Verified in a scratch project that configured two adapters: `gesetz skill` prints
+`- \`oxlint\` → \`gesetz check --rule oxlint\``, `- \`tsc --noEmit\` → \`gesetz check
+--rule tsc\``, and the caveat. This repository's own config has no tool adapters, and
+there the document says so.
+
+**Two fail-open bugs fixed on the way** (pre-existing, and the reason `pest` and
+`bun-test` had failing tests): both adapters ignored a tool failure with
+`Effect.ignore` and turned an unreadable JUnit file into an empty string, so a missing
+binary produced a **clean run**. Both now report an error violation saying nothing was
+checked. Their tests were already written and failing; the fixes make them pass.
+
+Next: Phase 4 (the daemon core) — protocol, queue, server, lifecycle, client wiring,
+and the tri-state precedence table.

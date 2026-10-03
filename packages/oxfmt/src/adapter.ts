@@ -1,6 +1,6 @@
 import * as nodePath from 'node:path';
 import { Effect } from 'effect';
-import type { Rule, Violation } from '@gesetz/core';
+import type { Rule, ToolReplacement, Violation } from '@gesetz/core';
 import { FileFilter, ProjectRoot, execTool, resolveToolBin, resolveToolCwd, toolScope, toolWatchPatterns } from '@gesetz/core';
 
 export interface OxfmtOptions {
@@ -65,6 +65,14 @@ async function executeOxfmt(
 
 export function oxfmt(opts: OxfmtOptions = {}): Rule {
   const id = opts.id ?? 'oxfmt';
+
+  /**
+   * What an agent would otherwise run. `gesetz skill` prints this, generated from
+   * the project's configuration so nothing has to be maintained by hand.
+   */
+  const replaces: ToolReplacement[] = [
+    { instead: 'oxfmt --list-different .', use: 'gesetz check --rule oxfmt' },
+  ];
   const description = opts.label ?? 'oxfmt formatting';
   const defaultPatterns: string[] = opts.pattern
     ? Array.isArray(opts.pattern)
@@ -95,6 +103,7 @@ export function oxfmt(opts: OxfmtOptions = {}): Rule {
 
   return {
     id,
+    replaces,
     description,
     run,
     category: opts.category,

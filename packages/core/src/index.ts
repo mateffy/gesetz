@@ -1,16 +1,5 @@
 // ─── Core types ───────────────────────────────────────────────────────────────
-export type {
-  Violation,
-  Rule,
-  Check,
-  File,
-  Severity,
-  ViolationSource,
-  Exemption,
-  RuleCategory,
-  RuleGuidance,
-  CheckServices,
-} from './engine/rule';
+export type { Check, CheckServices, Exemption, File, Rule, RuleCategory, RuleGuidance, Severity, ToolReplacement, Violation, ViolationSource } from './engine/rule';
 
 // ─── Tagged errors ────────────────────────────────────────────────────────────
 export {
@@ -36,6 +25,7 @@ export { resolveChangedFiles } from './engine/rule-execution';
 // ─── Exec helpers ─────────────────────────────────────────────────────────────
 export {
   execTool,
+  execToolResult,
   runWithTempFile,
   extractLocation,
   resolveToolCwd,

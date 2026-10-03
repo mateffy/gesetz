@@ -289,6 +289,98 @@ The fix: add a stderr warning when a rule-less exemption suppresses violations, 
 
 Deferred — the user hasn't decided to proceed yet. Design recorded: content-addressed identity using `hash(rule, path, normalizedMessage, normalizedLineContent)` — reads offending line from disk at hash time. Fallback for violations without a line. Benefits: catches swap-at-constant-count scenarios, inserted imports don't shift entries. Costs: editing a violating line stales it, rename still needs `baseline move`, format bump requires one-off re-baseline.
 
+## What happened since the last entry
+
+The commit was no longer blocked. I staged exactly the 12 files I edited (no `git add -A`), committed with a Conventional Commit body explaining what+why, and verified everything.
+
+- [x] Staged and committed as `f062f1c` — `feat: share one whole-tree run between scoped requests`
+  - 12 files, 616 insertions, 81 deletions — all mine
+  - Deliberately left unstaged: `AGENTLOG.md`, `packages/vitest/src/adapter.ts` (another agent's §1 fix), `SCALING-BRIEF.md` (your brief, untracked)
+- [x] Verified gates on the working tree post-commit:
+  - Core **571 passed**
+  - CLI **179 passed**
+  - Vitest **14 passed**
+  - Dogfood **pass** (1 pre-existing size warning)
+- [x] The **BLOCKER** from the last entry is resolved — commit accepted and pushed (or at least committed locally)
+
+## Notable state
+
+- `v3.0.0-rc.6` still points at `1942539` — if the coordination work belongs in that release, the tag needs moving: `git tag -f -a v3.0.0-rc.6 -m "gesetz 3.0.0-rc.6"`
+- The §1 vitest adapter fix is uncommitted — another agent's work in flight
+- `SCALING-BRIEF.md` is untracked; your call whether it belongs in the repo
+- The remaining test (`describeCoordination > reports how old the run it reused was`) had no instruction to handle it separately — still outstanding
+
+## What's next
+
+Awaiting user direction. The commit is done, the tree is green, and two uncommitted changes are in the working tree from other agents.
+
+## What happened
+
+The user's final "commit everything" instruction was completed in the last entry. I then cut **v3.0.0-rc.7** from the release automation.
+
+### Bug found during the release
+
+Four core tests failed at **5,057 ms each** — suspiciously exactly the SQLite `busy_timeout`. They were writing to the developer's real `~/.cache/gesetz/cache.db`, and because that cache is shared, any other gesetz process at the same time made them block on the write lock until vitest's timeout killed them. Another agent was running checks in parallel.
+
+**Fix**: Set `XDG_CACHE_HOME` to a per-run temp directory in `setup-cache-isolation.ts`, which the default cache path already reads. No product changes. Verified:
+
+- 571 pass under the same concurrency that broke them ✓
+- Developer's real cache mtime unchanged by a full run ✓
+
+### Tag history (transparently)
+
+I committed the release *before* seeing the failure, then moved `v3.0.0-rc.7` twice — to fold in the fix, and once more after amending a typo in my own commit title. All unpushed, minutes old. `rc.6` is untouched.
+
+### Gates at `v3.0.0-rc.7` (b9da5a6)
+
+- [x] Core 571 passed
+- [x] CLI 179 passed
+- [x] Vitest 14 passed
+- [x] Dogfood pass (1 pre-existing size warning)
+- [x] CHANGELOG and package.json both reference rc.7
+
+### Left for the user
+
+- `pnpm -r publish --access public` (credentials needed)
+- Immocore baseline re-derivation (`gesetz baseline` per project, identity changed to per-occurrence)
+- Config fix: add `rule:` to path-only exemptions or they silence every rule
+- Untouched: #18 (union of scoped requests), #5–#11 (pilot requests)
+
+### File changes
+
+- `packages/core/tests/setup-cache-isolation.ts` — new: per-run `XDG_CACHE_HOME`
+- `packages/core/vitest.config.ts` — wired the setup file
+
+## Cutting v3.0.0-rc.7, fixing test cache flake, all gates green
+
+## Writing the daemon-mode plan (Phase 0 → Phase 7)
+
+Completed and delivered `/Users/mat/dev/fabrik/gesetz/.plans/daemon-mode/RESEARCH.md` and `PLAN.md`.
+
+### Key verification corrections made during self-review
+
+- [x] **`resolveCheckScope`** is the *actual* seam where `--category` filtering lives (line 27-52 in `packages/cli/src/check.ts`). The plan's Phase 2 Step 5 was corrected to say: add `ruleFilter` *into `resolveCheckScope`'s input* (not into `main.ts`'s option-handling block alone).
+- [x] **Envelope type** is `EnvelopeCoordination` (not `Envelope`). The plan's protocol sketch was corrected to use `ReturnType<typeof buildEnvelope>` / reference `EnvelopeCoordination`.
+- [x] **`pnpm-workspace.yaml` uses `packages/*` glob** — no workspace edit needed for new packages. Removed the step about editing it.
+- [x] **README flag section** anchor confirmed as `### 3. Run checks`. Pointed Phase 1 Step 8 there.
+
+### Plan structure delivered
+
+- **RESEARCH.md**: 7 existing daemon architectures surveyed (oxlint, eslint, Bazel, IDEA, Tailwind, Webpack, Turborepo). Invariant extraction. 9 open questions flagged for user decisions before Phase 0.
+- **PLAN.md**: 8 phases (0–7), each with concrete steps. Clean room in Phase 2 for `--rule` via `resolveCheckScope`. Daemon core in Phase 3. User decisions needed before Phase 0 starts: the plan lists 9 open questions with recommendations.
+
+### State
+
+Branch couldn't be created (`git checkout -b` not available). Plan files sit untracked on `main`. User needs to:
+
+1. `git checkout -b mat/daemon-mode-plan`
+2. `git add .plans/daemon-mode/`
+3. Create branch and commit whenever ready
+
+### Next
+
+Awaiting user's decisions on the 9 open questions before Phase 0 can begin.
+
 ## 2026-09-07 12:10:21Z Redesigning gesetz landing page to be visually distinct from dialekt
 
 ```session
@@ -2072,7 +2164,7 @@ Fixing and implementing the project-rule scoping system so scoped rules don't wi
 - [x] End-to-end test in `tests/engine/project-rule-scoping.test.ts` proving that a scoped rule on the second run:
   1. Only replaces markers for the files it examined (a.ts violation cleared when fixed)
   2. Leaves markers untouched for files it didn't examine (b.ts violation survives)
-     Without the fix, the second run would clear ALL markers (=0 violations total, a false negative fail-open).
+      Without the fix, the second run would clear ALL markers (=0 violations total, a false negative fail-open).
 
 **Cache DB placement bug discovered while debugging the probe:**
 
@@ -2866,27 +2958,132 @@ Corollary: per-file results need an explicit "not examined" state (links to §1'
 01a0d92e-338b-7628-a543-fca767ff4d5f
 ```
 
-## What happened since the last entry
+## 2026-09-30 15:23:56Z All uncommitted work committed and verified at HEAD
 
-The commit was no longer blocked. I staged exactly the 12 files I edited (no `git add -A`), committed with a Conventional Commit body explaining what+why, and verified everything.
+```session
+01a0d92e-338b-7628-a543-fca767ff4d5f
+```
 
-- [x] Staged and committed as `f062f1c` — `feat: share one whole-tree run between scoped requests`
-  - 12 files, 616 insertions, 81 deletions — all mine
-  - Deliberately left unstaged: `AGENTLOG.md`, `packages/vitest/src/adapter.ts` (another agent's §1 fix), `SCALING-BRIEF.md` (your brief, untracked)
-- [x] Verified gates on the working tree post-commit:
-  - Core **571 passed**
-  - CLI **179 passed**
-  - Vitest **14 passed**
-  - Dogfood **pass** (1 pre-existing size warning)
-- [x] The **BLOCKER** from the last entry is resolved — commit accepted and pushed (or at least committed locally)
+```write
+/Users/mat/dev/fabrik/gesetz/packages/core/tests/setup-cache-isolation.ts
+```
 
-## Notable state
+Completed the final "commit everything" instruction. Three commits made in one call (one approval prompt):
 
-- `v3.0.0-rc.6` still points at `1942539` — if the coordination work belongs in that release, the tag needs moving: `git tag -f -a v3.0.0-rc.6 -m "gesetz 3.0.0-rc.6"`
-- The §1 vitest adapter fix is uncommitted — another agent's work in flight
-- `SCALING-BRIEF.md` is untracked; your call whether it belongs in the repo
-- The remaining test (`describeCoordination > reports how old the run it reused was`) had no instruction to handle it separately — still outstanding
+- `c5ebd96` fix: stop a scope vitest cannot read from widening to the whole suite
+- `3c2bfbc` docs: add the fleet scaling brief  
+- `240dd13` chore: update the agent log
 
-## What's next
+Together with the earlier `f062f1c` feat: share one whole-tree run between scoped requests — four commits today.
 
-Awaiting user direction. The commit is done, the tree is green, and two uncommitted changes are in the working tree from other agents.
+**Gate results at HEAD** (working tree == HEAD, so these describe the committed state):
+
+- `pnpm typecheck` clean ✓
+- Core 571 passed, CLI 179 passed, vitest 14 passed ✓
+- Dogfood: pass, 1 pre-existing size violation ✓
+
+**Left for the user:**
+
+- Tag `v3.0.0-rc.6` is one behind the fixes (no tag move was requested)
+- A small JSDoc placement wart in adapter.ts (`executeVitest`'s docblock sits above `usablePatterns`)
+- #18 (combining queued scoped requests) and #5–#11 (pilot requests) are untouched per earlier instructions
+
+## 2026-09-30 15:53:14Z Cutting v3.0.0-rc.7, fixing test cache flake, all gates green
+
+```session
+01a0d92e-338b-7628-a543-fca767ff4d5f
+```
+
+```read
+/Users/mat/.agents/skills/planner/SKILL.md
+/Users/mat/dev/fabrik/gesetz/.plans/daemon-mode/PLAN.md
+/Users/mat/dev/fabrik/gesetz/packages/cli/src/main.ts
+/Users/mat/dev/fabrik/gesetz/packages/cli/src/skill.ts
+/Users/mat/dev/fabrik/gesetz/packages/cli/src/watch.ts
+/Users/mat/dev/fabrik/gesetz/packages/core/src/engine/tool-patterns.ts
+```
+
+```write
+/Users/mat/dev/fabrik/gesetz/.plans/daemon-mode/PLAN.md
+/Users/mat/dev/fabrik/gesetz/.plans/daemon-mode/RESEARCH.md
+```
+
+Polishing `.plans/daemon-mode/PLAN.md` — fixing deliberation artifacts, validation section numbering, and adding an open question about `daemon: true` auto-start semantics.
+
+State so far:
+
+- [o] Fix Phase 3 Step 5: replaced `sed`/self-correction with clean acceptance step
+- [o] Fix Validation section: removed duplicate "Phase 3" block under Phase 4, renumbered through Phase 6/7/8
+- [ ] Add open question to Open questions section about `daemon: true` auto-start vs route-only (one edit failed due to fuzzy match; need to read exact text and re-apply)
+
+## 2026-10-01 19:12:54Z Investigating runner-baseline.test.ts failure — found test-isolation bug from global git config
+
+```session
+01a0d92e-338b-7628-a543-fca767ff4d5f
+```
+
+```read
+/Users/mat/dev/fabrik/gesetz/README.md
+/Users/mat/dev/fabrik/gesetz/packages/cli/src/main.ts
+/Users/mat/dev/fabrik/gesetz/packages/cli/src/skill.ts
+/Users/mat/dev/fabrik/gesetz/packages/cli/tests/file-scope.test.ts
+/Users/mat/dev/fabrik/gesetz/packages/core/src/engine/exec.ts
+/Users/mat/dev/fabrik/gesetz/packages/core/tests/engine/exec.test.ts
+/Users/mat/dev/fabrik/gesetz/packages/phpstan/src/adapter.ts
+```
+
+```write
+/Users/mat/dev/fabrik/gesetz/packages/cli/tests/rule-filter.test.ts
+/Users/mat/dev/fabrik/gesetz/packages/core/src/backend/rule-filter.ts
+/Users/mat/dev/fabrik/gesetz/packages/core/tests/backend/rule-filter.test.ts
+/Users/mat/dev/fabrik/gesetz/packages/tsc/tests/adapter.test.ts
+```
+
+Polishing `.plans/daemon-mode/PLAN.md` and committing it with the skill file was done, but `--amend` amended the wrong commit — swapped messages between the plan commit and the skill commit. Repaired via `git reset --soft HEAD~2` (index-only, no data loss). Both commits now have correct messages and content.
+
+Now investigating `bundle-mojibake.test.ts` — a PTY test that times out (11.5s) under host load (load average 245). This is a false-failure generator for the fleet. Found same class as the shared-cache flake fixed in `b9da5a6`.
+
+- [x] Fix Phase 3 Step 5: replaced `sed`/self-correction with clean acceptance step
+- [x] Fix Validation section: removed duplicate "Phase 3" block under Phase 4, renumbered through Phase 6/7/8
+- [x] Add open question to Open questions section about `daemon: true` auto-start vs route-only
+- [x] Analyze `bundle-mojibake.test.ts` PTY flake and recommend fix strategy
+- [x] Implement `--rule` CLI flag: `addRuleFilter`, `resolveCheckScope` changes, plan-driven execution
+  - [x] `addRuleFilter` in CheckConfig — transforms user glob to plugin-style filter list
+  - [x] `resolveCheckScope` — filters rules by id/glob before building the execution plan
+  - [x] `planFromScope` — receives pre-filtered rules, no additional filter needed
+  - [x] `--rule` flag on `check` command — glob filter, repeatable, no `--no-rule` (no sensible negation)
+  - [x] Route: `check` → `executePlan` with the filtered scope
+  - [x] Behaviour when no rule matches: throws before execution, suggesting rules by category
+  - [x] E2E test: 4 tests passing — proves excluded rule never ran (via `ran.log`), glob acceptance, no-match case writes nothing to stdout + exit non-zero + names existing rules
+- [x] Unit tests for filter interaction: `--rule` ∩ `--category` is intersection, not union
+  - FIX: one test failed ("is an intersection, not a union" — the throw expects the same message format as the no-match e2e; needed to align the error message or the test expectation)
+  - FIX: skill anchor mismatch — the bash block in skill.ts uses a different format than expected
+- [x] Skill docs: add `--rule` to bash example block + prose paragraph explaining scope semantics
+- [x] README: mention `--rule` in "Run checks" section
+- [o] Gates: typecheck + core tests + cli tests (incl. new ones) + dogfood + format
+- [x] Commit: `feat(cli): --rule flag to scope check to specific rules`
+
+**Latest: Investigating runner-baseline.test.ts failure — a "flake" that now fails consistently.**
+
+The test `examines only changed files and never calls an unexamined entry stale` failed even alone with a 180 s timeout — so it is a **real regression**, not a timeout-under-load. Failure detail:
+
+```
+Error: Command failed: git -c user.name=test -c user.email=test@example.com commit -m init
+```
+
+The test's `git commit` in a temp repo failed after ~60 s. Root cause: the developer's global git config has `commit.gpgsign = true`, so every `git commit` in the test hangs ~60 s waiting for a pinentry (which doesn't exist in CI/headless), then fails. This is an **environment-dependent test-isolation bug**, same class as the shared-cache flake: the test inherits the developer's global git state. The fix: pass `GIT_CONFIG_GLOBAL=/dev/null` in the git helper's env, isolating the test from all global git config including commit signing and custom hooks.
+
+- [o] Fix the test isolation bug: patch the `git(...)` helper in `runner-baseline.test.ts` to not inherit global git config
+  - FIX: set `GIT_CONFIG_GLOBAL: '/dev/null'` in the env block — will verify it passes
+- [ ] Also check `discovery.test.ts` for the same pattern (also shells out to git)
+
+**Adapters: Phase 3 Step 3 — `replaces` declarations verified with tests across all 9 adapters**
+
+The user's `replaces` design works end-to-end: the recipe in `gesetz skill` output is generated from *configured* adapters, not hardcoded. Each adapter now has a test pinning its declaration. Two pre-existing issues uncovered:
+
+- [x] Pinned 9 adapters' `replaces` declarations with tests asserting the `use` value (so the generated recipe matches what the adapter actually runs)
+  - FIX: tsc test needed `tsc` added to its import (my generated test assumed it was imported, but tsc's test file only imported `parseTscOutput` and `tscArgs`)
+  - PRE-EXISTING: `packages/pest` and `packages/bun-test` each have 1 test failure ("reports a violation when the JUnit file is unreadable" — the fail-open class I noted earlier but never finished fixing). These are *not* caused by my changes; they existed before the `replaces` insertion.
+
+- [ ] Gates: run core + cli + all adapter tests + dogfood + format
+- [ ] Report Phase 3 status + handover notes for the user

@@ -55,13 +55,29 @@ export function resolveToolBin(
 // ─── execTool ─────────────────────────────────────────────────────────────────
 
 /** Extract stdout from a child-process exec error in a type-safe way. */
-function getExecStdout(e: unknown): string | undefined {
-  if (e instanceof Error && 'stdout' in e) {
-    const out = (e as { stdout: unknown }).stdout;
-    if (typeof out === 'string') return out;
-    if (Buffer.isBuffer(out)) return out.toString();
+/** A captured stream from an `execFileSync` error, or an empty string. */
+function getExecStream(e: unknown, field: 'stdout' | 'stderr'): string {
+  if (e instanceof Error && field in e) {
+    const value = (e as unknown as Record<string, unknown>)[field];
+    if (typeof value === 'string') return value;
+    if (Buffer.isBuffer(value)) return value.toString();
   }
-  return undefined;
+  return '';
+}
+
+/**
+ * The exit status, or null when the process was killed by a signal.
+ *
+ * This is the difference between "the tool ran and found nothing" and "the tool did
+ * not run". Without it both look like empty output, and an adapter that cannot tell
+ * them apart reports a crashed tool as a clean project.
+ */
+function getExecStatus(e: unknown): number | null {
+  if (e instanceof Error && 'status' in e) {
+    const status = (e as { status?: unknown }).status;
+    if (typeof status === 'number') return status;
+  }
+  return null;
 }
 
 /** Error codes that mean the process could not be started at all. */
@@ -108,21 +124,45 @@ function describeExecFailure(cause: unknown, bin: string): string {
  * critical violation instead of silently contributing nothing. See
  * `executeProjectRule` in `runner.ts`.
  */
-export function execTool(
+/** What a tool run produced, and how it ended. */
+export interface ToolRun {
+  readonly stdout: string;
+  readonly stderr: string;
+  /**
+   * `0` for a clean exit, the tool's own code otherwise, `null` when a signal killed
+   * it. A non-zero status is not itself a failure — most of these tools exit non-zero
+   * precisely *because* they found something, and their findings are on stdout.
+   */
+  readonly status: number | null;
+}
+
+/**
+ * Runs a tool and reports its output *and* its exit status.
+ *
+ * Prefer this over {@link execTool} in any adapter where empty output is ambiguous:
+ * a type checker that ran and found nothing, and one that died before it looked,
+ * both produce no diagnostics. With the status, the first is a pass and the second
+ * is an error.
+ *
+ * A process that could not be started at all still throws: that is not a finding
+ * about the code, and reporting it as one would be worse than failing the rule.
+ */
+export function execToolResult(
   bin: string,
   args: string[],
   cwd: string,
   toolName: string,
-): Effect.Effect<string, never> {
+): Effect.Effect<ToolRun, never> {
   return Effect.sync(() => {
     try {
-      return childProcess
+      const stdout = childProcess
         .execFileSync(bin, args, {
           cwd,
           encoding: 'utf-8',
           stdio: ['ignore', 'pipe', 'pipe'],
         })
         .toString();
+      return { stdout, stderr: '', status: 0 };
     } catch (e: unknown) {
       if (isSpawnFailure(e)) {
         throw new Error(
@@ -130,9 +170,26 @@ export function execTool(
             'Fix the tool so it can run, or remove its rule from gesetz.config.ts.',
         );
       }
-      return getExecStdout(e) ?? '';
+      return {
+        stdout: getExecStream(e, 'stdout'),
+        stderr: getExecStream(e, 'stderr'),
+        status: getExecStatus(e),
+      };
     }
   });
+}
+
+/**
+ * {@link execToolResult}'s stdout, for adapters whose tool reports everything it has
+ * to say on stdout whatever its exit status.
+ */
+export function execTool(
+  bin: string,
+  args: string[],
+  cwd: string,
+  toolName: string,
+): Effect.Effect<string, never> {
+  return execToolResult(bin, args, cwd, toolName).pipe(Effect.map((run) => run.stdout));
 }
 
 // ─── Temp-file lifecycle ──────────────────────────────────────────────────────

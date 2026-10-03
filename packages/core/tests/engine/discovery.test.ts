@@ -14,7 +14,12 @@ import { select } from '../../src/primitives/select';
 import { noCycles } from '../../src/primitives/graph';
 
 function gitInit(path: string): void {
-  execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: path });
+  // Isolated from the developer's git configuration: a global `commit.gpgsign`, a
+  // hooks path, or a default branch setting must not change what this test observes.
+  execFileSync('git', ['init', '-q', '-b', 'main'], {
+    cwd: path,
+    env: { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_SYSTEM: '/dev/null' },
+  });
 }
 
 describe('discoverCandidateFiles (plain directory)', () => {

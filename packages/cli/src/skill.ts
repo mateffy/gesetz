@@ -117,6 +117,12 @@ print(collections.Counter(v['rule'] for v in d['violations']).most_common())"
 check cheap: only the rules that can match the request run, and the external tools
 are given only those files. \`--category <name>\` narrows to one category.
 
+### Calling tools through gesetz
+
+The list at the end of this document is generated from *this project's*
+configuration: it names the commands your configured adapters replace, and says so if
+a tool is not covered. Use it rather than the tool's own command line.
+
 ### Several agents, one working tree
 
 \`gesetz check\` coordinates with other checks running in the same worktree. A

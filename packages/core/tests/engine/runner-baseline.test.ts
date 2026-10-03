@@ -190,7 +190,17 @@ function git(...args: string[]): void {
   execFileSync('git', args, {
     cwd: dir,
     stdio: 'ignore',
-    env: { ...process.env, GIT_AUTHOR_NAME: 'test', GIT_AUTHOR_EMAIL: 'test@example.com' },
+    env: {
+      ...process.env,
+      GIT_AUTHOR_NAME: 'test',
+      GIT_AUTHOR_EMAIL: 'test@example.com',
+      // The developer's git configuration is not part of this test. A global
+      // `commit.gpgsign = true` makes this commit hang on a pinentry prompt for a
+      // minute and then fail — which reads as a broken baseline and is really a
+      // machine setting. Signing, hooks and default branches are all excluded here.
+      GIT_CONFIG_GLOBAL: '/dev/null',
+      GIT_CONFIG_SYSTEM: '/dev/null',
+    },
   });
 }
 
