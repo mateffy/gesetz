@@ -5,6 +5,59 @@ All notable changes to **Gesetz** and the `@gesetz/*` packages are documented he
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.0-rc.8] — 2026-10-03
+
+> Two capabilities that were missing for a fleet: an agent can now run **one rule
+> group** ("just the type checker"), and a type error is now a finding like any
+> other. Nothing here needs a daemon — the daemon plan is in `.plans/daemon-mode/`.
+
+### Added
+
+- **`gesetz check --rule <ids>`.** A scope, like `--files`: the rules it leaves out
+  do not run at all, so a filtered run has decided nothing about them. Globs work
+  (`--rule 'no-*'`), `--rule` and `--category` intersect, and a filter that matches
+  no rule is **refused**, naming the rules that exist — a run that checks nothing
+  must not look like a run that found nothing.
+- **`@gesetz/tsc`** — run the TypeScript compiler as a project rule, so type errors
+  carry a file, a line, a category score and a baseline entry. `bin` (use
+  `vue-tsc`), `args` (use `--project`), `cwd`, `pattern`, `id`, `category`. A
+  compiler that ran and found nothing and one that never ran both produce no
+  diagnostics; the second is an error violation naming the exit status, never a
+  clean project.
+- **`gesetz skill` prints the recipe for the adapters a project configured**:
+  adapters declare the commands they replace (`Rule.replaces`), and the list is
+  generated rather than maintained. Nine adapters declare one. The list ends by
+  naming that unlisted tools are **not** covered.
+- `execToolResult` in `@gesetz/core`: a tool's stdout, stderr and exit status.
+  `execTool` remains a thin wrapper over it.
+
+### Fixed
+
+- **A missing test binary produced a clean run.** The `pest` and `bun-test`
+  adapters ignored the tool's failure and turned an unreadable JUnit report into an
+  empty string. Both now report an error violation saying nothing was checked.
+- **Two test files inherited the developer's git configuration**, where
+  `commit.gpgsign = true` turned a sixty-second pinentry hang into what looked like
+  a broken baseline. Isolated from global and system git config: 64.98 s → 5.74 s.
+- The type-check adapter no longer passes globs to a tool that does not expand
+  them, and with no `--files` request it passes no file arguments at all, so the
+  project's `tsconfig.json` decides what is checked.
+
+### Known issues
+
+- `@gesetz/sqlite-compat`'s `accepts a commonjs and an esm module shape` test fails:
+  a store created from a directly-passed constructor reads a value back as `null`.
+  Pre-existing since `3.0.0-rc.6`, unrelated to this release's content (the package
+  is a `better-sqlite3` compatibility shim, not part of the check path), and known
+  rather than hidden. Everything else in the suite passes.
+
+### Documentation
+
+- `.plans/daemon-mode/` — the design for a per-project daemon that watches the
+  files the config selects, keeps the cache hot, and answers agents' requests, so a
+  fleet shares one scan instead of twenty. Phases 1–3 are implemented and marked
+  done there.
+
 ## [3.0.0-rc.7] — 2026-09-30
 
 > `rc.6` taught several agents to share one worktree; this candidate teaches them
