@@ -88,6 +88,14 @@ export interface UserConfig {
    * `.gesetz-baseline.json` in the project root.
    */
   readonly baseline?: BaselineConfig | undefined;
+  /**
+   * Route `check` through a daemon when one is running, in this project.
+   *
+   * Off by default. Setting it true does **not** start a daemon — a background
+   * process nobody asked for outlives the command that summoned it — it only says
+   * that a running one may be used. `--daemon` and `--no-daemon` override it per run.
+   */
+  readonly daemon?: boolean | undefined;
 }
 
 export interface ResolvedConfig {
@@ -102,6 +110,14 @@ export interface ResolvedConfig {
   readonly adapters: readonly SyntaxBackend[];
   /** Undefined means "not specified" — the caller picks the default. */
   readonly storage: GesetzStorageConfig | undefined;
+  /**
+   * Whether `check` should route through a daemon when one is running. Off unless a
+   * project opts in; `--daemon` and `--no-daemon` override it per run. The daemon is
+   * never started implicitly — `gesetz daemon start` is the only thing that starts
+   * one, because a background process nobody asked for outlives the command that
+   * summoned it.
+   */
+  readonly daemon: boolean;
 }
 
 /**
@@ -125,6 +141,7 @@ export function defineConfig(config: UserConfig): ResolvedConfig {
     exemptions: config.exemptions ?? [],
     baseline: config.baseline ?? {},
     changedSince: config.changedSince,
+    daemon: config.daemon ?? false,
     thresholds: config.thresholds ?? [],
     adapters: config.adapters ?? [],
     // A relative cache path is project-relative, like every other path here.

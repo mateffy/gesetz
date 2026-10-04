@@ -50,6 +50,7 @@ export interface CheckSpec {
 
 export type DaemonRequest =
   | { readonly v: 1; readonly id: string; readonly kind: 'status' }
+  | { readonly v: 1; readonly id: string; readonly kind: 'shutdown' }
   | {
       readonly v: 1;
       readonly id: string;
@@ -72,6 +73,18 @@ export type DaemonResponse<TEnvelope = unknown> =
       readonly v: 1;
       readonly id: string;
       readonly ok: true;
+      /** A health probe or a shutdown, which carry their own small payload. */
+      readonly kind: 'control';
+      readonly envelope: unknown;
+      readonly checksNotRun: readonly string[];
+      readonly computedAt: number;
+    }
+  | {
+      readonly v: 1;
+      readonly id: string;
+      readonly ok: true;
+      /** A check, whose payload is whatever the caller's engine produces. */
+      readonly kind: 'check';
       readonly envelope: TEnvelope;
       readonly servedFrom: 'recomputed' | 'cache' | 'mixed';
       readonly checksNotRun: readonly string[];
@@ -137,7 +150,7 @@ export function decodeRequest(line: string): DaemonRequest | { readonly error: s
   if (typeof id !== 'string' || id === '') return { error: 'request.id is required' };
 
   const kind = parsed['kind'];
-  if (kind === 'status') return { v: 1, id, kind: 'status' };
+  if (kind === 'status' || kind === 'shutdown') return { v: 1, id, kind };
   if (kind !== 'check') return { error: `unknown request kind ${String(kind)}` };
 
   const spec = parseCheckSpec(parsed['spec']);
@@ -167,18 +180,25 @@ export function decodeResponse<TEnvelope>(line: string): DaemonResponse<TEnvelop
     return { v: 1, id, ok: false, error: typeof parsed['error'] === 'string' ? parsed['error'] : 'unknown error' };
   }
   if (parsed['ok'] !== true) return { error: 'response.ok must be true or false' };
-  const servedFrom = parsed['servedFrom'];
-  if (servedFrom !== 'recomputed' && servedFrom !== 'cache' && servedFrom !== 'mixed') {
-    return { error: `unknown servedFrom ${String(servedFrom)}` };
-  }
   const checksNotRun = parsed['checksNotRun'];
   if (!isStringArray(checksNotRun)) return { error: 'response.checksNotRun must be an array' };
   const computedAt = parsed['computedAt'];
   if (typeof computedAt !== 'number') return { error: 'response.computedAt must be a number' };
+
+  const kind = parsed['kind'];
+  if (kind === 'control') {
+    return { v: 1, id, ok: true, kind: 'control', envelope: parsed['envelope'], checksNotRun, computedAt };
+  }
+  if (kind !== 'check') return { error: `unknown response kind ${String(kind)}` };
+  const servedFrom = parsed['servedFrom'];
+  if (servedFrom !== 'recomputed' && servedFrom !== 'cache' && servedFrom !== 'mixed') {
+    return { error: `unknown servedFrom ${String(servedFrom)}` };
+  }
   return {
     v: 1,
     id,
     ok: true,
+    kind: 'check',
     envelope: parsed['envelope'] as TEnvelope,
     servedFrom,
     checksNotRun,

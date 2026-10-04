@@ -2,7 +2,7 @@ import { describe, expect, it, beforeEach, afterEach } from 'vitest';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import * as nodePath from 'node:path';
-import { askDaemon } from '../../../src/engine/daemon/client';
+import { askDaemon, daemonStatus, stopDaemon } from '../../../src/engine/daemon/client';
 import { ensureSocketDir, socketPathFor } from '../../../src/engine/daemon/lifecycle';
 
 import { startDaemonServer } from '../../../src/engine/daemon/server';
@@ -80,12 +80,39 @@ describe('askDaemon', () => {
   it('reads the status the daemon reports', async () => {
     const server = await startDaemonServer({ socketPath: socketPathFor(dir), runner: fakeRunner() });
     try {
-      const answer = await askDaemon<{ pid: number; answered: number }>(socketPathFor(dir), { v: 1, id: 's', kind: 'status' });
-      if (answer === null || !answer.ok) throw new Error('expected a status');
-      expect(answer.envelope.pid).toBe(process.pid);
-      expect(answer.envelope.answered).toBe(0);
+      const answer = await askDaemon<never>(socketPathFor(dir), { v: 1, id: 's', kind: 'status' });
+      if (answer === null || !answer.ok || answer.kind !== 'control') {
+        throw new Error('expected a control answer');
+      }
+      // A control answer's payload is not a check result, which is why it is typed
+      // separately: the discriminator has to be checked before reading it.
+      const status = answer.envelope as { pid: number; answered: number };
+      expect(status.pid).toBe(process.pid);
+      expect(status.answered).toBe(0);
     } finally {
       await server.close();
     }
   });
+});
+
+describe('control helpers', () => {
+  it('reports a running daemon and stops it', async () => {
+    const server = await startDaemonServer({ socketPath: socketPathFor(dir), runner: fakeRunner() });
+    const status = await daemonStatus(socketPathFor(dir));
+    expect(status?.pid).toBe(process.pid);
+    expect(status?.answered).toBe(0);
+
+    expect(await stopDaemon(socketPathFor(dir))).toBe(true);
+    // The daemon closes itself, and says so first: the caller learns the request
+    // arrived rather than guessing from a dead socket.
+    await new Promise((resolve) => setTimeout(resolve, 120));
+    expect(await daemonStatus(socketPathFor(dir))).toBeNull();
+    await server.close().catch(() => undefined);
+  }, 20_000);
+
+  it('reports nothing for a daemon that is not there', async () => {
+    expect(await daemonStatus(socketPathFor(dir))).toBeNull();
+    expect(await stopDaemon(socketPathFor(dir))).toBe(false);
+  });
+
 });

@@ -13,6 +13,7 @@ import { NodeContext, NodeRuntime } from '@effect/platform-node';
 import { Console, Effect, Option } from 'effect';
 import * as nodePath from 'node:path';
 import {
+  askDaemon,
   baselinePathFor,
   coordinateRun,
   defaultCachePath,
@@ -21,6 +22,7 @@ import {
   narrowRunResult,
   resolveChangedFiles,
   runAll,
+  socketPathFor,
   sqliteUnavailableMessage,
   type BaselineFile,
   type CoordinationOutcome,
@@ -28,10 +30,17 @@ import {
 } from '@gesetz/core';
 import { loadConfig } from './load-config';
 import { RUNTIME, resolveStorage } from './storage';
+import type { CheckSpec } from '@gesetz/core';
 import { baselineCommand, loadBaseline } from './baseline';
+import { daemonCommand } from './daemon';
 import { describeCoordination, requestKeyFor, resolveCoordinationKnobs } from './check-coordination';
 import { parseFileRequest, resolveCheckScope } from './check';
+import { askDaemonForCheck } from './daemon-ask';
+import { resolveDaemonMode } from './daemon-mode';
 import { skillCommand } from './skill-command';
+
+/** How long a check waits on a daemon before running the work itself. */
+const DAEMON_WAIT_MS = 120_000;
 import { watchForChanges } from './watch';
 import { detectFormat, formatCategoryTable, formatCi, formatExemptionNotices, formatList, formatStatusBanner, formatViolations, type OutputFormat } from './format';
 import { formatEnvelope } from './envelope';
@@ -97,6 +106,14 @@ const checkCommand = Command.make(
       Options.withDescription(
         'Fail hard when a rule or tool adapter cannot run, instead of reporting a critical violation',
       ),
+      Options.withDefault(false),
+    ),
+    daemon: Options.boolean('daemon').pipe(
+      Options.withDescription('Use a running daemon for this check, whatever the config says'),
+      Options.withDefault(false),
+    ),
+    noDaemon: Options.boolean('no-daemon').pipe(
+      Options.withDescription('Do not use a daemon, whatever the config says'),
       Options.withDefault(false),
     ),
     standalone: Options.boolean('standalone').pipe(
@@ -239,9 +256,66 @@ const checkCommand = Command.make(
 
       let lastScan: { added: number; changed: number } | null = null;
 
+      // Ask a daemon when this project opted in and one is running. Every failure —
+      // no socket, no answer, an error — falls through to the direct path below, which
+      // produces the same answer for more work. `askDaemonForCheck` always returns a
+      // line to print, because a silent fallback hides a daemon that is not earning
+      // its keep.
+      let daemonResult: RunResult | null = null;
+      if (
+        resolveDaemonMode({
+          configDaemon: config.daemon,
+          flagDaemon: opts.daemon,
+          flagNoDaemon: opts.noDaemon,
+          flagStandalone: standalone,
+        }) === 'on'
+      ) {
+        const asked = yield* Effect.promise(() =>
+          askDaemonForCheck({
+            socketPath: socketPathFor(root),
+            spec: {
+              instanceKey: requestKeys.instanceKey,
+              scope: { files: fileRequest, since: changedSince ?? null },
+              rules: ruleFilter,
+              categories:
+                Option.getOrUndefined(opts.category)
+                  ?.split(',')
+                  .map((entry) => entry.trim())
+                  .filter((entry) => entry !== '') ?? null,
+              baseline: baseline === null ? 'ignore' : 'apply',
+            },
+            waitMs: DAEMON_WAIT_MS,
+          }),
+        );
+        daemonResult = asked.result;
+        yield* Console.error(asked.notice);
+      }
+
+      /**
+       * A daemon answer, wearing the shape the rest of this command already handles.
+       * `standalone` is the honest label: nothing coordinated, nothing waited, nothing
+       * reused here — the work happened somewhere else.
+       */
+      const daemonOutcome = (result: RunResult): CoordinationOutcome<RunResult> => ({
+        result,
+        mode: 'standalone',
+        waitedMs: 0,
+        runMs: 0,
+        runAgeMs: 0,
+        listeners: 0,
+        recheckedFiles: 0,
+        events: [],
+      });
+
       const runAndRender: Effect.Effect<CoordinationOutcome<RunResult>> = Effect.gen(function* () {
-        const outcome = yield* Effect.promise(() =>
-          coordinateRun({
+        // A daemon answer replaces the *work*, not the reporting. Both paths end in
+        // the same `outcome`, which is why the rendering below is written once — and
+        // why this is a substitution rather than an early return, which would have
+        // silently skipped the output entirely.
+        const outcome = yield* (daemonResult !== null
+          ? Effect.succeed(daemonOutcome(daemonResult))
+          : Effect.promise(() =>
+              coordinateRun({
             root,
             requestKey: requestKeys.instanceKey,
             scopeKey: requestKeys.scopeKey,
@@ -268,8 +342,8 @@ const checkCommand = Command.make(
                   },
                 ),
               ),
-          }),
-        );
+              }),
+            ));
 
         // A record from a whole-tree run examined everything, so it can answer this
         // scoped request — narrowed to what was asked. A record from another narrow
@@ -436,7 +510,14 @@ const gesetzCommand = Command.make('gesetz', {}, () =>
   Console.log('Run `gesetz --help` to see available commands.'),
 ).pipe(
   Command.withDescription('Unified code quality gate \u2014 Gesetz v0.1.0'),
-  Command.withSubcommands([checkCommand, baselineCommand, listCommand, skillCommand, initCommand]),
+  Command.withSubcommands([
+    checkCommand,
+    baselineCommand,
+    listCommand,
+    skillCommand,
+    initCommand,
+    daemonCommand,
+  ]),
 );
 
 // ─── Entry point ─────────────────────────────────────────────────────────────

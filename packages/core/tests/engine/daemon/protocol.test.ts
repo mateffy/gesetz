@@ -88,7 +88,16 @@ describe('decodeRequest', () => {
 });
 
 describe('decodeResponse', () => {
-  const ok = { v: 1, id: 'a', ok: true, envelope: { total: 1 }, servedFrom: 'recomputed', checksNotRun: [], computedAt: 5 };
+  const ok = {
+    v: 1,
+    id: 'a',
+    ok: true,
+    kind: 'check',
+    envelope: { total: 1 },
+    servedFrom: 'recomputed',
+    checksNotRun: [],
+    computedAt: 5,
+  } as const;
 
   it('round-trips a successful response with its opaque envelope', () => {
     expect(decodeResponse(encodeLine(ok).trimEnd())).toEqual(ok);
@@ -108,9 +117,27 @@ describe('decodeResponse', () => {
     ['a missing computedAt', { ...ok, computedAt: undefined }],
     ['checksNotRun that is not an array', { ...ok, checksNotRun: 'none' }],
     ['a missing ok', { v: 1, id: 'a' }],
+    ['a response with no kind', { v: 1, id: 'a', ok: true, envelope: {}, checksNotRun: [], computedAt: 5 }],
+    ['an unknown kind', { ...ok, kind: 'guess' }],
   ])('refuses %s', (_label, value) => {
     const decoded = decodeResponse(JSON.stringify(value));
     expect(isDecodeError(decoded)).toBe(true);
+  });
+
+  it('round-trips a control response, whose payload is not a check result', () => {
+    // Two shapes under one type: a health probe carries a pid and counters, a check
+    // carries an envelope. The `kind` discriminator is what stops a caller treating
+    // one as the other.
+    const control = {
+      v: 1,
+      id: 's',
+      ok: true,
+      kind: 'control',
+      envelope: { pid: 1, queued: 0 },
+      checksNotRun: [],
+      computedAt: 2,
+    };
+    expect(decodeResponse(encodeLine(control).trimEnd())).toEqual(control);
   });
 
   it('does not mistake an error response for a malformed line', () => {

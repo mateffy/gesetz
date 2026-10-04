@@ -207,6 +207,7 @@ export {
   MAX_RESPONSE_BYTES,
   MAX_SOCKET_PATH,
   askDaemon,
+  daemonStatus,
   createLimiter,
   daemonDirFor,
   decodeRequest,
@@ -220,6 +221,7 @@ export {
   socketExists,
   socketPathFor,
   startDaemonServer,
+  stopDaemon,
 } from './engine/daemon/index';
 export type {
   AskOptions,

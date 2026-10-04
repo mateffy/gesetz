@@ -19,6 +19,13 @@ export interface AskOptions {
 const DEFAULTS = { connectTimeoutMs: 1_000, responseTimeoutMs: 120_000 } as const;
 
 /**
+ * Control requests are quick or they are not happening. A health probe and a shutdown
+ * both answer from memory, so seconds — not the minutes a check may legitimately take.
+ */
+const CONTROL_CONNECT_TIMEOUT_MS = 500;
+const CONTROL_RESPONSE_TIMEOUT_MS = 5_000;
+
+/**
  * Sends one request and returns its answer, or null when the daemon could not be
  * reached at all.
  *
@@ -70,4 +77,35 @@ export async function askDaemon<TEnvelope>(
     socket.on('error', () => finish(null));
     socket.on('close', () => finish(null));
   });
+}
+
+/** A control request with a short patience: both are quick or the daemon is not there. */
+async function askControl(
+  socketPath: string,
+  kind: 'status' | 'shutdown',
+): Promise<Record<string, unknown> | null> {
+  const answer = await askDaemon<Record<string, unknown>>(
+    socketPath,
+    { v: 1, id: kind, kind },
+    { connectTimeoutMs: CONTROL_CONNECT_TIMEOUT_MS, responseTimeoutMs: CONTROL_RESPONSE_TIMEOUT_MS },
+  );
+  if (answer === null || !answer.ok || answer.kind !== 'control') return null;
+  return (answer.envelope ?? {}) as Record<string, unknown>;
+}
+
+/** What a running daemon reports about itself, or null when none answers. */
+export function daemonStatus(socketPath: string): Promise<Record<string, unknown> | null> {
+  return askControl(socketPath, 'status');
+}
+
+/**
+ * Asks a daemon to stop, and says whether it acknowledged.
+ *
+ * A request rather than a signal: the daemon closes its own socket, finishes what it
+ * is doing and exits, and no caller has to guess a pid that a signal could deliver to
+ * the wrong process. A daemon that does not acknowledge is a signal's problem, and
+ * the caller can see that it did not.
+ */
+export async function stopDaemon(socketPath: string): Promise<boolean> {
+  return (await askControl(socketPath, 'shutdown')) !== null;
 }

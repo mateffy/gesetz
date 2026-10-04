@@ -47,6 +47,9 @@ export interface DaemonRunner<TEnvelope> {
  */
 export const DEFAULT_COALESCE_MS = 15;
 
+/** Time allowed for a shutdown acknowledgement to leave the socket before closing. */
+const SHUTDOWN_FLUSH_MS = 25;
+
 export interface DaemonServerOptions<TEnvelope> {
   readonly socketPath: string;
   readonly runner: DaemonRunner<TEnvelope>;
@@ -145,6 +148,7 @@ export async function startDaemonServer<TEnvelope>(
       v: 1,
       id: '',
       ok: true,
+      kind: 'check',
       envelope,
       servedFrom: run.servedFrom,
       checksNotRun: run.checksNotRun,
@@ -204,18 +208,25 @@ export async function startDaemonServer<TEnvelope>(
       connection.write(encodeLine(fail('', decoded.error)));
       return;
     }
-    if (decoded.kind === 'status') {
+    if (decoded.kind === 'status' || decoded.kind === 'shutdown') {
       connection.write(
         encodeLine({
           v: 1,
           id: decoded.id,
           ok: true,
+          kind: 'control',
           envelope: { pid: process.pid, ...server.stats },
-          servedFrom: 'cache',
           checksNotRun: [],
           computedAt: lastComputedAt ?? startedAt,
         }),
       );
+      if (decoded.kind === 'shutdown') {
+        // Answer first, then stop: the caller should learn that its request arrived,
+        // and the write needs a moment to leave the buffer.
+        setTimeout(() => {
+          void server.close();
+        }, SHUTDOWN_FLUSH_MS);
+      }
       return;
     }
 
