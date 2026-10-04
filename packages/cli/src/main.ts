@@ -31,11 +31,10 @@ import { RUNTIME, resolveStorage } from './storage';
 import { baselineCommand, loadBaseline } from './baseline';
 import { describeCoordination, requestKeyFor, resolveCoordinationKnobs } from './check-coordination';
 import { parseFileRequest, resolveCheckScope } from './check';
-import { renderReplacements } from './replacements';
+import { skillCommand } from './skill-command';
 import { watchForChanges } from './watch';
 import { detectFormat, formatCategoryTable, formatCi, formatExemptionNotices, formatList, formatStatusBanner, formatViolations, type OutputFormat } from './format';
 import { formatEnvelope } from './envelope';
-import { SKILL_MARKDOWN } from './skill';
 import { initCommand } from './init';
 
 /** Debounce for watch-mode re-runs, in milliseconds. */
@@ -430,34 +429,6 @@ const listCommand = Command.make(
 ).pipe(Command.withDescription('List all quality rules with guidance'));
 
 // ─── `gesetz skill` ───────────────────────────────────────────────────────────
-
-const skillCommand = Command.make(
-  'skill',
-  {},
-  () =>
-    Effect.gen(function* () {
-      yield* Console.log(SKILL_MARKDOWN.trimEnd());
-      // The recipe is generated from what this project actually configured, so an
-      // adapter that declares what it replaces shows up here and nothing has to be
-      // maintained by hand. Without a config there is nothing to generate from, and
-      // saying so beats printing a list that silently covers nothing.
-      const config = yield* loadConfig(process.cwd(), {
-        changedSince: undefined,
-        configPath: undefined,
-        projectRootOverride: false,
-      }).pipe(Effect.catchAll(() => Effect.succeed(null)));
-      yield* Console.log('');
-      yield* Console.log(
-        config === null
-          ? 'No gesetz config found here, so there is no list of configured tools below.'
-          : renderReplacements(config.rules),
-      );
-    }),
-).pipe(
-  Command.withDescription(
-    'Print agent skill markdown to stdout, including what the configured adapters replace',
-  ),
-);
 
 // ─── Root command ─────────────────────────────────────────────────────────────
 

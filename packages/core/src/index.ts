@@ -197,3 +197,41 @@ export type {
   BaselineViolationGroup,
 } from './engine/baseline';
 export { baselinePathFor, readBaselineFile, serializeBaseline, writeBaselineFile } from './engine/baseline-file';
+
+// ─── Daemon mode ──────────────────────────────────────────────────────────────
+// Optional by construction: the engine never imports this, and every entry point
+// here is something the CLI drives. A project with no daemon running behaves exactly
+// as it did before this module existed.
+export {
+  MAX_REQUEST_BYTES,
+  MAX_RESPONSE_BYTES,
+  MAX_SOCKET_PATH,
+  askDaemon,
+  createLimiter,
+  daemonDirFor,
+  decodeRequest,
+  decodeResponse,
+  encodeLine,
+  ensureSocketDir,
+  isDecodeError,
+  orderBatches,
+  planBatches,
+  removeSocketFile,
+  socketExists,
+  socketPathFor,
+  startDaemonServer,
+} from './engine/daemon/index';
+export type {
+  AskOptions,
+  Batch,
+  CheckSpec,
+  DaemonRequest,
+  DaemonResponse,
+  DaemonRun,
+  DaemonRunner,
+  DaemonServer,
+  DaemonServerOptions,
+  DaemonStats,
+  Schedulable,
+  Scope,
+} from './engine/daemon/index';
